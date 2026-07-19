@@ -216,58 +216,65 @@ async def show_shop(ctx):
     embed.set_footer(text=f"رصيدك الحالي: {get_balance(ctx.author.id)} دولار.")
     await ctx.send(embed=embed, view=MainShopView(ctx.author))
 
-# --- 🔄 أمر التحويل المالي (ممنوع التحويل للنفس وبدون فراغات في الاسم) ---
+# --- 🔄 أمر التحويل المالي ---
 @bot.command(name="تحويل")
 async def transfer_money(ctx, member: discord.Member, amount: int):
-    """أمر تحويل الدولارات بين الأعضاء: !تحويل @شخص 100"""
     if member.id == ctx.author.id:
         await ctx.send("❌ | لا يمكنك تحويل الأموال لنفسك!")
         return
-    
     if amount <= 0:
         await ctx.send("❌ | يرجى إدخال مبلغ صحيح أكبر من صفر!")
         return
-
     author_balance = get_balance(ctx.author.id)
     if author_balance < amount:
         await ctx.send(f"⚠️ | رصيدك غير كافٍ! رصيدك الحالي هو **{author_balance} دولار** فقط.")
         return
-
-    # تنفيذ الحوالة
     update_balance(ctx.author.id, -amount)
     update_balance(member.id, amount)
-    
     await ctx.send(f"💸 | تم بنجاح تحويل **{amount} دولار** من {ctx.author.mention} إلى {member.mention} ✅!")
 
-# --- ➕ أمر إضافة الأموال (خاص بالإدارة والرتب المحددة) ---
+# --- ➕ أمر إضافة الأموال ---
 @bot.command(name="اضافة")
 async def add_money(ctx, member: discord.Member, amount: int):
-    """أمر إدارة لإعطاء فلوس: !اضافة @شخص 500"""
     admin_role = ctx.guild.get_role(ADMIN_ROLE_ID)
     if admin_role not in ctx.author.roles:
         await ctx.send("❌ | ليس لديك صلاحية استخدام هذا الأمر! (خاص بالإدارة المعتمدة)")
         return
-
     if amount <= 0:
         await ctx.send("❌ | يرجى إدخال مبلغ صحيح لإضافته!")
         return
-
     update_balance(member.id, amount)
     await ctx.send(f"💰 | قامت الإدارة بإضافة **{amount} دولار** إلى حساب {member.mention} 🌟!\nرصيده الجديد أصبح: {get_balance(member.id)} دولار.")
 
-# --- إقلاع وتجهيز البوت وتحميل الملفات الخارجية (Cogs) ---
+# --- 👤 أمر الأفاتار المعروض داخل الملف الرئيسي ---
+@bot.command(name="افتار", aliases=["avatar"])
+async def show_avatar(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    embed = discord.Embed(title=f"👤 الصورة الشخصية لـ {member.name}", color=discord.Color.blue())
+    embed.set_image(url=member.display_avatar.url)
+    await ctx.send(embed=embed)
+
+# --- 🖼️ أمر البانر المعروض داخل الملف الرئيسي ---
+@bot.command(name="بنر", aliases=["banner"])
+async def show_banner(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    user = await bot.fetch_user(member.id)
+    if user.banner:
+        embed = discord.Embed(title=f"🖼️ بنر الحساب لـ {user.name}", color=discord.Color.purple())
+        embed.set_image(url=user.banner.url)
+        await ctx.send(embed=embed)
+    else:
+        return  # يتجاهل الأمر تماماً إذا لم يكن لديه بنر
+
+# --- إقلاع وتجهيز البوت وتحميل ملف الإدارة فقط ---
 @bot.event
 async def setup_hook():
     try:
-        # تحميل ملف الإدارة (moderation.py)
+        # استدعاء ملف المشرفين فقط (تأكد أن ملف moderation.py مرفوع على حسابك)
         await bot.load_extension("moderation")
         print("Successfully loaded moderation commands!")
-        
-        # تحميل ملف الميديا العام (utility.py)
-        await bot.load_extension("utility")
-        print("Successfully loaded utility commands!")
     except Exception as e:
-        print(f"Failed to load setup hooks: {e}")
+        print(f"Failed to load moderation setup: {e}")
 
 @bot.event
 async def on_ready():
