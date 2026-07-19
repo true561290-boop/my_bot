@@ -41,6 +41,19 @@ def update_balance(user_id, amount):
     bot.user_bank[uid] = current + amount
     save_data(bot.user_bank)
 
+# --- ⚙️ إعدادات سلع المتجر (استبدل الـ IDs بـ رتب سيرفرك الحقيقية) ---
+ROLES_SHOP = {
+    "role_1": {"name": "رتبة مميز ✨", "price": 500, "role_id": 111222333444555666},
+    "role_2": {"name": "رتبة VIP 🔥", "price": 1500, "role_id": 777888999000111222},
+    "role_3": {"name": "رتبة الملك 👑", "price": 5000, "role_id": 333444555666777888}
+}
+
+COLORS_SHOP = {
+    "color_red": {"name": "اللون الأحمر 🔴", "price": 300, "role_id": 444555666777888999},
+    "color_blue": {"name": "اللون الأزرق 🔵", "price": 300, "role_id": 111555666777888999},
+    "color_green": {"name": "اللون الأخضر 🟢", "price": 300, "role_id": 222555666777888999}
+}
+
 # --- واجهة أزرار لعبة القنبلة ---
 class BombButtons(discord.ui.View):
     def __init__(self, author, correct_wire):
@@ -84,7 +97,100 @@ class BombButtons(discord.ui.View):
     async def green_wire(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_choice(interaction, "أخضر")
 
-# --- أوامر الألعاب المباشرة ---
+# --- 🛒 كلاسات واجهة المتجر التفاعلية الجديدة 🛒 ---
+
+# 1. الأزرار الخاصة بشراء السلع (الألوان أو الرتب) مع زر العودة للرئيسية
+class ItemPurchaseView(discord.ui.View):
+    def __init__(self, author, items_dict, is_roles=True):
+        super().__init__(timeout=60.0)
+        self.author = author
+        self.items_dict = items_dict
+        
+        # إنشاء أزرار ديناميكية بناءً على العناصر المتاحة
+        for key, item in self.items_dict.items():
+            button = discord.ui.Button(
+                label=f"شراء: {item['name'].split()[0]}", 
+                style=discord.ButtonStyle.secondary, 
+                custom_id=key
+            )
+            button.callback = self.make_callback(item)
+            self.add_item(button)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user != self.author:
+            await interaction.response.send_message("❌ هذا المتجر تصفحه شخص آخر! اكتب `!متجر` لفتح متجرك الخاص.", ephemeral=True)
+            return False
+        return True
+
+    def make_callback(self, item):
+        async def button_callback(interaction: discord.Interaction):
+            user_balance = get_balance(self.author.id)
+            if user_balance < item["price"]:
+                await interaction.response.send_message(f"⚠️ | رصيدك غير كافٍ! تحتاج إلى **{item['price'] - user_balance} دولار** إضافية.", ephemeral=True)
+                return
+
+            role = interaction.guild.get_role(item["role_id"])
+            if not role:
+                await interaction.response.send_message("❌ | خطأ: لم يتم العثور على الرتبة في السيرفر، يرجى إبلاغ الإدارة.", ephemeral=True)
+                return
+
+            if role in interaction.user.roles:
+                await interaction.response.send_message(f"🎒 | أنت تمتلك هذه الميزة بالفعل!", ephemeral=True)
+                return
+
+            try:
+                await interaction.user.add_roles(role)
+                update_balance(self.author.id, -item["price"])
+                await interaction.response.send_message(f"🎉 | مبروك! تم شراء **{item['name']}** بنجاح وتم خصم **{item['price']} دولار** من رصيدك 💸!", ephemeral=True)
+            except discord.Forbidden:
+                await interaction.response.send_message("❌ | البوت لا يملك صلاحية إعطاء الرتب. تأكد من رفع رتبة البوت في إعدادات السيرفر!", ephemeral=True)
+        return button_callback
+
+    # زر العودة المنفصل إلى القائمة الرئيسية للمتجر
+    @discord.ui.button(label="⬅️ العودة للقائمة الرئيسية", style=discord.ButtonStyle.danger, row=4)
+    async def back_to_main(self, interaction: discord.Interaction, button: discord.ui.Button):
+        main_embed = discord.Embed(title="🛒 متجر السيرفر التفاعلي للبوت B✰IL", color=discord.Color.gold(), description="اختر القسم الذي تريد تصفحه من القائمة المنسدلة أدناه:")
+        main_embed.set_footer(text=f"رصيدك الحالي: {get_balance(self.author.id)} دولار.")
+        await interaction.response.edit_message(embed=main_embed, view=MainShopView(self.author))
+
+# 2. القائمة المنسدلة الرئيسية للمتجر
+class ShopSelect(discord.ui.Select):
+    def __init__(self, author):
+        self.author = author
+        options = [
+            discord.SelectOption(label="قسم الرتب مخصصة 👑", description="تصفح واشترِ الرتب الإدارية والمميزة", value="roles"),
+            discord.SelectOption(label="قسم ألوان الشات 🎨", description="تصفح واشترِ ألواناً مخصصة لاسمك", value="colors")
+        ]
+        super().__init__(placeholder="🛒 اختر قسم المتجر من هنا...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user != self.author:
+            await interaction.response.send_message("❌ هذا المتجر تصفحه شخص آخر! اكتب `!متجر` لفتح متجرك الخاص.", ephemeral=True)
+            return
+
+        if self.values[0] == "roles":
+            embed = discord.Embed(title="👑 قسم الرتب المتاحة للشراء", color=discord.Color.purple())
+            for key, details in ROLES_SHOP.items():
+                embed.add_field(name=details["name"], value=f"السعر: **{details['price']} دولار** 💵", inline=False)
+            
+            embed.set_footer(text=f"رصيدك الحالي: {get_balance(self.author.id)} دولار. اضغط الزر بالأسفل للشراء.")
+            await interaction.response.edit_message(embed=embed, view=ItemPurchaseView(self.author, ROLES_SHOP, is_roles=True))
+
+        elif self.values[0] == "colors":
+            embed = discord.Embed(title="🎨 قسم ألوان الأسماء المتاحة للشراء", color=discord.Color.blue())
+            for key, details in COLORS_SHOP.items():
+                embed.add_field(name=details["name"], value=f"السعر: **{details['price']} دولار** 💵", inline=False)
+            
+            embed.set_footer(text=f"رصيدك الحالي: {get_balance(self.author.id)} دولار. اضغط الزر بالأسفل للشراء.")
+            await interaction.response.edit_message(embed=embed, view=ItemPurchaseView(self.author, COLORS_SHOP, is_roles=False))
+
+# 3. الكلاس الشامل الذي يجمع القائمة المنسدلة
+class MainShopView(discord.ui.View):
+    def __init__(self, author):
+        super().__init__(timeout=60.0)
+        self.add_item(ShopSelect(author))
+
+# --- أوامر البوت والألعاب المباشرة ---
 
 @bot.command(name="قنبلة")
 async def game_bomb(ctx):
@@ -98,7 +204,7 @@ async def game_bomb(ctx):
 @bot.command(name="سؤال")
 async def game_quiz(ctx):
     questions = {
-        "ما هي عاصمة السعودية؟": "الرياض",
+        "ما هي عاصمة السعودية？": "الرياض",
         "كم عدد قارات العالم؟": "7",
         "ما هو أسرع حيوان بري؟": "الفهد"
     }
@@ -120,7 +226,20 @@ async def check_wallet(ctx):
     balance = get_balance(ctx.author.id)
     await ctx.send(f"💳 | رصيدك الحالي يا {ctx.author.mention} هو: **{balance} دولار** 💵.")
 
-# --- الطريقة الصحيحة والمحدثة لتحميل الملفات الخارجية (Cogs) ---
+# --- أمر فتح المتجر الرئيسي ---
+@bot.command(name="متجر")
+async def show_shop(ctx):
+    """فتح المتجر التفاعلي المطور"""
+    embed = discord.Embed(
+        title="🛒 متجر السيرفر التفاعلي للبوت B✰IL", 
+        color=discord.Color.gold(), 
+        description="اختر القسم الذي تريد تصفحه من القائمة المنسدلة أدناه:"
+    )
+    embed.set_footer(text=f"رصيدك الحالي: {get_balance(ctx.author.id)} دولار.")
+    view = MainShopView(ctx.author)
+    await ctx.send(embed=embed, view=view)
+
+# --- إقلاع وتجهيز البوت ---
 @bot.event
 async def setup_hook():
     try:
@@ -132,13 +251,5 @@ async def setup_hook():
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name}")
-    
-    # في ملف BIL.py عند إنشاء البوت:
-bot = commands.Bot(
-    command_prefix="!", 
-    intents=intents, 
-    allowed_mentions=discord.AllowedMentions(users=False, roles=False, everyone=False)
-)
-    
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
