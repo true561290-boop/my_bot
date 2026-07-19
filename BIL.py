@@ -171,4 +171,5 @@ async def games(ctx):
     await ctx.send("🎮 **مرحباً بك في قائمة الألعاب المتنوعة!**\nاختر لعبتك المفضلة واجمع الطولارات 💵:", view=view)
 
 # ضع توكن بوتك هنا
-bot.run("MTUyODA4MjM0NzgzOTMyNDIwMg.Gn4YH4.7iSGD7iptkXZuyawHveOFeVAcquatZOm1tsU8s")
+import os
+bot.run(os.environ.get('DISCORD_TOKEN'))
