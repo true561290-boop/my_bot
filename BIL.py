@@ -132,5 +132,13 @@ async def setup_hook():
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name}")
+    
+    # في ملف BIL.py عند إنشاء البوت:
+bot = commands.Bot(
+    command_prefix="!", 
+    intents=intents, 
+    allowed_mentions=discord.AllowedMentions(users=False, roles=False, everyone=False)
+)
+    
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
