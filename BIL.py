@@ -3,6 +3,7 @@ from discord.ext import commands
 import random
 import json
 import os
+import asyncio
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -67,7 +68,7 @@ class BombButtons(discord.ui.View):
         else:
             update_balance(self.author.id, -20)
             await interaction.response.edit_message(
-                content=f"�ا انفجرت القنبلة! السلك الصحيح كان ({self.correct_wire}). خسرت **20 طولار**💸.\nرصيدك الحالي: {get_balance(self.author.id)} طولار."
+                content=f"💥 **طرااااخ!** انفجرت القنبلة! السلك الصحيح كان ({self.correct_wire}). خسرت **20 دولار** 💸.\nرصيدك الحالي: {get_balance(self.author.id)} دولار.",
                 view=None
             )
 
@@ -108,28 +109,28 @@ async def game_quiz(ctx):
         return m.channel == ctx.channel and m.content.strip() == a
 
     try:
-        import asyncio
         msg = await bot.wait_for('message', check=check, timeout=30.0)
         update_balance(msg.author.id, 30)
-        await ctx.send(f"🎉 إجابة صحيحة من {msg.author.mention}! ربحت **30 طولار 💵. رصيدك الحالي: {get_balance(msg.author.id)} طولار.")
+        await ctx.send(f"🎉 إجابة صحيحة من {msg.author.mention}! ربحت **30 دولار** 💵. رصيدك الحالي: {get_balance(msg.author.id)} دولار.")
     except asyncio.TimeoutError:
         await ctx.send(f"⏱️ انتهى الوقت! الإجابة الصحيحة كانت: {a}")
 
-@bot.command(name="طولاري")
+@bot.command(name="فلوس")
 async def check_wallet(ctx):
     balance = get_balance(ctx.author.id)
-    await ctx.send(f"💳 | رصيدك الحالي يا {ctx.author.mention} هو: **{balance}طولار 💵.
+    await ctx.send(f"💳 | رصيدك الحالي يا {ctx.author.mention} هو: **{balance} دولار** 💵.")
 
-# --- استدعاء وترتيب ملفات الأوامر الخارجية (Cogs) عند الإقلاع ---
+# --- الطريقة الصحيحة والمحدثة لتحميل الملفات الخارجية (Cogs) ---
 @bot.event
-async def on_ready():
-    # كود يقوم بالبحث عن ملف moderation وتحميل أوامره تلقائياً
+async def setup_hook():
     try:
         await bot.load_extension("moderation")
         print("Successfully loaded moderation commands!")
     except Exception as e:
         print(f"Failed to load moderation setup: {e}")
-        
+
+@bot.event
+async def on_ready():
     print(f"Logged in as {bot.user.name}")
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
