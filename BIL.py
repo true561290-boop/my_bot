@@ -216,7 +216,7 @@ async def show_shop(ctx):
     embed.set_footer(text=f"رصيدك الحالي: {get_balance(ctx.author.id)} دولار.")
     await ctx.send(embed=embed, view=MainShopView(ctx.author))
 
-# --- 🔄 أمر التحويل المالي (متاح للجميع) ---
+# --- 🔄 أمر التحويل المالي (ممنوع التحويل للنفس وبدون فراغات في الاسم) ---
 @bot.command(name="تحويل")
 async def transfer_money(ctx, member: discord.Member, amount: int):
     """أمر تحويل الدولارات بين الأعضاء: !تحويل @شخص 100"""
@@ -243,7 +243,6 @@ async def transfer_money(ctx, member: discord.Member, amount: int):
 @bot.command(name="اضافة")
 async def add_money(ctx, member: discord.Member, amount: int):
     """أمر إدارة لإعطاء فلوس: !اضافة @شخص 500"""
-    # التحقق من أن الشخص يملك رتبة الإدارة المحددة فوق
     admin_role = ctx.guild.get_role(ADMIN_ROLE_ID)
     if admin_role not in ctx.author.roles:
         await ctx.send("❌ | ليس لديك صلاحية استخدام هذا الأمر! (خاص بالإدارة المعتمدة)")
@@ -256,14 +255,19 @@ async def add_money(ctx, member: discord.Member, amount: int):
     update_balance(member.id, amount)
     await ctx.send(f"💰 | قامت الإدارة بإضافة **{amount} دولار** إلى حساب {member.mention} 🌟!\nرصيده الجديد أصبح: {get_balance(member.id)} دولار.")
 
-# --- إقلاع وتجهيز البوت ---
+# --- إقلاع وتجهيز البوت وتحميل الملفات الخارجية (Cogs) ---
 @bot.event
 async def setup_hook():
     try:
+        # تحميل ملف الإدارة (moderation.py)
         await bot.load_extension("moderation")
         print("Successfully loaded moderation commands!")
+        
+        # تحميل ملف الميديا العام (utility.py)
+        await bot.load_extension("utility")
+        print("Successfully loaded utility commands!")
     except Exception as e:
-        print(f"Failed to load moderation setup: {e}")
+        print(f"Failed to load setup hooks: {e}")
 
 @bot.event
 async def on_ready():
