@@ -5,24 +5,31 @@ class Moderation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # 1. أمر مسح الرسائل (المحدث)
+    # --- 🧹 أمر مسح الرسائل المطور ---
     @commands.command(name="مسح")
-    @commands.has_permissions(manage_messages=True) # يتطلب رتبة تمتلك صلاحية إدارة الرسائل
+    @commands.has_permissions(manage_messages=True)
     async def clear_messages(self, ctx, amount: int):
+        """أمر مسح الرسائل: !مسح 10"""
         if amount <= 0:
-            await ctx.send("❌ | يرجى تحديد عدد أكبر من الصفر! مثال: `!مسح 10`")
+            await ctx.send("❌ | يرجى تحديد عدد رسائل أكبر من صفر!", delete_after=2)
             return
-            
-        # حذف رسالة الأمر الأصيلة (!مسح) فوراً وقبل كل شيء
-        await ctx.message.delete()
+
+        # إضافة 1 لعدد الرسائل لحذف رسالة الأمر نفسه (!مسح) مع الرسائل المطلوبة
+        deleted = await ctx.channel.purge(limit=amount + 1)
         
-        # نقوم بمسح عدد الرسائل المطلوبة من الشات
-        deleted = await ctx.channel.purge(limit=amount)
-        
-        # إرسال رسالة تأكيد مؤقتة وحذفها بعد 3 ثوانٍ ليبقى الشات نظيفاً تماماً
-        msg = await ctx.send(f"🧹 | تم مسح {len(deleted)} رسالة بنجاح!")
-        await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.Duration(seconds=3))
-        await msg.delete()
+        # 🌟 هنا التعديل: البوت يرسل الرسالة ويحذفها تلقائياً بعد ثانيتين (2)
+        await ctx.send(f"🧹 | تم مسح {len(deleted) - 1} رسالة بنجاح!", delete_after=2)
+
+    # معالجة الخطأ في حال عدم امتلاك الصلاحية
+    @clear_messages.error
+    async def clear_error(self, ctx, error):
+        if isinstance(error, commands.MissingPermissions):
+            await ctx.send("❌ | عذراً، هذا الأمر خاص بالمشرفين الذين يملكون صلاحية `إدارة الرسائل` فقط!", delete_after=3)
+
+# دالة التجهيز لربط الملف بالملف الرئيسي
+async def setup(bot):
+    await bot.add_cog(Moderation(bot))
+
 
     # 2. أمر الميوت (كتم الصوت والكتابة)
     @commands.command(name="ميوت")
