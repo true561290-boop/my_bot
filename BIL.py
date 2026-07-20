@@ -43,7 +43,9 @@ async def auto_ping():
             print(f"⚠️ [Self-Ping] فشلت المناداة الذاتية: {e}")
 
 # --- نظام الحفظ الأوتوماتيكي للبيانات (البنك) ---
-FILE_PATH = "bank.json"
+# تحديد مسار ملف البنك تلقائياً لتفادي مشاكل عدم العثور على الملف
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FILE_PATH = os.path.join(BASE_DIR, "bank.json")
 
 def load_data():
     if not os.path.exists(FILE_PATH):
@@ -226,13 +228,17 @@ async def game_bomb(ctx):
 
 @bot.command(name="سؤال")
 async def game_quiz(ctx):
-    # 📝 تحميل الأسئلة من ملف الـ JSON الخارجي
-    if not os.path.exists("questions.json"):
+    # 🎯 حل المشكلة: تحديد مسار ملف الأسئلة تلقائياً ومطلقاً
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    questions_path = os.path.join(BASE_DIR, "questions.json")
+
+    # 📝 تحميل الأسئلة من مسار الملف الذكي الجديد
+    if not os.path.exists(questions_path):
         await ctx.send("❌ | خطأ: لم يتم العثور على ملف الأسئلة `questions.json`!")
         return
         
     try:
-        with open("questions.json", "r", encoding="utf-8") as f:
+        with open(questions_path, "r", encoding="utf-8") as f:
             questions_pool = json.load(f)
     except Exception as e:
         await ctx.send(f"❌ | فشل في قراءة ملف الأسئلة: {e}")
@@ -241,7 +247,7 @@ async def game_quiz(ctx):
     # 🎲 اختيار سؤال عشوائي
     q, a = random.choice(list(questions_pool.items()))
     
-    # 💬 إرسال بطاقة السؤال والتحدي
+    # 💬 إرسال بطاقة السؤال والتحدي السريع
     embed = discord.Embed(
         title="🧠 سؤال ذكاء وتحدي (صعب)", 
         description=f"**{q}**", 
@@ -254,7 +260,7 @@ async def game_quiz(ctx):
         return m.channel == ctx.channel and m.content.strip().lower() == a.strip().lower()
         
     try:
-        # ⏱️ تم تعديل المؤقت البرمجي هنا ليصبح 8 ثوانٍ بدلاً من 30 ثانية
+        # ⏱️ مؤقت الـ 8 ثوانٍ السريعة
         msg = await bot.wait_for('message', check=check, timeout=8.0)
         update_balance(msg.author.id, 50)
         
@@ -378,7 +384,6 @@ async def clear_error(ctx, error):
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name} and fully operational 24/7!")
-    # التشغيل التلقائي لحلقة المناداة الذاتية فور استيقاظ البوت
     auto_ping.start()
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
