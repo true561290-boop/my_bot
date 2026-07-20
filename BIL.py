@@ -226,7 +226,7 @@ async def game_bomb(ctx):
 
 @bot.command(name="سؤال")
 async def game_quiz(ctx):
-    questions = {"ما هي عاصمة السعودية？": "الرياض", "كم عدد قارات العالم؟": "7", "ما هو أسرع حيوان بري؟": "الفهد"}
+    questions = {"ما هي عاصمة السعودية؟": "الرياض", "كم عدد قارات العالم؟": "7", "ما هو أسرع حيوان بري؟": "الفهد"}
     q, a = random.choice(list(questions.items()))
     await ctx.send(f"🧠 **سؤال:** {q}")
     def check(m): return m.channel == ctx.channel and m.content.strip() == a
@@ -255,7 +255,7 @@ async def transfer_money(ctx, member: discord.Member, amount: int):
         await ctx.send("❌ | لا يمكنك تحويل الأموال لنفسك!")
         return
     if amount <= 0:
-        await ctx.send("❌ | يرجى إدخال مبلغ صحيح أكبر من صفر!")
+        await ctx.send("❌ | يرجى إدخل مبلغ صحيح أكبر من صفر!")
         return
     author_balance = get_balance(ctx.author.id)
     if author_balance < amount:
@@ -277,6 +277,35 @@ async def add_money(ctx, member: discord.Member, amount: int):
         return
     update_balance(member.id, amount)
     await ctx.send(f"💰 | قامت الإدارة بإضافة **{amount} دولار** إلى حساب {member.mention} 🌟!\nرصيده الجديد أصبح: {get_balance(member.id)} دولار.")
+
+# --- 🔍 أمر كشف الآيدي المطور (حساب أو رتبة) ---
+@bot.command(name="ايدي")
+async def get_id(ctx, target: str = None):
+    # إذا لم يكتب شيء بعد الأمر، يعطيه آيدي حسابه الشخصي
+    if target is None:
+        await ctx.send(f"🆔 | الآيدي الخاص بك هو: `{ctx.author.id}`")
+        return
+
+    # محاولة التحقق إذا كان المكتوب هو منشن لعضو
+    if target.startswith("<@") and target.endswith(">"):
+        try:
+            member = await commands.MemberConverter().convert(ctx, target)
+            await ctx.send(f"👤 | آيدي الحساب لـ {member.mention} هو: `{member.id}`")
+            return
+        except commands.BadArgument:
+            pass
+
+    # محاولة التحقق إذا كان المكتوب هو منشن لرتبة
+    if target.startswith("<@&") and target.endswith(">"):
+        try:
+            role = await commands.RoleConverter().convert(ctx, target)
+            await ctx.send(f"👑 | آيدي الرتبة لـ {role.name} هو: `{role.id}`")
+            return
+        except commands.BadArgument:
+            pass
+
+    # إذا كُتب نص عادي لم يستطع البوت التعرف عليه كمنشن
+    await ctx.send("⚠️ | يرجى استخدام منشن صحيح لعضو أو لرتبة! (مثال: `!ايدي @name`)")
 
 # --- 👤 أمر الأفاتار ---
 @bot.command(name="افتار", aliases=["avatar"])
