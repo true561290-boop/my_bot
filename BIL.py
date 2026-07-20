@@ -37,6 +37,17 @@ FILE_PATH = "bank.json"
 
 ADMIN_ROLE_ID = 1515396547528102131  # رتبة اونر لامر الاضافة والمسح
 
+# --- 🧠 بنك الأسئلة المدمج داخل الكود مباشرة ---
+QUESTIONS_POOL = {
+    "ما هو أول مسجد بني في الإسلام؟": "مسجد قباء",
+    "ما هو أطول نهر في العالم؟": "نهر النيل",
+    "كم عدد الكواكب في المجموعة الشمسية؟": "8",
+    "ما هو الطائر الذي يضع أكبر بيضة في العالم؟": "النعامة",
+    "عاصمة المملكة العربية السعودية هي؟": "الرياض",
+    "ما هو الشيء الذي كلما أخذت منه كبر؟": "الحفرة",
+    "ما هو الكائن الحي الذي يملك 3 قلوب؟": "الأخطبوط"
+}
+
 ROLES_SHOP = {
     "role_1": {"name": "رتبة الزنجي المؤسس 👑", "price": 5000, "role_id": 1527739093163708548}
 }
@@ -51,10 +62,9 @@ COLORS_SHOP = {
     "color_skin": {"name": "لون skin 🎨", "price": 300, "role_id": 1515480359553335441}
 }
 
-# بيئة تخزين محلية مؤقتة ليشتغل البوت فوراً قبل أول اتصال
 bot.user_bank = {}
 
-# --- 🔄 دالات الحفظ السحابي الذكية والمحمية عبر aiohttp ---
+# --- 🔄 دالات الحفظ السحابي عبر GitHub API ---
 async def load_data_from_github():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -77,7 +87,6 @@ async def async_update_balance(user_id, amount):
     uid = str(user_id)
     import base64
     
-    # التأكد من تحديث البيانات محلياً أولاً
     if uid not in bot.user_bank:
         bot.user_bank[uid] = 200
     bot.user_bank[uid] += amount
@@ -125,7 +134,7 @@ async def auto_ping():
         except Exception as e:
             print(f"⚠️ [Self-Ping] خطأ: {e}")
 
-# --- 🎮 واجهات الألعاب والمتجر التفاعلية ---
+# --- 🎮 واجهات الألعاب والمتجر التفاعلية الجديدة ---
 class BombButtons(discord.ui.View):
     def __init__(self, author, correct_wire):
         super().__init__(timeout=30.0)
@@ -156,40 +165,58 @@ class BombButtons(discord.ui.View):
     @discord.ui.button(label="أخضر 🟢", style=discord.ButtonStyle.success)
     async def green_wire(self, interaction: discord.Interaction, button: discord.ui.Button): await self.process_choice(interaction, "أخضر")
 
+# القائمة المنسدلة المخصصة لشراء الغرض المختار
+class ItemPurchaseSelect(discord.ui.Select):
+    def __init__(self, author, items_dict, placeholder_text, is_color_shop=False):
+        self.author = author
+        self.items_dict = items_dict
+        self.is_color_shop = is_color_shop
+        options = []
+        for key, item in items_dict.items():
+            options.append(discord.SelectOption(label=item["name"], description=f"السعر: {item['price']} دولار", value=key))
+        super().__init__(placeholder=placeholder_text, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user != self.author: return
+        chosen_key = self.values[0]
+        item = self.items_dict[chosen_key]
+        
+        user_balance = get_balance(self.author.id)
+        if user_balance < item["price"]:
+            await interaction.response.send_message(f"⚠️ رصيدك غير كافٍ! تحتاج {item['price'] - user_balance} دولار إضافية.", ephemeral=True)
+            return
+            
+        role = interaction.guild.get_role(item["role_id"])
+        if not role:
+            await interaction.response.send_message("❌ لم يتم العثور على الرتبة بالسيرفر.", ephemeral=True)
+            return
+            
+        if role in interaction.user.roles:
+            await interaction.response.send_message("🎒 تمتلك هذه الميزة بالفعل!", ephemeral=True)
+            return
+            
+        try:
+            # 🎨 إذا كان المتجر هو متجر ألوان، نقوم بحذف أي لون قديم يمتلكه العضو من ألوان المتجر
+            if self.is_color_shop:
+                for col_key, col_val in COLORS_SHOP.items():
+                    old_role = interaction.guild.get_role(col_val["role_id"])
+                    if old_role and old_role in interaction.user.roles:
+                        await interaction.user.remove_roles(old_role)
+            
+            # إعطاء الرتبة الجديدة وخصم الفلوس
+            await interaction.user.add_roles(role)
+            await async_update_balance(self.author.id, -item["price"])
+            await interaction.response.send_message(f"🎉 مبروك! تم شراء **{item['name']}** وخصم **{item['price']} دولار** 💸!", ephemeral=True)
+        except:
+            await interaction.response.send_message("❌ البوت لا يملك صلاحية الرتب أو ترتيبه أقل من الرتبة المشتراة.", ephemeral=True)
+
 class ItemPurchaseView(discord.ui.View):
-    def __init__(self, author, items_dict):
+    def __init__(self, author, items_dict, placeholder_text, is_color_shop=False):
         super().__init__(timeout=60.0)
         self.author = author
-        for key, item in items_dict.items():
-            btn = discord.ui.Button(label=f"شراء: {item['name'].split()[0]}", style=discord.ButtonStyle.secondary, custom_id=key)
-            btn.callback = self.make_callback(item)
-            self.add_item(btn)
+        self.add_item(ItemPurchaseSelect(author, items_dict, placeholder_text, is_color_shop))
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        return interaction.user == self.author
-
-    def make_callback(self, item):
-        async def button_callback(interaction: discord.Interaction):
-            user_balance = get_balance(self.author.id)
-            if user_balance < item["price"]:
-                await interaction.response.send_message(f"⚠️ رصيدك غير كافٍ! تحتاج {item['price'] - user_balance} دولار إضافية.", ephemeral=True)
-                return
-            role = interaction.guild.get_role(item["role_id"])
-            if not role:
-                await interaction.response.send_message("❌ لم يتم العثور على الرتبة بالسيرفر.", ephemeral=True)
-                return
-            if role in interaction.user.roles:
-                await interaction.response.send_message("🎒 تمتلك هذه الميزة بالفعل!", ephemeral=True)
-                return
-            try:
-                await interaction.user.add_roles(role)
-                await async_update_balance(self.author.id, -item["price"])
-                await interaction.response.send_message(f"🎉 مبروك! تم شراء **{item['name']}** وخصم **{item['price']} دولار** 💸!", ephemeral=True)
-            except:
-                await interaction.response.send_message("❌ البوت لا يملك صلاحية الرتب أو ترتيبه أقل من الرتبة المشتراة.", ephemeral=True)
-        return button_callback
-
-    @discord.ui.button(label="⬅️ العودة للقائمة", style=discord.ButtonStyle.danger, row=4)
+    @discord.ui.button(label="⬅️ العودة للقائمة الرئيسية", style=discord.ButtonStyle.danger, row=4)
     async def back_to_main(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=discord.Embed(title="🛒 متجر السيرفر التفاعلي للبوت B✰IL", color=discord.Color.gold()), view=MainShopView(self.author))
 
@@ -205,13 +232,13 @@ class ShopSelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         if interaction.user != self.author: return
         if self.values[0] == "roles":
-            embed = discord.Embed(title="👑 قسم الرتب المتاحة للشراء", color=discord.Color.purple())
+            embed = discord.Embed(title="👑 قسم الرتب المتاحة للشراء", description="اختر الرتبة التي ترغب بشرائها من القائمة المنسدلة بالأسفل:", color=discord.Color.purple())
             for key, det in ROLES_SHOP.items(): embed.add_field(name=det["name"], value=f"السعر: **{det['price']} دولار**", inline=False)
-            await interaction.response.edit_message(embed=embed, view=ItemPurchaseView(self.author, ROLES_SHOP))
+            await interaction.response.edit_message(embed=embed, view=ItemPurchaseView(self.author, ROLES_SHOP, "👑 اختر رتبة لشراؤها...", is_color_shop=False))
         elif self.values[0] == "colors":
-            embed = discord.Embed(title="🎨 قسم ألوان الأسماء المتاحة للشراء", color=discord.Color.blue())
+            embed = discord.Embed(title="🎨 قسم ألوان الأسماء المتاحة للشراء", description="اختر اللون الذي ترغب بشرائه من القائمة المنسدلة بالأسفل:\n*ملاحظة: شراء لون جديد يزيل اللون القديم تلقائياً!*", color=discord.Color.blue())
             for key, det in COLORS_SHOP.items(): embed.add_field(name=det["name"], value=f"السعر: **{det['price']} دولار**", inline=False)
-            await interaction.response.edit_message(embed=embed, view=ItemPurchaseView(self.author, COLORS_SHOP))
+            await interaction.response.edit_message(embed=embed, view=ItemPurchaseView(self.author, COLORS_SHOP, "🎨 اختر لوناً لشراؤه...", is_color_shop=True))
 
 class MainShopView(discord.ui.View):
     def __init__(self, author):
@@ -229,31 +256,7 @@ async def game_bomb(ctx):
 
 @bot.command(name="سؤال")
 async def game_quiz(ctx):
-    # 🎯 حل نهائي وقراءة سحابية آمنة للأسئلة عبر aiohttp
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/questions.json"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    import base64
-    
-    questions_pool = {}
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, headers=headers) as r:
-                if r.status == 200:
-                    content = await r.json()
-                    file_data = base64.b64decode(content['content']).decode('utf-8')
-                    questions_pool = json.loads(file_data)
-                else:
-                    await ctx.send("❌ | خطأ: لم يستطع البوت الوصول لملف `questions.json` على GitHub!")
-                    return
-        except Exception as e:
-            await ctx.send(f"❌ | فشل الاتصال بالسحابة لقراءة الأسئلة: {e}")
-            return
-
-    if not questions_pool:
-        await ctx.send("⚠️ | ملف الأسئلة فارغ!")
-        return
-
-    q, a = random.choice(list(questions_pool.items()))
+    q, a = random.choice(list(QUESTIONS_POOL.items()))
     embed = discord.Embed(title="🧠 سؤال تحدي ذكاء (سريع)", description=f"**{q}**", color=discord.Color.dark_red())
     embed.set_footer(text="لديك 8 ثوانٍ فقط للإجابة الصحيحة! 🔥")
     await ctx.send(embed=embed)
@@ -341,7 +344,7 @@ async def show_banner(ctx, member: discord.Member = None):
 async def on_ready():
     print("🤖 B✰IL bot is checking database...")
     await load_data_from_github()
-    print(f"Logged in as {bot.user.name} with Cloud Backup and Async Connections!")
+    print(f"Logged in as {bot.user.name} with Clean Colors Policy!")
     try:
         auto_ping.start()
     except: pass
