@@ -41,7 +41,7 @@ ADMIN_ROLE_ID = 1515396547528102131  # رتبة اونر لامر الاضافة
 QUESTIONS_POOL = {
     "ما هو أول مسجد بني في الإسلام؟": "مسجد قباء",
     "ما هو أطول نهر في العالم؟": "نهر النيل",
-    "كم عدد الكواكب في المجموعة شکست؟": "8",
+    "كم عدد الكواكب في المجموعة الشمسية؟": "8",
     "ما هو الطائر الذي يضع أكبر بيضة في العالم؟": "النعامة",
     "عاصمة المملكة العربية السعودية هي؟": "الرياض",
     "ما هو الشيء الذي كلما أخذت منه كبر؟": "الحفرة",
@@ -54,7 +54,7 @@ QUESTIONS_POOL = {
     "في أي مدينة توجد ساعة بيغ بين الشهيرة؟": "لندن",
     "ما هو أكبر المحيطات في العالم؟": "المحيط الهادئ",
     "ما هو الشيء الذي يمشي بلا أرجل ويبكي بلا أعين؟": "السحاب",
-    "من هو كليم الله من الأنبياء？": "موسى",
+    "من هو كليم الله من الأنبياء؟": "موسى",
     "كم عدد قلوب حيوان الحبار؟": "3",
     "ما هي عاصمة اليابان؟": "طوكيو",
     "ما هو الكوكب الملقب بالكوكب الأحمر؟": "المريخ",
@@ -245,7 +245,7 @@ async def auto_ping():
 
 class HeistJoinView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=20.0)
+        super().__init__(timeout=20.0)  # خفضنا مدة الانتظار للتجربة السريعة إلى 20 ثانية
         self.participants = []
 
     @discord.ui.button(label="🕶️ انضمام للعصابة", style=discord.ButtonStyle.grey)
@@ -466,7 +466,7 @@ class ItemPurchaseSelect(discord.ui.Select):
             return
             
         if role in interaction.user.roles:
-            await interaction.response.send_message("🎒 تمتلك هذه Mيزة بالفعل!", ephemeral=True)
+            await interaction.response.send_message("🎒 تمتلك هذه الميزة بالفعل!", ephemeral=True)
             return
             
         try:
@@ -519,10 +519,11 @@ class MainShopView(discord.ui.View):
 
 # --- 🎮 الأوامر الأساسية والألعاب ---
 
+# 🌟 لعبة السطو الكبرى الجماعية المحدثة والمضمونة التشغيل
 @bot.command(name="سرقة")
 async def start_heist(ctx):
     view_join = HeistJoinView()
-    view_join.participants.append(ctx.author)
+    view_join.participants.append(ctx.author)  # إضافة الشخص الذي أطلق الأمر تلقائياً
     
     embed_lobby = discord.Embed(
         title="🚨 عملية سطو مسلح كبرى على البنك المركزي! 🚨",
@@ -537,15 +538,18 @@ async def start_heist(ctx):
     view_join.stop()
     
     team = view_join.participants
+
     await lobby_msg.edit(content=f"🔒 **أُغلق باب الانضمام!** عدد أفراد العصابة المستعدين: `{len(team)}` مجرمين.\nجاري الاتصال بـ المخطط وتوزيع المهام الآن...", embed=None, view=None)
     await asyncio.sleep(3)
 
+    # معالجة ذكية لتوزيع الأدوار لتفادي توقف الكود إذا كان اللاعب وحده أو العدد قليل
     hacker_player = random.choice(team)
     bomber_player = random.choice(team)
     driver_player = random.choice(team)
+    
     heist_failed = False
 
-    # --- 1. مهمة المخترق ---
+    # --- 1. مهمة المخترق (تعطيل الكاميرات) ---
     secret_code = str(random.randint(1000, 9999))
     embed_hacker = discord.Embed(
         title="🖥️ المرحلة الأولى: إختراق أنظمة الأمان",
@@ -565,7 +569,7 @@ async def start_heist(ctx):
         await ctx.send("✅ **رائع!** تم اختراق السيرفرات وتعطيل نظام الكاميرات والإنذار المبكر بنجاح!")
     except asyncio.TimeoutError:
         heist_failed = True
-        await ctx.send(f"🚨 **انتهى الوقت!** فشل {hacker_player.mention} في إدخال الكود، انطلقت صفارات الإنذار! تم إفشال العملية.")
+        await ctx.send(f"🚨 **انتهى الوقت!** فشل {hacker_player.mention} في إدخال الكود، انطلقت صفارات الإنذار ووصلت قوات مكافحة الشغب! تم إفشال العملية.")
 
     if heist_failed:
         await finish_heist(ctx, team, success=False)
@@ -573,13 +577,14 @@ async def start_heist(ctx):
 
     await asyncio.sleep(3)
 
-    # --- 2. مهمة المفجر ---
+    # --- 2. مهمة المفجر (فتح الخزنة) ---
     correct_wire = random.choice(["الأصفر", "الأزرق"])
     view_bomb = HeistBombView(bomber_player, correct_wire)
     embed_bomb = discord.Embed(
         title="💥 المرحلة الثانية: تفجير أبواب الخزنة الكبرى",
         description=f"المفجر المعين: {bomber_player.mention}\n"
                     "وصلتم إلى باب الخزنة الفولاذي! أمامك جهاز شحنات يحتوي على سلكين.\n"
+                    "أحدهما يفتح الباب بسلام، والآخر يطلق فخ الغاز القاتل!\n\n"
                     "⏱️ **أمامك 15 ثانية فقط للاختيار عبر الأزرار بالأسفل!**",
         color=discord.Color.orange()
     )
@@ -589,7 +594,7 @@ async def start_heist(ctx):
     if not view_bomb.answered or not view_bomb.success:
         heist_failed = True
         if not view_bomb.answered:
-            await bomb_msg.edit(content=f"🚨 **انتهى الوقت!** تجمد {bomber_player.mention} من الرعب ولم يختر سلكاً، تم اعتقالكم!", view=None)
+            await bomb_msg.edit(content=f"🚨 **انتهى الوقت!** تجمد {bomber_player.mention} من الرعب ولم يختر سلكاً، حاصرتكم حراس البنك وتم اعتقالكم!", view=None)
 
     if heist_failed:
         await finish_heist(ctx, team, success=False)
@@ -597,13 +602,14 @@ async def start_heist(ctx):
 
     await asyncio.sleep(3)
 
-    # --- 3. مهمة السائق ---
+    # --- 3. مهمة السائق (الهروب النهائي) ---
     correct_way = random.choice(["النفق السفلي", "الجسر السريع"])
     view_driver = HeistDriverView(driver_player, correct_way)
     embed_driver = discord.Embed(
         title="🚓 المرحلة الثالثة والأخيرة: الهروب الكبير",
         description=f"السائق المعين: {driver_player.mention}\n"
-                    "الأموال بحوزتكم الآن وسيارات الشرطة تملأ الأفق!\n"
+                    "الأموال بحوزتكم الآن وسيارات الشرطة تملأ الأفق وصوت الهليكوبتر فوقكم!\n"
+                    "أمامك خيارين سريعين لتوجيه مدرعة الهروب:\n\n"
                     "⏱️ **أمامك 15 ثانية حاسمة للاختيار بالضغط على الأزرار!**",
         color=discord.Color.dark_gold()
     )
@@ -613,23 +619,28 @@ async def start_heist(ctx):
     if not view_driver.answered or not view_driver.success:
         heist_failed = True
         if not view_driver.answered:
-            await driver_msg.edit(content=f"🚨 **انتهى الوقت!** ضاع السائق {driver_player.mention} في الخريطة وأحيط بكم!", view=None)
+            await driver_msg.edit(content=f"🚨 **انتهى الوقت!** ضاع السائق {driver_player.mention} في الخريطة وأحاطت بكم مدرعات مكافحة الإرهاب!", view=None)
 
     if heist_failed:
         await finish_heist(ctx, team, success=False)
     else:
         await finish_heist(ctx, team, success=True)
 
+# دالة إنهاء سرقة البنك وحساب الأموال
 async def finish_heist(ctx, team, success):
     if success:
         total_loot = random.randint(1500, 3000)
         share = total_loot // len(team)
+        
         for member in team:
             await async_update_balance(member.id, share)
+            
         embed_win = discord.Embed(
             title="🏆 تم نصر العملية والهروب الأسطوري بنجاح! 🏆",
-            description=f"💰 **إجمالي الغنيمة الكبرى:** `{total_loot} دولار`\n"
-                        f"💸 **نصيب كل فرد مشارك بالعصابة:** `{share} دولار` كاش في حسابه السحابي!",
+            description=f"كفوووو يا أبطال السطو! نجحت الخطة بالكامل وتمت سرقة البنك المركزي بنجاح ساحق!\n\n"
+                        f"💰 **إجمالي الغنيمة الكبرى:** `{total_loot} دولار`\n"
+                        f"💸 **نصيب كل فرد مشارك بالعصابة:** `{share} دولار` كاش في حسابه السحابي!\n\n"
+                        "عاش الفريق الأسطوري! 😎🕶️",
             color=discord.Color.green()
         )
         await ctx.send(embed=embed_win)
@@ -637,21 +648,52 @@ async def finish_heist(ctx, team, success):
         penalty = 150
         for member in team:
             await async_update_balance(member.id, -penalty)
+            
         embed_lose = discord.Embed(
-            title="💀 فشلت العملية وتم زجكم في السجن! 💀",
-            description=f"❌ تم تغريم كل لاعب مبلغ **{penalty} دولار** كغرامة كفالة للخروج من السجن.",
+            title="💀 فشلت العملية وتم زجكم في السجن خلف القضبان! 💀",
+            description=f"للأسف تم القبض على أفراد العصابة بالكامل من قبل قوات النخبة.\n\n"
+                        f"❌ تم تغريم كل لاعب شارك في العملية مبلغ **{penalty} دولار** كغرامة كفالة للخروج من السجن.\n"
+                        "حاولوا المرة القادمة بتنسيق وتوقيت أسرع! 🚔",
             color=discord.Color.dark_grey()
         )
-        await ctx.send(embed=lose)
+        await ctx.send(embed=embed_lose)
+
 
 @bot.command(name="العاب")
 async def list_games(ctx):
-    embed = discord.Embed(title="🎮 قائمة ألعاب بوت B✰IL التفاعلية", description="إليك الألعاب المتاحة حالياً داخل البوت! 💸🔥", color=discord.Color.purple())
-    embed.add_field(name="🚨 1. عملية السطو الكبرى (`!سرقة`)", value="• لعبة تعاونية جماعية تعتمد على السرعة وتوزيع أدوار.", inline=False)
-    embed.add_field(name="🧠 2. فعالية الأسئلة (`!سؤال`)", value="• أسئلة ثقافية وتحديات صعبة في الشات.", inline=False)
-    embed.add_field(name="💥 3. لعبة تفكيك القنبلة (`!قنبلة`)", value="• قنبلة موقوتة تحتوي على 3 أسلاك ملونة وعليك اختيار السلك الصحيح.", inline=False)
-    embed.add_field(name="🚪 4. مغامرة الهروب (`!هروب`)", value="• لعبة مغامرة ورعب مكونة من 3 مراحل تعتمد على الأزرار.", inline=False)
-    embed.add_field(name="♟️ 5. تحدي الشطرنج بالأرقام (`!شطرنج`) [🆕 جديد]", value="• تحدى أصدقائك في مباراة شطرنج ذكية كلياً عبر كتابة الأرقام البسيطة في الشات!", inline=False)
+    embed = discord.Embed(
+        title="🎮 قائمة ألعاب بوت B✰IL التفاعلية",
+        description="إليك الألعاب المتاحة حالياً داخل البوت لتجميع الأموال وتحدي أصدقائك! 💸🔥",
+        color=discord.Color.purple()
+    )
+    embed.add_field(
+        name="🚨 1. عملية السطو الكبرى (`!سرقة`) [🔥 نادرة وجديدة]",
+        value="• **الوصف:** لعبة تعاونية جماعية تتطلب سرعة وتوزيع أدوار (مخترق، مفجر، سائق).\n"
+              "• **طريقة اللعب:** اكتب `!سرقة` وانضم للعصابة، ثم نفذ مهمتك خلال **15 ثانية** عند طلبها.\n"
+              "• **النتيجة:** نصر يوزع من **1500 إلى 3000 دولار** على الفريق! وفشل يسجنكم بغرامة. 💰🕶️",
+        inline=False
+    )
+    embed.add_field(
+        name="🧠 2. فعالية الأسئلة (`!سؤال`)",
+        value="• **الوصف:** أسئلة ثقافية وتحديات صعبة وسريعة في الشات.\n"
+              "• **طريقة اللعب:** اكتب `!سؤال` أو `!سؤال [عدد الجولات]` (مثال: `!سؤال 5`).\n"
+              "• **الجائزة:** **50 دولار** لكل إجابة صحيحة وسريعة! ⏱️",
+        inline=False
+    )
+    embed.add_field(
+        name="💥 3. لعبة تفكيك القنبلة (`!قنبلة`)",
+        value="• **الوصف:** قنبلة موقوتة تحتوي على 3 أسلاك ملونة وعليك اختيار السلك الصحيح.\n"
+              "• **طريقة اللعب:** اكتب `!قنبلة` وااضغط على الزر الملون.\n"
+              "• **النتيجة:** نصر يعطيك **50 دولار**، وانفجار يخصم منك **20 دولار**! 🔴🔵🟢",
+        inline=False
+    )
+    embed.add_field(
+        name="🚪 4. مغامرة الهروب من الغرفة المظلمة (`!هروب`)",
+        value="• **الوصف:** لعبة مغامرة ورعب مكونة من 3 مراحل تعتمد على الأزرار والذكاء الذاتي.\n"
+              "• **طريقة اللعب:** اكتب `!هروب` واتبع التعليمات بالضغط على الأزرار وحل اللغز المكتوب.\n"
+              "• **النتيجة:** الهروب الناجح يمنحك جائزة كبرى من **200 إلى 500 دولار**! والخسارة تكلفك خصم رصيد. 💀🏆",
+        inline=False
+    )
     embed.set_footer(text=f"طلب بواسطة: {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
     await ctx.send(embed=embed)
 
@@ -661,22 +703,25 @@ async def game_quiz(ctx, rounds: int = 1):
     elif rounds > 10:
         await ctx.send("⚠️ | الحد الأقصى للجولات في المرة الواحدة هو 10 جولات فقط!")
         rounds = 10
-    await ctx.send(f"🎮 | **ستبدأ الآن فعالية الأسئلة المكونة من ({rounds}) جولات!** 🔥")
+
+    await ctx.send(f"🎮 | **ستبدأ الآن فعالية الأسئلة المكونة من ({rounds}) جولات! استعدوا...** 🔥")
     await asyncio.sleep(2)
 
     for r in range(1, rounds + 1):
         q, a = random.choice(list(QUESTIONS_POOL.items()))
         embed = discord.Embed(title=f"🧠 الجولة [{r} من {rounds}]", description=f"**{q}**", color=discord.Color.dark_red())
+        embed.set_footer(text="لديك 8 ثوانٍ فقط للإجابة الصحيحة! 🔥")
         await ctx.send(embed=embed)
         
         def check(m): return m.channel == ctx.channel and m.content.strip().lower() == a.strip().lower() and not m.author.bot
         try:
             msg = await bot.wait_for('message', check=check, timeout=8.0)
             await async_update_balance(msg.author.id, 50)
-            await ctx.send(embed=discord.Embed(title="🎉 إجابة صحيحة!", description=f"كفو {msg.author.mention}! ربح **50 دولار** 💵.", color=discord.Color.green()))
+            await ctx.send(embed=discord.Embed(title="🎉 إجابة صحيحة وسريعة!", description=f"كفو {msg.author.mention}! ربح **50 دولار** 💵.", color=discord.Color.green()))
         except asyncio.TimeoutError:
             await ctx.send(embed=discord.Embed(title="⏱️ انتهى الوقت!", description=f"الإجابة الصحيحة: **{a}** 💡", color=discord.Color.orange()))
-        if r < rounds: await asyncio.sleep(3)
+        if r < rounds:
+            await asyncio.sleep(3)
     await ctx.send("🏁 | **انتهت جميع الجولات!**")
 
 @bot.command(name="قنبلة")
@@ -690,15 +735,23 @@ async def game_bomb(ctx):
 @bot.command(name="هروب")
 async def start_escape(ctx):
     view = EscapeRoomOneView(ctx.author, ctx)
+    
     embed = discord.Embed(
         title="👁️ الغرفة المظلمة - المرحلة [1 من 3]",
-        description=f"استيقظت يا {ctx.author.mention} لتجد نفسك محبوساً..\n⏱️ **لديك 15 ثانية فقط للاختيار بالأزرار!**",
+        description=f"استيقظت يا {ctx.author.mention} لتجد نفسك محبوساً في مكان مرعب تفوح منه رائحة الغبار..\n"
+                    "تسمع أصوات خطوات غريبة تقترب منك بسرعة! 👣\n\n"
+                    "أمامك 3 أبواب غامضة بالأسفل:\n"
+                    "🚪 **[1]** باب حديدي يخرج من أسفله ضوء أحمر خافت.\n"
+                    "🚪 **[2]** باب خشبي قديم يصدر صريراً مرعباً.\n"
+                    "🚪 **[3]** باب زجاجي ملطخ بالدماء.\n\n"
+                    "⏱️ **لديك 15 ثانية فقط للاختيار بالضغط على الأزرار المرفقة!**",
         color=discord.Color.dark_purple()
     )
     msg = await ctx.send(embed=embed, view=view)
+    
     await view.wait()
     if not view.responded:
-        await msg.edit(content=f"💀 {ctx.author.mention}، تأخرت كثيراً! انتهت اللعبة.", embed=None, view=None)
+        await msg.edit(content=f"💀 {ctx.author.mention}، تأخرت كثيراً في اتخاذ القرار! ظهر الكيان المظلم من خلفك وقام بتصفيتك.. **انتهت اللعبة!**", embed=None, view=None)
 
 # --- باقي الأوامر الخدمية الأساسية ---
 @bot.command(name="فلوس")
@@ -707,7 +760,8 @@ async def check_wallet(ctx):
 
 @bot.command(name="متجر")
 async def show_shop(ctx):
-    embed = discord.Embed(title="🛒 متجر السيرفر التفاعلي للبوت B✰IL", color=discord.Color.gold())
+    embed = discord.Embed(title="🛒 متجر السيرفر التفاعلي للبوت B✰IL", color=discord.Color.gold(), description="اختر القسم:")
+    embed.set_footer(text=f"رصيدك الحالي: {get_balance(ctx.author.id)} دولار.")
     await ctx.send(embed=embed, view=MainShopView(ctx.author))
 
 @bot.command(name="تحويل")
@@ -749,28 +803,35 @@ async def get_id(ctx, target: str = None):
             m = await commands.MemberConverter().convert(ctx, target)
             await ctx.send(f"👤 آيدي العضو: `{m.id}`")
         except: pass
+    elif target.startswith("<@&") and target.endswith(">"):
+        try:
+            r = await commands.RoleConverter().convert(ctx, target)
+            await ctx.send(f"👑 آيدي الرتبة: `{r.id}`")
+        except: pass
 
 @bot.command(name="افتار")
 async def show_avatar(ctx, member: discord.Member = None):
     member = member or ctx.author
-    e = discord.Embed(title=f"👤 صورة {member.name}")
+    e = discord.Embed(title=f"👤 صورة {member.name}", color=discord.Color.blue())
     e.set_image(url=member.display_avatar.url)
-    await ctx.send(e=e)
+    await ctx.send(embed=e)
+
+@bot.command(name="بنر")
+async def show_banner(ctx, member: discord.Member = None):
+    member = member or ctx.author
+    u = await bot.fetch_user(member.id)
+    if u.banner:
+        e = discord.Embed(title=f"🖼️ بنر {u.name}", color=discord.Color.purple())
+        e.set_image(url=u.banner.url)
+        await ctx.send(embed=e)
 
 @bot.event
 async def on_ready():
     print("🤖 B✰IL bot is checking database...")
     await load_data_from_github()
-    
-    # 🔌 شحن وتفعيل ملف لعبة الشطرنج تلقائياً وبشكل مستقل
+    print(f"Logged in as {bot.user.name} with The Heist Game Fixed!")
     try:
-        await bot.load_extension("chess_game")
-        print("✅ [Cogs] تم شحن وتفعيل ملف لعبة الشطرنج الذكية بنجاح!")
-    except Exception as e:
-        print(f"❌ [Cogs] فشل شحن ملف الشطرنج المساعد: {e}")
-        
-    print(f"Logged in as {bot.user.name}!")
-    try: auto_ping.start()
+        auto_ping.start()
     except: pass
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
