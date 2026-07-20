@@ -75,7 +75,7 @@ def update_balance(user_id, amount):
 
 # --- ⚙️ إعدادات سلع المتجر والأدمن ---
 # ⚠️ ضع هنا آيدي الرتبة التي تسمح لها باستخدام أمر !اضافة
-ADMIN_ROLE_ID = 111222333444555666 
+ADMIN_ROLE_ID = 1515396547528102131 
 
 ROLES_SHOP = {
     "role_1": {"name": "رتبة مميز ✨", "price": 500, "role_id": 111222333444555666},
@@ -84,7 +84,7 @@ ROLES_SHOP = {
 }
 
 COLORS_SHOP = {
-    "color_red": {"name": "اللون الأحمر 🔴", "price": 300, "role_id": 444555666777888999},
+    "color_red": {"name": "اللون الأحمر 🔴", "price": 300, "role_id":1515396547536355469},
     "color_blue": {"name": "اللون الأزرق 🔵", "price": 300, "role_id": 111555666777888999},
     "color_green": {"name": "اللون الأخضر 🟢", "price": 300, "role_id": 222555666777888999}
 }
