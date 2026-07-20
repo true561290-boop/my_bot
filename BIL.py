@@ -37,13 +37,13 @@ FILE_PATH = "bank.json"
 
 ADMIN_ROLE_ID = 1515396547528102131  # رتبة اونر لامر الاضافة والمسح
 
-# --- 🧠 بنك الأسئلة المدمج (أكثر من 100 سؤال منوع) ---
+# --- 🧠 بنك الأسئلة المدمج المكون من 100 سؤال صعب جداً ---
 QUESTIONS_POOL = {
     "ما هو أول مسجد بني في الإسلام؟": "مسجد قباء",
-    "ما هو أطول نهر في العالم؟": "نهر النيل",
+    "ما هو أطول نهر في العالم？": "نهر النيل",
     "كم عدد الكواكب في المجموعة الشمسية؟": "8",
     "ما هو الطائر الذي يضع أكبر بيضة في العالم؟": "النعامة",
-    "عاصمة المملكة العربية السعودية هي؟": "الرياض",
+    "عاصمة المملكة العربية السعودية هي？": "الرياض",
     "ما هو الشيء الذي كلما أخذت منه كبر؟": "الحفرة",
     "ما هو الكائن الحي الذي يملك 3 قلوب؟": "الأخطبوط",
     "ما هي عاصمة فرنسا؟": "باريس",
@@ -56,15 +56,15 @@ QUESTIONS_POOL = {
     "ما هو الشيء الذي يمشي بلا أرجل ويبكي بلا أعين؟": "السحاب",
     "من هو كليم الله من الأنبياء؟": "موسى",
     "كم عدد قلوب حيوان الحبار؟": "3",
-    "ما هي عاصمة اليابان؟": "طوكيو",
+    "ما هي عاصمة اليابان？": "طوكيو",
     "ما هو الكوكب الملقب بالكوكب الأحمر؟": "المريخ",
     "ما هو الغاز المشهور بغاز الضحك؟": "أكسيد النيتروز",
     "كم عدد عظام الجسم البشري للبالغين؟": "206",
     "ما هو الطائر الملقب بالهدهد؟": "الهدهد",
-    "ما هي الدولة التي تقع فيها أهرامات الجيزة؟": "مصر",
+    "ما هي دولة التي تقع فيها أهرامات الجيزة؟": "مصر",
     "ما هو الشيء الذي يتحدث جميع اللغات؟": "صدى الصوت",
     "ما هي أصغر دولة في العالم؟": "الفاتيكان",
-    "ما هو أقرب كوكب إلى الشمس؟": "عطارد",
+    "ما هو أقرب كوكب إلى الشمس？": "عطارد",
     "من هو مكتشف الجاذبية الأرضية؟": "نيوتن",
     "ما هو الفيتامين الذي نحصل عليه من الشمس؟": "فيتامين د",
     "ما هو الحيوان الذي لا يشرب الماء طوال حياته؟": "الجرذ الكنغري",
@@ -97,13 +97,13 @@ QUESTIONS_POOL = {
     "ما هو أصلب مادة طبيعية على الأرض؟": "الألماس",
     "ما هو الشيء الذي كلما زاد نقص؟": "العمر",
     "من هو الشاعر المقب بأمير الشعراء؟": "أحمد شوقي",
-    "ما هو البحر الذي لا يغرق فيه أحد لشدة ملوحته؟": "البحر الميت",
+    "ما هو البحر الذي لا يغرق فيه أحد لشدة ملوحته？": "البحر الميت",
     "كم عدد أضلاع المثلث؟": "3",
     "ما هي عاصمة المغرب؟": "الرباط",
     "ما هو أسرع الأسماك في المحيط؟": "سمكة الشراع",
     "ما هو الشيء الذي يكتب ولا يقرأ؟": "القلم",
     "من هو أول رئيس للولايات المتحدة؟": "جورج واشنطن",
-    "ما هي الدولة التي تشتهر بوجود حيوان الكنغر؟": "أستراليا",
+    "ما هي الدولة التي تشتهر بوجود حيوان الكنغر؟": "أستـراليا",
     "كم عدد الكلي في جسم الإنسان الطبيعي؟": "2",
     "ما هي عاصمة الأردن؟": "عمان",
     "ما هو العنصر الكيميائي الرمز له بـ H؟": "الهيدروجين",
@@ -145,6 +145,15 @@ QUESTIONS_POOL = {
     "ما هو الحيوان الذي يغير لونه ليتخفى؟": "الحرباء",
     "ما هو الشيء الذي تراه في الليل 3 مرات وفي النهار مرة واحدة؟": "حرف الياء"
 }
+
+# --- 🧠 بنك ألغاز لعبة الهروب ---
+ESCAPE_RIDDLES = [
+    {"q": "أنا موجود في الشتاء وغير موجود في الصيف، ومن 4 حروف، ما أنا؟", "a": "مطر"},
+    {"q": "يسير بلا رجلين ولا يدخل إلا بالأذنين، ما هو؟", "a": "الصوت"},
+    {"q": "كلما كثرت قلّت قيمتي، وكلما ندرت زادت، ما أنا؟", "a": "الأسرار"},
+    {"q": "شيء تملكه ويستخدمه الناس أكثر منك بدون إذنك؟", "a": "اسمك"},
+    {"q": "له عين واحدة لكنه لا يرى بها شيئاً؟", "a": "الإبرة"}
+]
 
 ROLES_SHOP = {
     "role_1": {"name": "رتبة الزنجي المؤسس 👑", "price": 5000, "role_id": 1527739093163708548}
@@ -263,6 +272,103 @@ class BombButtons(discord.ui.View):
     @discord.ui.button(label="أخضر 🟢", style=discord.ButtonStyle.success)
     async def green_wire(self, interaction: discord.Interaction, button: discord.ui.Button): await self.process_choice(interaction, "أخضر")
 
+class EscapeFinalView(discord.ui.View):
+    def __init__(self, author, correct_device):
+        super().__init__(timeout=15.0)
+        self.author = author
+        self.correct_device = correct_device
+        self.responded = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user != self.author:
+            await interaction.response.send_message("❌ هذه المغامرة ليست لك!", ephemeral=True)
+            return False
+        return True
+
+    async def handle_choice(self, interaction: discord.Interaction, choice: int):
+        self.responded = True
+        self.stop()
+        if choice == self.correct_device:
+            prize = random.randint(200, 500)
+            await async_update_balance(self.author.id, prize)
+            embed_win = discord.Embed(
+                title="🎉 حرية أسطورية ونصر ساحق! 🎉",
+                description=f"كفوووو يا أسطورة! انفتحت البوابة الكبرى وخرجت إلى النور والشمس الساطعة! ☀️\n"
+                            f"وجدت صندوق مكافأة عند المخرج يحتوي على **{prize} دولار** كاش! 💰\n"
+                            f"رصيدك الحالي أصبح: **{get_balance(self.author.id)} دولار**.",
+                color=discord.Color.green()
+            )
+            await interaction.response.edit_message(embed=embed_win, view=None)
+        else:
+            await async_update_balance(self.author.id, -100)
+            await interaction.response.edit_message(content=f"💀 {self.author.mention} **نهاية مأساوية!** ضغطت على الجهاز الخطأ فانفجرت القاعة بالكامل! خسرت **100 دولار**.", embed=None, view=None)
+
+class EscapeRoomOneView(discord.ui.View):
+    def __init__(self, author, ctx):
+        super().__init__(timeout=15.0)
+        self.author = author
+        self.ctx = ctx
+        self.correct_door = random.randint(1, 3)
+        self.responded = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user != self.author:
+            await interaction.response.send_message("❌ هذه المغامرة ليست لك!", ephemeral=True)
+            return False
+        return True
+
+    async def handle_choice(self, interaction: discord.Interaction, choice: int):
+        self.responded = True
+        self.stop()
+        
+        if choice != self.correct_door:
+            await async_update_balance(self.author.id, -50)
+            await interaction.response.edit_message(content=f"💥 {self.author.mention} **فخ قاتل!** فتحت الباب وسقطت في حفرة مليئة بالأشواك السامة! خسرت **50 دولار** تكلفة الإنعاش.", embed=None, view=None)
+            return
+
+        riddle = random.choice(ESCAPE_RIDDLES)
+        embed_2 = discord.Embed(
+            title="🚪 الغرفة المظلمة - المرحلة [2 من 3]",
+            description=f"كفو! دخلت من الباب الصحيح ووجدت ممرًا يقودك إلى **غرفة الألغاز السحرية**! ✨\n"
+                        "لكي يفتح الجدار السري وتمر للمرحلة الأخيرة، يجب أن تحل هذا اللغز:\n\n"
+                        f"📝 **اللغز:** `{riddle['q']}`\n\n"
+                        "⏱️ **لديك 20 ثانية للإجابة كتابةً في الشات مباشرة!** (بدون أوامر)",
+            color=discord.Color.blue()
+        )
+        await interaction.response.edit_message(embed=embed_2, view=None)
+
+        def check_riddle(m):
+            return m.author == self.author and m.channel == self.ctx.channel and riddle["a"] in m.content.strip().lower()
+
+        try:
+            await bot.wait_for('message', check=check_riddle, timeout=20.0)
+            correct_final = random.randint(1, 3)
+            view_final = EscapeFinalView(self.author, correct_final)
+            
+            embed_3 = discord.Embed(
+                title="🔥 الغرفة المظلمة - المرحلة الأخيرة [3 من 3]",
+                description=f"عبقري يا {self.author.mention}! انفتح الجدار ووصلت إلى قاعة الخروج الكبرى! 🏛️\n"
+                            "لكن انتظر.. المخرج مغلق بـ 3 أجهزة فك تشفير رقمية بالأسفل:\n\n"
+                            "أحدهم سيفتح بوابة الحرية، والباقي سيفجر المكان! 💥\n"
+                            "⏱️ **لديك 15 ثانية أخيرة للاختيار بالضغط على الأزرار!**",
+                color=discord.Color.gold()
+            )
+            final_msg = await self.ctx.send(embed=embed_3, view=view_final)
+            await view_final.wait()
+            if not view_final.responded:
+                await final_msg.edit(content=f"💀 {self.author.mention}، تجمدت في مكانك من الخوف ولم تضغط على أي جهاز! انهار المكان بالكامل فوق رأسك.. **خسرت!**", embed=None, view=None)
+
+        except asyncio.TimeoutError:
+            await self.ctx.send(f"⏱️ {self.author.mention}، انتهى الوقت ولم تحل اللغز! انهار السقف فوق رأسك وسحق محاولتك..")
+
+    @discord.ui.button(label="🚪 الباب الحديدي [1]", style=discord.ButtonStyle.danger)
+    async def door_1(self, interaction: discord.Interaction, button: discord.ui.Button): await self.handle_choice(interaction, 1)
+    @discord.ui.button(label="🚪 الباب الخشبي [2]", style=discord.ButtonStyle.secondary)
+    async def door_2(self, interaction: discord.Interaction, button: discord.ui.Button): await self.handle_choice(interaction, 2)
+    @discord.ui.button(label="🚪 الباب الزجاجي [3]", style=discord.ButtonStyle.primary)
+    async def door_3(self, interaction: discord.Interaction, button: discord.ui.Button): await self.handle_choice(interaction, 3)
+
+# --- 🛒 قائمة المتجر التفاعلية ---
 class ItemPurchaseSelect(discord.ui.Select):
     def __init__(self, author, items_dict, placeholder_text, is_color_shop=False):
         self.author = author
@@ -289,7 +395,7 @@ class ItemPurchaseSelect(discord.ui.Select):
             return
             
         if role in interaction.user.roles:
-            await interaction.response.send_message("🎒 تمتلك هذه الميزة بالفعل!", ephemeral=True)
+            await interaction.response.send_message("🎒 تمتلك هذه Mيزة بالفعل!", ephemeral=True)
             return
             
         try:
@@ -303,7 +409,7 @@ class ItemPurchaseSelect(discord.ui.Select):
             await async_update_balance(self.author.id, -item["price"])
             await interaction.response.send_message(f"🎉 مبروك! تم شراء **{item['name']}** وخصم **{item['price']} دولار** 💸!", ephemeral=True)
         except:
-            await interaction.response.send_message("❌ البوت لا يملك صلاحية الرتب أو ترتيبه أقل من الرتبة المشتراة.", ephemeral=True)
+            await interaction.response.send_message("❌ البوت لا يملك صلاحية الرتب أو ترتيبه أقل من الرتبة المشتраة.", ephemeral=True)
 
 class ItemPurchaseView(discord.ui.View):
     def __init__(self, author, items_dict, placeholder_text, is_color_shop=False):
@@ -341,6 +447,66 @@ class MainShopView(discord.ui.View):
         self.add_item(ShopSelect(author))
 
 # --- 🎮 الأوامر ---
+
+# 🌟 الأمر الجديد: عرض قائمة الألعاب المتاحة
+@bot.command(name="العاب")
+async def list_games(ctx):
+    embed = discord.Embed(
+        title="🎮 قائمة ألعاب بوت B✰IL التفاعلية",
+        description="إليك الألعاب المتاحة حالياً داخل البوت لتجميع الأموال وتحدي أصدقائك! 💸🔥",
+        color=discord.Color.purple()
+    )
+    embed.add_field(
+        name="🧠 1. فعالية الأسئلة (`!سؤال`)",
+        value="• **الوصف:** أسئلة ثقافية وتحديات صعبة وسريعة في الشات.\n"
+              "• **طريقة اللعب:** اكتب `!سؤال` أو `!سؤال [عدد الجولات]` (مثال: `!سؤال 5`).\n"
+              "• **الجائزة:** **50 دولار** لكل إجابة صحيحة وسريعة! ⏱️",
+        inline=False
+    )
+    embed.add_field(
+        name="💥 2. لعبة تفكيك القنبلة (`!قنبلة`)",
+        value="• **الوصف:** قنبلة موقوتة تحتوي على 3 أسلاك ملونة وعليك اختيار السلك الصحيح.\n"
+              "• **طريقة اللعب:** اكتب `!قنبلة` واضغط على الزر الملون.\n"
+              "• **النتيجة:** نصر يعطيك **50 دولار**، وانفجار يخصم منك **20 دولار**! 🔴🔵🟢",
+        inline=False
+    )
+    embed.add_field(
+        name="🚪 3. مغامرة الهروب من الغرفة المظلمة (`!هروب`)",
+        value="• **الوصف:** لعبة مغامرة ورعب مكونة من 3 مراحل تعتمد على الأزرار والذكاء الذاتي.\n"
+              "• **طريقة اللعب:** اكتب `!هروب` واتبع التعليمات بالضغط على الأزرار وحل اللغز المكتوب.\n"
+              "• **النتيجة:** الهروب الناجح يمنحك جائزة كبرى من **200 إلى 500 دولار**! والخسارة تكلفك خصم رصيد. 💀🏆",
+        inline=False
+    )
+    embed.set_footer(text=f"طلب بواسطة: {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
+    await ctx.send(embed=embed)
+
+@bot.command(name="سؤال")
+async def game_quiz(ctx, rounds: int = 1):
+    if rounds < 1: rounds = 1
+    elif rounds > 10:
+        await ctx.send("⚠️ | الحد الأقصى للجولات في المرة الواحدة هو 10 جولات فقط!")
+        rounds = 10
+
+    await ctx.send(f"🎮 | **ستبدأ الآن فعالية الأسئلة المكونة من ({rounds}) جولات! استعدوا...** 🔥")
+    await asyncio.sleep(2)
+
+    for r in range(1, rounds + 1):
+        q, a = random.choice(list(QUESTIONS_POOL.items()))
+        embed = discord.Embed(title=f"🧠 الجولة [{r} من {rounds}]", description=f"**{q}**", color=discord.Color.dark_red())
+        embed.set_footer(text="لديك 8 ثوانٍ فقط للإجابة الصحيحة! 🔥")
+        await ctx.send(embed=embed)
+        
+        def check(m): return m.channel == ctx.channel and m.content.strip().lower() == a.strip().lower() and not m.author.bot
+        try:
+            msg = await bot.wait_for('message', check=check, timeout=8.0)
+            await async_update_balance(msg.author.id, 50)
+            await ctx.send(embed=discord.Embed(title="🎉 إجابة صحيحة وسريعة!", description=f"كفو {msg.author.mention}! ربح **50 دولار** 💵.", color=discord.Color.green()))
+        except asyncio.TimeoutError:
+            await ctx.send(embed=discord.Embed(title="⏱️ انتهى الوقت!", description=f"الإجابة الصحيحة: **{a}** 💡", color=discord.Color.orange()))
+        if r < rounds:
+            await asyncio.sleep(3)
+    await ctx.send("🏁 | **انتهت جميع الجولات!**")
+
 @bot.command(name="قنبلة")
 async def game_bomb(ctx):
     correct_wire = random.choice(["أحمر", "أزرق", "أخضر"])
@@ -349,54 +515,28 @@ async def game_bomb(ctx):
     await view.wait()
     if not view.answered: await msg.edit(content="⏱️ انتهى الوقت! انفجرت القنبلة.", view=None)
 
-@bot.command(name="سؤال")
-async def game_quiz(ctx, rounds: int = 1):
-    # الحماية من الأرقام الخاطئة أو المبالغ فيها
-    if rounds < 1:
-        rounds = 1
-    elif rounds > 10:
-        await ctx.send("⚠️ | الحد الأقصى للجولات في المرة الواحدة هو 10 جولات فقط منعا لحرق الشات!")
-        rounds = 10
+@bot.command(name="هروب")
+async def start_escape(ctx):
+    view = EscapeRoomOneView(ctx.author, ctx)
+    
+    embed = discord.Embed(
+        title="👁️ الغرفة المظلمة - المرحلة [1 من 3]",
+        description=f"استيقظت يا {ctx.author.mention} لتجد نفسك محبوساً في مكان مرعب تفوح منه رائحة الغبار..\n"
+                    "تسمع أصوات خطوات غريبة تقترب منك بسرعة! 👣\n\n"
+                    "أمامك 3 أبواب غامضة بالأسفل:\n"
+                    "🚪 **[1]** باب حديدي يخرج من أسفله ضوء أحمر خافت.\n"
+                    "🚪 **[2]** باب خشبي قديم يصدر صريراً مرعباً.\n"
+                    "🚪 **[3]** باب زجاجي ملطخ بالدماء.\n\n"
+                    "⏱️ **لديك 15 ثانية فقط للاختيار بالضغط على الأزرار المرفقة!**",
+        color=discord.Color.dark_purple()
+    )
+    msg = await ctx.send(embed=embed, view=view)
+    
+    await view.wait()
+    if not view.responded:
+        await msg.edit(content=f"💀 {ctx.author.mention}، تأخرت كثيراً في اتخاذ القرار! ظهر الكيان المظلم من خلفك وقام بتصفيتك.. **انتهت اللعبة!**", embed=None, view=None)
 
-    await ctx.send(f"🎮 | **ستبدأ الآن فعالية الأسئلة المكونة من ({rounds}) جولات! استعدوا...** 🔥")
-    await asyncio.sleep(2)
-
-    for r in range(1, rounds + 1):
-        q, a = random.choice(list(QUESTIONS_POOL.items()))
-        
-        embed = discord.Embed(
-            title=f"🧠 الجولة [{r} من {rounds}]", 
-            description=f"**{q}**", 
-            color=discord.Color.dark_red()
-        )
-        embed.set_footer(text="لديك 8 ثوانٍ فقط للإجابة الصحيحة! 🔥")
-        current_msg = await ctx.send(embed=embed)
-        
-        def check(m): 
-            return m.channel == ctx.channel and m.content.strip().lower() == a.strip().lower() and not m.author.bot
-            
-        try:
-            msg = await bot.wait_for('message', check=check, timeout=8.0)
-            await async_update_balance(msg.author.id, 50)
-            await ctx.send(embed=discord.Embed(
-                title="🎉 إجابة صحيحة وسريعة!", 
-                description=f"كفو {msg.author.mention}! أجاب أولاً وربح **50 دولار** 💵.", 
-                color=discord.Color.green()
-            ))
-        except asyncio.TimeoutError:
-            await ctx.send(embed=discord.Embed(
-                title="⏱️ انتهى الوقت!", 
-                description=f"لم يمر أحد في هذه الجولة! الإجابة الصحيحة: **{a}** 💡", 
-                color=discord.Color.orange()
-            ))
-            
-        # إذا لم تكن هذه الجولة الأخيرة، انتظر 3 ثوانٍ للاستعداد للجولة التالية
-        if r < rounds:
-            await ctx.send("🔄 *انتظروا 3 ثوانٍ للجولة التالية...*")
-            await asyncio.sleep(3)
-
-    await ctx.send("🏁 | **انتهت جميع الجولات! شكراً لتفاعلكم يا أساطير.**")
-
+# --- باقي الأوامر الخدمية الأساسية ---
 @bot.command(name="فلوس")
 async def check_wallet(ctx):
     await ctx.send(f"💳 | رصيدك الحالي يا {ctx.author.mention} هو: **{get_balance(ctx.author.id)} دولار** 💵.")
@@ -457,7 +597,7 @@ async def show_avatar(ctx, member: discord.Member = None):
     member = member or ctx.author
     e = discord.Embed(title=f"👤 صورة {member.name}", color=discord.Color.blue())
     e.set_image(url=member.display_avatar.url)
-    await ctx.send(e)
+    await ctx.send(embed=e)
 
 @bot.command(name="بنر")
 async def show_banner(ctx, member: discord.Member = None):
@@ -472,7 +612,7 @@ async def show_banner(ctx, member: discord.Member = None):
 async def on_ready():
     print("🤖 B✰IL bot is checking database...")
     await load_data_from_github()
-    print(f"Logged in as {bot.user.name} with 100+ Internal Questions & Round System!")
+    print(f"Logged in as {bot.user.name} with Games List Menu!")
     try:
         auto_ping.start()
     except: pass
