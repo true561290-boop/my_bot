@@ -75,7 +75,7 @@ def update_balance(user_id, amount):
 
 # --- ⚙️ إعدادات سلع المتجر والأدمن ---
 # ⚠️ ضع هنا آيدي الرتبة التي تسمح لها باستخدام أمر !اضافة
-ADMIN_ROLE_ID = 1515396547528102131 
+ADMIN_ROLE_ID = 111222333444555666 
 
 ROLES_SHOP = {
     "role_1": {"name": "رتبة مميز ✨", "price": 500, "role_id": 111222333444555666},
@@ -84,7 +84,7 @@ ROLES_SHOP = {
 }
 
 COLORS_SHOP = {
-    "color_red": {"name": "اللون الأحمر 🔴", "price": 300, "role_id":1515396547536355469},
+    "color_red": {"name": "اللون الأحمر 🔴", "price": 300, "role_id": 444555666777888999},
     "color_blue": {"name": "اللون الأزرق 🔵", "price": 300, "role_id": 111555666777888999},
     "color_green": {"name": "اللون الأخضر 🟢", "price": 300, "role_id": 222555666777888999}
 }
@@ -226,16 +226,52 @@ async def game_bomb(ctx):
 
 @bot.command(name="سؤال")
 async def game_quiz(ctx):
-    questions = {"ما هي عاصمة السعودية؟": "الرياض", "كم عدد قارات العالم؟": "7", "ما هو أسرع حيوان بري؟": "الفهد"}
-    q, a = random.choice(list(questions.items()))
-    await ctx.send(f"🧠 **سؤال:** {q}")
-    def check(m): return m.channel == ctx.channel and m.content.strip() == a
+    # 📝 تحميل الأسئلة من ملف الـ JSON الخارجي
+    if not os.path.exists("questions.json"):
+        await ctx.send("❌ | خطأ: لم يتم العثور على ملف الأسئلة `questions.json`!")
+        return
+        
     try:
-        msg = await bot.wait_for('message', check=check, timeout=30.0)
-        update_balance(msg.author.id, 30)
-        await ctx.send(f"🎉 إجابة صحيحة من {msg.author.mention}! ربحت **30 دولار** 💵.")
+        with open("questions.json", "r", encoding="utf-8") as f:
+            questions_pool = json.load(f)
+    except Exception as e:
+        await ctx.send(f"❌ | فشل في قراءة ملف الأسئلة: {e}")
+        return
+
+    # 🎲 اختيار سؤال عشوائي
+    q, a = random.choice(list(questions_pool.items()))
+    
+    # 💬 إرسال بطاقة السؤال والتحدي
+    embed = discord.Embed(
+        title="🧠 سؤال ذكاء وتحدي (صعب)", 
+        description=f"**{q}**", 
+        color=discord.Color.dark_red()
+    )
+    embed.set_footer(text="لديك 8 ثوانٍ فقط للإجابة الصحيحة! أسرع 🔥")
+    await ctx.send(embed=embed)
+    
+    def check(m): 
+        return m.channel == ctx.channel and m.content.strip().lower() == a.strip().lower()
+        
+    try:
+        # ⏱️ تم تعديل المؤقت البرمجي هنا ليصبح 8 ثوانٍ بدلاً من 30 ثانية
+        msg = await bot.wait_for('message', check=check, timeout=8.0)
+        update_balance(msg.author.id, 50)
+        
+        reply_embed = discord.Embed(
+            title="🎉 كفوووو! إجابة سريعة وصحيحة", 
+            description=f"ألف مبروك {msg.author.mention}! إجابتك صحيحة وهي: **{a}**.\nربحت **50 دولار** 💵 ينضاف لرصيدك بنجاح!", 
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=reply_embed)
+        
     except asyncio.TimeoutError:
-        await ctx.send(f"⏱️ انتهى الوقت! الإجابة الصحيحة كانت: {a}")
+        fail_embed = discord.Embed(
+            title="⏱️ انتهى الوقت سريعاً!", 
+            description=f"للأسف انتهت الـ 8 ثوانٍ دون إجابة صحيحة.\nالإجابة الصحيحة هي: **{a}** 💡", 
+            color=discord.Color.orange()
+        )
+        await ctx.send(embed=fail_embed)
 
 @bot.command(name="فلوس")
 async def check_wallet(ctx):
@@ -255,7 +291,7 @@ async def transfer_money(ctx, member: discord.Member, amount: int):
         await ctx.send("❌ | لا يمكنك تحويل الأموال لنفسك!")
         return
     if amount <= 0:
-        await ctx.send("❌ | يرجى إدخل مبلغ صحيح أكبر من صفر!")
+        await ctx.send("❌ | يرجى إدخال مبلغ صحيح أكبر من صفر!")
         return
     author_balance = get_balance(ctx.author.id)
     if author_balance < amount:
@@ -281,12 +317,10 @@ async def add_money(ctx, member: discord.Member, amount: int):
 # --- 🔍 أمر كشف الآيدي المطور (حساب أو رتبة) ---
 @bot.command(name="ايدي")
 async def get_id(ctx, target: str = None):
-    # إذا لم يكتب شيء بعد الأمر، يعطيه آيدي حسابه الشخصي
     if target is None:
         await ctx.send(f"🆔 | الآيدي الخاص بك هو: `{ctx.author.id}`")
         return
 
-    # محاولة التحقق إذا كان المكتوب هو منشن لعضو
     if target.startswith("<@") and target.endswith(">"):
         try:
             member = await commands.MemberConverter().convert(ctx, target)
@@ -295,7 +329,6 @@ async def get_id(ctx, target: str = None):
         except commands.BadArgument:
             pass
 
-    # محاولة التحقق إذا كان المكتوب هو منشن لرتبة
     if target.startswith("<@&") and target.endswith(">"):
         try:
             role = await commands.RoleConverter().convert(ctx, target)
@@ -304,7 +337,6 @@ async def get_id(ctx, target: str = None):
         except commands.BadArgument:
             pass
 
-    # إذا كُتب نص عادي لم يستطع البوت التعرف عليه كمنشن
     await ctx.send("⚠️ | يرجى استخدام منشن صحيح لعضو أو لرتبة! (مثال: `!ايدي @name`)")
 
 # --- 👤 أمر الأفاتار ---
