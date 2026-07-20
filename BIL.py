@@ -4,7 +4,27 @@ import random
 import json
 import os
 import asyncio
+from threading import Thread
+from flask import Flask
 
+# --- 🌐 خادم ويب صغير لإبقاء البوت مستيقظاً ---
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "B✰IL Bot is Alive and Running 24/7!"
+
+def run_web():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run_web)
+    t.start()
+
+# 🌟 تشغيل الخادم فوراً قبل إقلاع البوت
+keep_alive()
+
+# --- إعدادات البوت الأساسية ---
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -42,19 +62,19 @@ def update_balance(user_id, amount):
     save_data(bot.user_bank)
 
 # --- ⚙️ إعدادات سلع المتجر والأدمن ---
-# ⚠️ استبدل الـ ID أدناه بـ ID الرتبة المسموح لها باستخدام أمر !اضافة
-ADMIN_ROLE_ID = 1515396547528102131 
+# ⚠️ ضع هنا آيدي الرتبة التي تسمح لها باستخدام أمر !اضافة
+ADMIN_ROLE_ID = 111222333444555666 
 
 ROLES_SHOP = {
-    "role_1": {"الزنجي المؤسس": "رتبة مميز ✨", "price": 500, "role_id": 1527739093163708548},
+    "role_1": {"name": "رتبة مميز ✨", "price": 500, "role_id": 111222333444555666},
     "role_2": {"name": "رتبة VIP 🔥", "price": 1500, "role_id": 777888999000111222},
     "role_3": {"name": "رتبة الملك 👑", "price": 5000, "role_id": 333444555666777888}
 }
 
 COLORS_SHOP = {
-    "color_red": {"red": "اللون الأحمر 🔴", "price": 300, "role_id": 1515396547536355469},
-    "color_blue": {"blue": "اللون الأزرق 🔵", "price": 300, "role_id": 1515396547528102135},
-    "color_green": {"skin": "اللون الأخضر 🟢", "price": 300, "role_id": 1515480359553335441}
+    "color_red": {"name": "اللون الأحمر 🔴", "price": 300, "role_id": 444555666777888999},
+    "color_blue": {"name": "اللون الأزرق 🔵", "price": 300, "role_id": 111555666777888999},
+    "color_green": {"name": "اللون الأخضر 🟢", "price": 300, "role_id": 222555666777888999}
 }
 
 # --- واجهة أزرار لعبة القنبلة ---
@@ -237,7 +257,7 @@ async def transfer_money(ctx, member: discord.Member, amount: int):
 @bot.command(name="اضافة")
 async def add_money(ctx, member: discord.Member, amount: int):
     admin_role = ctx.guild.get_role(ADMIN_ROLE_ID)
-    if admin_role not in ctx.author.roles:
+    if not admin_role or admin_role not in ctx.author.roles:
         await ctx.send("❌ | ليس لديك صلاحية استخدام هذا الأمر! (خاص بالإدارة المعتمدة)")
         return
     if amount <= 0:
@@ -246,7 +266,7 @@ async def add_money(ctx, member: discord.Member, amount: int):
     update_balance(member.id, amount)
     await ctx.send(f"💰 | قامت الإدارة بإضافة **{amount} دولار** إلى حساب {member.mention} 🌟!\nرصيده الجديد أصبح: {get_balance(member.id)} دولار.")
 
-# --- 👤 أمر الأفاتار المعروض داخل الملف الرئيسي ---
+# --- 👤 أمر الأفاتار ---
 @bot.command(name="افتار", aliases=["avatar"])
 async def show_avatar(ctx, member: discord.Member = None):
     member = member or ctx.author
@@ -254,7 +274,7 @@ async def show_avatar(ctx, member: discord.Member = None):
     embed.set_image(url=member.display_avatar.url)
     await ctx.send(embed=embed)
 
-# --- 🖼️ أمر البانر المعروض داخل الملف الرئيسي ---
+# --- 🖼️ أمر البانر ---
 @bot.command(name="بنر", aliases=["banner"])
 async def show_banner(ctx, member: discord.Member = None):
     member = member or ctx.author
@@ -264,20 +284,26 @@ async def show_banner(ctx, member: discord.Member = None):
         embed.set_image(url=user.banner.url)
         await ctx.send(embed=embed)
     else:
-        return  # يتجاهل الأمر تماماً إذا لم يكن لديه بنر
+        return
 
-# --- إقلاع وتجهيز البوت وتحميل ملف الإدارة فقط ---
-@bot.event
-async def setup_hook():
-    try:
-        # استدعاء ملف المشرفين فقط (تأكد أن ملف moderation.py مرفوع على حسابك)
-        await bot.load_extension("moderation")
-        print("Successfully loaded moderation commands!")
-    except Exception as e:
-        print(f"Failed to load moderation setup: {e}")
+# --- 🧹 أمر مسح الرسائل المطور ---
+@bot.command(name="مسح")
+@commands.has_permissions(manage_messages=True)
+async def clear_messages(ctx, amount: int):
+    if amount <= 0:
+        await ctx.send("❌ | يرجى تحديد عدد رسائل أكبر من صفر!", delete_after=2)
+        return
+    deleted = await ctx.channel.purge(limit=amount + 1)
+    await ctx.send(f"🧹 | تم مسح {len(deleted) - 1} رسالة بنجاح!", delete_after=2)
 
+@clear_messages.error
+async def clear_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ | عذراً، هذا الأمر خاص بالمشرفين فقط!", delete_after=3)
+
+# --- تشغيل البوت ---
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user.name}")
+    print(f"Logged in as {bot.user.name} and fully operational 24/7!")
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
