@@ -31,8 +31,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --- ⚙️ إعدادات مستودع GitHub وبياناتك الحقيقية ---
 GITHUB_TOKEN = "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"
-REPO_OWNER = "true561290-boop"  # تم استخراجها تلقائياً من حسابك
-REPO_NAME = "my_bot"             # اسم المستودع الخاص بك
+REPO_OWNER = "true561290-boop"
+REPO_NAME = "my_bot"
 FILE_PATH = "bank.json"
 
 ADMIN_ROLE_ID = 1515396547528102131  # رتبة اونر لامر الاضافة والمسح
@@ -51,59 +51,69 @@ COLORS_SHOP = {
     "color_skin": {"name": "لون skin 🎨", "price": 300, "role_id": 1515480359553335441}
 }
 
-# --- 🔄 دالات الحفظ السحابي عبر GitHub API ---
-def load_data_from_github():
+# بيئة تخزين محلية مؤقتة ليشتغل البوت فوراً قبل أول اتصال
+bot.user_bank = {}
+
+# --- 🔄 دالات الحفظ السحابي الذكية والمحمية عبر aiohttp ---
+async def load_data_from_github():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    import requests
     import base64
-    try:
-        r = requests.get(url, headers=headers)
-        if r.status_code == 200:
-            content = r.json()
-            file_data = base64.b64decode(content['content']).decode('utf-8')
-            return json.loads(file_data)
-        return {}
-    except:
-        return {}
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, headers=headers) as r:
+                if r.status == 200:
+                    content = await r.json()
+                    file_data = base64.b64decode(content['content']).decode('utf-8')
+                    bot.user_bank = json.loads(file_data)
+                    print("✅ [GitHub Cloud] تم تحميل بيانات البنك بنجاح!")
+                else:
+                    bot.user_bank = {}
+        except Exception as e:
+            print(f"⚠️ [GitHub Cloud] فشل تحميل البيانات: {e}")
+            bot.user_bank = {}
 
-def save_data_to_github(data):
+async def async_update_balance(user_id, amount):
+    uid = str(user_id)
+    import base64
+    
+    # التأكد من تحديث البيانات محلياً أولاً
+    if uid not in bot.user_bank:
+        bot.user_bank[uid] = 200
+    bot.user_bank[uid] += amount
+    
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    import requests
-    import base64
     
-    sha = None
-    r = requests.get(url, headers=headers)
-    if r.status_code == 200:
-        sha = r.json()['sha']
-        
-    js_bytes = json.dumps(data, ensure_ascii=False, indent=4).encode('utf-8')
-    encoded = base64.b64encode(js_bytes).decode('utf-8')
-    
-    payload = {
-        "message": "🔄 تحديث تلقائي لرصيد البنك عبر البوت",
-        "content": encoded
-    }
-    if sha:
-        payload["sha"] = sha
-        
-    requests.put(url, headers=headers, json=payload)
-
-bot.user_bank = load_data_from_github()
+    async with aiohttp.ClientSession() as session:
+        try:
+            sha = None
+            async with session.get(url, headers=headers) as r:
+                if r.status == 200:
+                    res_json = await r.json()
+                    sha = res_json['sha']
+            
+            js_bytes = json.dumps(bot.user_bank, ensure_ascii=False, indent=4).encode('utf-8')
+            encoded = base64.b64encode(js_bytes).decode('utf-8')
+            
+            payload = {
+                "message": "🔄 تحديث تلقائي لرصيد البنك عبر البوت",
+                "content": encoded
+            }
+            if sha:
+                payload["sha"] = sha
+                
+            async with session.put(url, headers=headers, json=payload) as r_put:
+                if r_put.status in [200, 201]:
+                    print("✅ [GitHub Cloud] تم حفظ الرصيد الجديد سحابياً!")
+        except Exception as e:
+            print(f"⚠️ [GitHub Cloud] فشل حفظ الرصيد سحابياً: {e}")
 
 def get_balance(user_id):
     uid = str(user_id)
     if uid not in bot.user_bank:
         bot.user_bank[uid] = 200
-        save_data_to_github(bot.user_bank)
     return bot.user_bank[uid]
-
-def update_balance(user_id, amount):
-    uid = str(user_id)
-    current = get_balance(user_id)
-    bot.user_bank[uid] = current + amount
-    save_data_to_github(bot.user_bank)
 
 # --- 🔄 ميزة المناداة الذاتية ---
 @tasks.loop(minutes=5)
@@ -115,7 +125,7 @@ async def auto_ping():
         except Exception as e:
             print(f"⚠️ [Self-Ping] خطأ: {e}")
 
-# --- 🎮 كلاسات واجهات الألعاب والمتجر تفاعلية ---
+# --- 🎮 واجهات الألعاب والمتجر التفاعلية ---
 class BombButtons(discord.ui.View):
     def __init__(self, author, correct_wire):
         super().__init__(timeout=30.0)
@@ -133,10 +143,10 @@ class BombButtons(discord.ui.View):
         self.answered = True
         self.stop()
         if chosen_wire == self.correct_wire:
-            update_balance(self.author.id, 50)
-            await interaction.response.edit_message(content=f"🎉 **نجوت!** قطعت السلك الصحيح ({chosen_wire}) وربحت **50 دولار**! الرصيد: {get_balance(self.author.id)}.", view=None)
+            await async_update_balance(self.author.id, 50)
+            await interaction.response.edit_message(content=f"🎉 **نجوت!** قطعت السلك الصحيح ({chosen_wire}) وربحت **50 دولار**! رصيدك: {get_balance(self.author.id)}.", view=None)
         else:
-            update_balance(self.author.id, -20)
+            await async_update_balance(self.author.id, -20)
             await interaction.response.edit_message(content=f"💥 **طرااااخ!** انفجرت القنبلة! السلك الصحيح كان ({self.correct_wire}). خسرت **20 دولار**.", view=None)
 
     @discord.ui.button(label="أحمر 🔴", style=discord.ButtonStyle.danger)
@@ -173,10 +183,10 @@ class ItemPurchaseView(discord.ui.View):
                 return
             try:
                 await interaction.user.add_roles(role)
-                update_balance(self.author.id, -item["price"])
+                await async_update_balance(self.author.id, -item["price"])
                 await interaction.response.send_message(f"🎉 مبروك! تم شراء **{item['name']}** وخصم **{item['price']} دولار** 💸!", ephemeral=True)
             except:
-                await interaction.response.send_message("❌ البوت لا يملك صلاحية الرتب.", ephemeral=True)
+                await interaction.response.send_message("❌ البوت لا يملك صلاحية الرتب أو ترتيبه أقل من الرتبة المشتراة.", ephemeral=True)
         return button_callback
 
     @discord.ui.button(label="⬅️ العودة للقائمة", style=discord.ButtonStyle.danger, row=4)
@@ -219,14 +229,29 @@ async def game_bomb(ctx):
 
 @bot.command(name="سؤال")
 async def game_quiz(ctx):
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    questions_path = os.path.join(BASE_DIR, "questions.json")
-    if not os.path.exists(questions_path):
-        await ctx.send("❌ | خطأ: لم يتم العثور على ملف `questions.json`!")
+    # 🎯 حل نهائي وقراءة سحابية آمنة للأسئلة عبر aiohttp
+    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/questions.json"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    import base64
+    
+    questions_pool = {}
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, headers=headers) as r:
+                if r.status == 200:
+                    content = await r.json()
+                    file_data = base64.b64decode(content['content']).decode('utf-8')
+                    questions_pool = json.loads(file_data)
+                else:
+                    await ctx.send("❌ | خطأ: لم يستطع البوت الوصول لملف `questions.json` على GitHub!")
+                    return
+        except Exception as e:
+            await ctx.send(f"❌ | فشل الاتصال بالسحابة لقراءة الأسئلة: {e}")
+            return
+
+    if not questions_pool:
+        await ctx.send("⚠️ | ملف الأسئلة فارغ!")
         return
-    try:
-        with open(questions_path, "r", encoding="utf-8") as f: questions_pool = json.load(f)
-    except: return
 
     q, a = random.choice(list(questions_pool.items()))
     embed = discord.Embed(title="🧠 سؤال تحدي ذكاء (سريع)", description=f"**{q}**", color=discord.Color.dark_red())
@@ -236,10 +261,10 @@ async def game_quiz(ctx):
     def check(m): return m.channel == ctx.channel and m.content.strip().lower() == a.strip().lower()
     try:
         msg = await bot.wait_for('message', check=check, timeout=8.0)
-        update_balance(msg.author.id, 50)
+        await async_update_balance(msg.author.id, 50)
         await ctx.send(embed=discord.Embed(title="🎉 إجابة صحيحة وسريعة!", description=f"مبروك {msg.author.mention}! ربحت **50 دولار** 💵.", color=discord.Color.green()))
     except asyncio.TimeoutError:
-        await ctx.send(embed=discord.Embed(title="⏱️ انتهى الوقت سريعاً!", description=f"الإجابة الصحيحة هي: **{a}** 💡", color=discord.Color.orange()))
+        await ctx.send(embed=discord.Embed(title="⏱️ انتهى الوقت سريعاً!", description=f"العوض في الجايات! الإجابة الصحيحة هي: **{a}** 💡", color=discord.Color.orange()))
 
 @bot.command(name="فلوس")
 async def check_wallet(ctx):
@@ -257,8 +282,8 @@ async def transfer_money(ctx, member: discord.Member, amount: int):
     if get_balance(ctx.author.id) < amount:
         await ctx.send("⚠️ رصيدك غير كافٍ!")
         return
-    update_balance(ctx.author.id, -amount)
-    update_balance(member.id, amount)
+    await async_update_balance(ctx.author.id, -amount)
+    await async_update_balance(member.id, amount)
     await ctx.send(f"💸 تم تحويل {amount} دولار بنجاح إلى {member.mention} ✅!")
 
 @bot.command(name="اضافة")
@@ -267,7 +292,7 @@ async def add_money(ctx, member: discord.Member, amount: int):
     if not owner_role or owner_role not in ctx.author.roles:
         await ctx.send("❌ هذا الأمر خاص بالأونر فقط!")
         return
-    update_balance(member.id, amount)
+    await async_update_balance(member.id, amount)
     await ctx.send(f"💰 تم إضافة **{amount} دولار** إلى {member.mention} 🌟!")
 
 @bot.command(name="مسح")
@@ -314,7 +339,11 @@ async def show_banner(ctx, member: discord.Member = None):
 
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user.name} with Cloud Backup and Real IDs!")
-    auto_ping.start()
+    print("🤖 B✰IL bot is checking database...")
+    await load_data_from_github()
+    print(f"Logged in as {bot.user.name} with Cloud Backup and Async Connections!")
+    try:
+        auto_ping.start()
+    except: pass
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
