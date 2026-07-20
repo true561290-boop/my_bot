@@ -1,9 +1,10 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import random
 import json
 import os
 import asyncio
+import aiohttp
 from threading import Thread
 from flask import Flask
 
@@ -29,6 +30,17 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+# --- 🔄 ميزة المناداة الذاتية (Self-Ping Loop) ---
+@tasks.loop(minutes=5)
+async def auto_ping():
+    async with aiohttp.ClientSession() as session:
+        try:
+            # البوت يرسل طلب ويب لنفسه على سيرفر Render لمنع الخمول
+            async with session.get("https://my-bot-r8fk.onrender.com") as response:
+                print(f"⏰ [Self-Ping] الحالة: {response.status} - البوت يحافظ على استيقاظه تلقائياً!")
+        except Exception as e:
+            print(f"⚠️ [Self-Ping] فشلت المناداة الذاتية: {e}")
 
 # --- نظام الحفظ الأوتوماتيكي للبيانات (البنك) ---
 FILE_PATH = "bank.json"
@@ -214,7 +226,7 @@ async def game_bomb(ctx):
 
 @bot.command(name="سؤال")
 async def game_quiz(ctx):
-    questions = {"ما هي عاصمة السعودية؟": "الرياض", "كم عدد قارات العالم؟": "7", "ما هو أسرع حيوان بري؟": "الفهد"}
+    questions = {"ما هي عاصمة السعودية？": "الرياض", "كم عدد قارات العالم؟": "7", "ما هو أسرع حيوان بري؟": "الفهد"}
     q, a = random.choice(list(questions.items()))
     await ctx.send(f"🧠 **سؤال:** {q}")
     def check(m): return m.channel == ctx.channel and m.content.strip() == a
@@ -301,9 +313,11 @@ async def clear_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ | عذراً، هذا الأمر خاص بالمشرفين فقط!", delete_after=3)
 
-# --- تشغيل البوت ---
+# --- حدث إقلاع البوت ---
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user.name} and fully operational 24/7!")
+    # التشغيل التلقائي لحلقة المناداة الذاتية فور استيقاظ البوت
+    auto_ping.start()
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
