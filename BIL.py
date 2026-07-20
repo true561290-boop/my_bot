@@ -6,7 +6,7 @@ import os
 import asyncio
 import aiohttp
 from threading import Thread
-from Flask import Flask
+from flask import Flask
 
 # --- 🌐 خادم ويب صغير لإبقاء البوت مستيقظاً ---
 app = Flask('')
@@ -45,7 +45,7 @@ QUESTIONS_POOL = {
     "ما هو الطائر الذي يضع أكبر بيضة في العالم؟": "النعامة",
     "عاصمة المملكة العربية السعودية هي؟": "الرياض",
     "ما هو الشيء الذي كلما أخذت منه كبر؟": "الحفرة",
-    "ما هو الكائن الحي الذي يملك 3 قلوب؟": "الأخطبوط",
+    "ما هو الكائن الحي الذي يملك 3 قلوب？": "الأخطبوط",
     "ما هي عاصمة فرنسا؟": "باريس",
     "من هو الصحابي الملقب بالفاروق؟": "عمر بن الخطاب",
     "ما هو معدن السائل الوحيد؟": "الزئبق",
@@ -66,7 +66,7 @@ QUESTIONS_POOL = {
     "ما هي أصغر دولة في العالم؟": "الفاتيكان",
     "ما هو أقرب كوكب إلى الشمس؟": "عطارد",
     "من هو مكتشف الجاذبية الأرضية؟": "نيوتن",
-    "ما هو الفيتامين الذي نحصل عليه من الشمس？": "فيتامين د",
+    "ما هو الفيتامين الذي نحصل عليه من الشمس؟": "فيتامين د",
     "ما هو الحيوان الذي لا يشرب الماء طوال حياته؟": "الجرذ الكنغري",
     "ما هي عاصمة مصر؟": "القاهرة",
     "كم عدد ألوان قوس قزح؟": "7",
@@ -105,7 +105,7 @@ QUESTIONS_POOL = {
     "من هو أول رئيس للولايات المتحدة؟": "جورج واشنطن",
     "ما هي الدولة التي تشتهر بوجود حيوان الكنغر؟": "أستـراليا",
     "كم عدد الكلي في جسم الإنسان الطبيعي؟": "2",
-    "ما هي عاصمة الأردن؟": "عمان",
+    "ما هي عاصمة الأردن？": "عمان",
     "ما هو العنصر الكيميائي الرمز له بـ H؟": "الهيدروجين",
     "ما هو الشيء الذي له رجل واحدة وثلاث عيون؟": "إشارة المرور",
     "من هي أم البشر؟": "حواء",
@@ -120,7 +120,7 @@ QUESTIONS_POOL = {
     "ما هي عاصمة الكويت؟": "الكويت",
     "ما هو المعدن المستخدم في صناعة المسامير بكثرة؟": "الحديد",
     "ما هو الشيء الذي يحترق ليدير الضوء للآخرين؟": "الشمعة",
-    "من هو النبي الملقب بذو النون？": "يونس",
+    "من هو النبي الملقب بذو النون؟": "يونس",
     "ما هو النهر الذي يمر عبر لندن؟": "التايمز",
     "كم عدد أصابع اليدين والقدمين معاً للإنسان؟": "20",
     "ما هي عاصمة قطر؟": "الدوحة",
@@ -243,10 +243,9 @@ async def auto_ping():
 
 # --- 🎛️ واجهات وتفاعلات الألعاب والسرقة ---
 
-# أزرار الانضمام لعصابة السرقة
 class HeistJoinView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=30.0)
+        super().__init__(timeout=20.0)  # خفضنا مدة الانتظار للتجربة السريعة إلى 20 ثانية
         self.participants = []
 
     @discord.ui.button(label="🕶️ انضمام للعصابة", style=discord.ButtonStyle.grey)
@@ -257,7 +256,6 @@ class HeistJoinView(discord.ui.View):
         self.participants.append(interaction.user)
         await interaction.response.send_message(f"🔫 تم انضمامك بنجاح للعملية يا {interaction.user.name}!", ephemeral=True)
 
-# أزرار مهمة المفجر في السرقة
 class HeistBombView(discord.ui.View):
     def __init__(self, target_player, correct_wire):
         super().__init__(timeout=15.0)
@@ -286,7 +284,6 @@ class HeistBombView(discord.ui.View):
     @discord.ui.button(label="الأزرق 🔵", style=discord.ButtonStyle.primary)
     async def blue(self, interaction: discord.Interaction, button: discord.ui.Button): await self.check_wire(interaction, "الأزرق")
 
-# أزرار مهمة السائق في السرقة
 class HeistDriverView(discord.ui.View):
     def __init__(self, target_player, correct_way):
         super().__init__(timeout=15.0)
@@ -522,35 +519,30 @@ class MainShopView(discord.ui.View):
 
 # --- 🎮 الأوامر الأساسية والألعاب ---
 
-# 🌟 الأمر الجديد الأسطوري: سرقة البنك المركزي الجماعية
+# 🌟 لعبة السطو الكبرى الجماعية المحدثة والمضمونة التشغيل
 @bot.command(name="سرقة")
 async def start_heist(ctx):
     view_join = HeistJoinView()
-    view_join.participants.append(ctx.author) # من أطلق الأمر يدخل تلقائياً
+    view_join.participants.append(ctx.author)  # إضافة الشخص الذي أطلق الأمر تلقائياً
     
     embed_lobby = discord.Embed(
         title="🚨 عملية سطو مسلح كبرى على البنك المركزي! 🚨",
         description=f"أعلن **{ctx.author.name}** عن بدء خطة لسرقة خزنة البنك الآن! 💰\n\n"
                     "⚠️ **مطلوب شركاء فوراً!** تحتاج العملية لتضافر الجهود.\n"
                     "اضغط على الزر بالأسفل للانضمام إلى طاقم العصابة.\n"
-                    "⏱️ **ينتهي باب الانضمام وتوزيع المهام بعد 30 ثانية!**",
+                    "⏱️ **ينتهي باب الانضمام وتوزيع المهام بعد 20 ثانية!**",
         color=discord.Color.red()
     )
     lobby_msg = await ctx.send(embed=embed_lobby, view=view_join)
-    await asyncio.sleep(30)
+    await asyncio.sleep(20)
     view_join.stop()
     
     team = view_join.participants
-    if len(team) < 2:
-        # إذا لم ينضم أحد، يتم إشراك لاعبين وهميين أو جعلها فردية لتفادي التوقف، لكن لجعلها أسطورية نلزم وجود شخصين أو يلعب الشخص كل الأدوار.
-        # هنا سنجعل البوت يوزع الأدوار المتاحة على العدد الموجود حتى لو كان شخص واحد بمفرده.
-        pass
 
     await lobby_msg.edit(content=f"🔒 **أُغلق باب الانضمام!** عدد أفراد العصابة المستعدين: `{len(team)}` مجرمين.\nجاري الاتصال بـ المخطط وتوزيع المهام الآن...", embed=None, view=None)
     await asyncio.sleep(3)
 
-    # تحديد عشوائي للأدوار (المخترق، المفجر، السائق)
-    # نستخدم المتاحين ونوزع عليهم الأدوار بالتناوب
+    # معالجة ذكية لتوزيع الأدوار لتفادي توقف الكود إذا كان اللاعب وحده أو العدد قليل
     hacker_player = random.choice(team)
     bomber_player = random.choice(team)
     driver_player = random.choice(team)
@@ -691,7 +683,7 @@ async def list_games(ctx):
     embed.add_field(
         name="💥 3. لعبة تفكيك القنبلة (`!قنبلة`)",
         value="• **الوصف:** قنبلة موقوتة تحتوي على 3 أسلاك ملونة وعليك اختيار السلك الصحيح.\n"
-              "• **طريقة اللعب:** اكتب `!قنبلة` واضغط على الزر الملون.\n"
+              "• **طريقة اللعب:** اكتب `!قنبلة` وااضغط على الزر الملون.\n"
               "• **النتيجة:** نصر يعطيك **50 دولار**، وانفجار يخصم منك **20 دولار**! 🔴🔵🟢",
         inline=False
     )
@@ -822,7 +814,7 @@ async def show_avatar(ctx, member: discord.Member = None):
     member = member or ctx.author
     e = discord.Embed(title=f"👤 صورة {member.name}", color=discord.Color.blue())
     e.set_image(url=member.display_avatar.url)
-    await ctx.send(e=e)
+    await ctx.send(embed=e)
 
 @bot.command(name="بنر")
 async def show_banner(ctx, member: discord.Member = None):
@@ -837,7 +829,7 @@ async def show_banner(ctx, member: discord.Member = None):
 async def on_ready():
     print("🤖 B✰IL bot is checking database...")
     await load_data_from_github()
-    print(f"Logged in as {bot.user.name} with The Heist Game Integrated!")
+    print(f"Logged in as {bot.user.name} with The Heist Game Fixed!")
     try:
         auto_ping.start()
     except: pass
