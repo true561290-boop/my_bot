@@ -36,19 +36,20 @@ REPO_NAME = "my_bot"
 FILE_PATH = "bank.json"
 
 ADMIN_ROLE_ID = 1515396547528102131  # رتبة اونر لامر الاضافة والمسح
+LEVEL_50_ROLE_ID = 1515396547473309712 # آيدي رتبة لفل 50 لحماية الشات
 
-# --- 🧠 بنك الأسئلة المدمج المكون من 100 سؤال صعب جداً ---
+# --- 🧠 بنك الأسئلة المدمج المكون من 100 سؤال ---
 QUESTIONS_POOL = {
     "ما هو أول مسجد بني في الإسلام؟": "مسجد قباء",
     "ما هو أطول نهر في العالم؟": "نهر النيل",
     "كم عدد الكواكب في المجموعة شکست؟": "8",
     "ما هو الطائر الذي يضع أكبر بيضة في العالم？": "النعامة",
-    "عاصمة المملكة العربية السعودية هي؟": "الرياض",
+    "عاصمة المملكة العربية السعودية هي？": "الرياض",
     "ما هو الشيء الذي كلما أخذت منه كبر؟": "الحفرة",
     "ما هو الكائن الحي الذي يملك 3 قلوب？": "الأخطبوط",
     "ما هي عاصمة فرنسا؟": "باريس",
-    "من هو الصحابي الملقب بالفاروق؟": "عمر بن الخطاب",
-    "ما هو معدن السائل الوحيد؟": "الزئبق",
+    "من هو الصحابي الملقب بالفاروق؟": "عمر بن خطاب",
+    "ما هو معدن السائل الوحيد？": "الزئبق",
     "كم عدد سجدات التلاوة في القرآن الكريم؟": "15",
     "ما هو أسرع كائن حي على الأرض؟": "الفهد",
     "في أي مدينة توجد ساعة بيغ بين الشهيرة؟": "لندن",
@@ -62,7 +63,7 @@ QUESTIONS_POOL = {
     "كم عدد عظام الجسم البشري للبالغين؟": "206",
     "ما هو الطائر الملقب بالهدهد؟": "الهدهد",
     "ما هي دولة التي تقع فيها أهرامات الجيزة؟": "مصر",
-    "ما هو الشيء الذي يتحدث جميع اللغات؟": "صدى الصوت",
+    "ما هو الشيء الذي يتحدث جميع اللغات？": "صدى الصوت",
     "ما هي أصغر دولة في العالم؟": "الفاتيكان",
     "ما هو أقرب كوكب إلى الشمس؟": "عطارد",
     "من هو مكتشف الجاذبية الأرضية؟": "نيوتن",
@@ -105,7 +106,7 @@ QUESTIONS_POOL = {
     "من هو أول رئيس للولايات المتحدة؟": "جورج واشنطن",
     "ما هي الدولة التي تشتهر بوجود حيوان الكنغر؟": "أستـراليا",
     "كم عدد الكلي في جسم الإنسان الطبيعي؟": "2",
-    "ما هي عاصمة الأردن؟": "عمان",
+    "ما هي عاصمة الأردن？": "عمان",
     "ما هو العنصر الكيميائي الرمز له بـ H؟": "الهيدروجين",
     "ما هو الشيء الذي له رجل واحدة وثلاث عيون؟": "إشارة المرور",
     "من هي أم البشر؟": "حواء",
@@ -155,8 +156,11 @@ ESCAPE_RIDDLES = [
     {"q": "له عين واحدة لكنه لا يرى بها شيئاً؟", "a": "الإبرة"}
 ]
 
+# --- 👑 متجر الرتب المحدث ---
 ROLES_SHOP = {
-    "role_1": {"name": "رتبة الزنجي المؤسس 👑", "price": 5000, "role_id": 1527739093163708548}
+    "role_1": {"name": "Level 25", "price": 1000, "role_id": 1515396547473309710, "desc": "تستطيع ارسال صور"},
+    "role_2": {"name": "Level 35", "price": 2000, "role_id": 1515396547473309711, "desc": "تستطيع ارسال صور وارسال ستيكر وايموجي من سيرفرات اخرى"},
+    "role_3": {"name": "Level 50", "price": 3500, "role_id": 1515396547473309712, "desc": "كل ما سبق اضافة تستطيع ارسال خط بحجم كبير (#)"}
 }
 
 COLORS_SHOP = {
@@ -240,6 +244,30 @@ async def auto_ping():
                 print(f"⏰ [Self-Ping] الحالة: {response.status}")
         except Exception as e:
             print(f"⚠️ [Self-Ping] خطأ: {e}")
+
+# --- 🛡️ نظام حماية الشات ومنع الخط الكبير ---
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    # إذا بدأت الرسالة بالهاشتاق والمسافة المتسببة بالخط الكبير (# )
+    if message.content.strip().startswith("# "):
+        has_role = any(role.id == LEVEL_50_ROLE_ID for role in message.author.roles)
+        
+        if not has_role:
+            try:
+                await message.delete()
+                await message.channel.send(
+                    f"⚠️ | عذراً {message.author.mention}، لا يمكنك إرسال خط بحجم كبير! هذه الميزة خاصة بأصحاب رتبة **Level 50** فقط. 👑", 
+                    delete_after=5
+                )
+            except:
+                pass
+            return # إيقاف المعالجة فوراً للرسالة المحذوفة
+
+    # استمرار معالجة باقي الأوامر دون مشاكل
+    await bot.process_commands(message)
 
 # --- 🎛️ واجهات وتفاعلات الألعاب والسرقة ---
 
@@ -462,7 +490,7 @@ class ItemPurchaseSelect(discord.ui.Select):
             
         role = interaction.guild.get_role(item["role_id"])
         if not role:
-            await interaction.response.send_message("❌ لم يتم العثور على الرتبة بالسيرفر.", ephemeral=True)
+            await interaction.response.send_message("❌ لم يتم العثور على الرتبة بالسيرفر. تأكد من تطابق آيدي الرتبة.", ephemeral=True)
             return
             
         if role in interaction.user.roles:
@@ -505,7 +533,8 @@ class ShopSelect(discord.ui.Select):
         if interaction.user != self.author: return
         if self.values[0] == "roles":
             embed = discord.Embed(title="👑 قسم الرتب المتاحة للشراء", description="اختر الرتبة التي ترغب بشرائها من القائمة المنسدلة بالأسفل:", color=discord.Color.purple())
-            for key, det in ROLES_SHOP.items(): embed.add_field(name=det["name"], value=f"السعر: **{det['price']} دولار**", inline=False)
+            for key, det in ROLES_SHOP.items(): 
+                embed.add_field(name=f"{det['name']} - {det['price']} دولار", value=f"ℹ️ {det['desc']}", inline=False)
             await interaction.response.edit_message(embed=embed, view=ItemPurchaseView(self.author, ROLES_SHOP, "👑 اختر رتبة لشراؤها...", is_color_shop=False))
         elif self.values[0] == "colors":
             embed = discord.Embed(title="🎨 قسم ألوان الأسماء المتاحة للشراء", description="اختر اللون الذي ترغب بشرائه من القائمة المنسدلة بالأسفل:\n*ملاحظة: شراء لون جديد يزيل اللون القديم تلقائياً!*", color=discord.Color.blue())
@@ -632,7 +661,7 @@ async def finish_heist(ctx, team, success):
                         f"💸 **نصيب كل فرد مشارك بالعصابة:** `{share} دولار` كاش في حسابه السحابي!",
             color=discord.Color.green()
         )
-        await ctx.send(embed=embed_win)
+        await ctx.send(embed=win)
     else:
         penalty = 150
         for member in team:
@@ -642,7 +671,7 @@ async def finish_heist(ctx, team, success):
             description=f"❌ تم تغريم كل لاعب مبلغ **{penalty} دولار** كغرامة كفالة للخروج من السجن.",
             color=discord.Color.dark_grey()
         )
-        await ctx.send(embed=embed_lose)
+        await ctx.send(embed=lose)
 
 @bot.command(name="العاب")
 async def list_games(ctx):
@@ -738,15 +767,13 @@ async def clear_messages(ctx, amount: int):
         deleted = await ctx.channel.purge(limit=amount + 1)
         await ctx.send(f"🧹 تم مسح {len(deleted) - 1} رسالة!", delete_after=2)
 
-# --- 🆔 أمر جلب الآيدي المطور الشامل لدعم الرتب والقنوات والأعضاء ---
+# --- 🆔 أمر جلب الآيدي المطور الشامل ---
 @bot.command(name="ايدي")
 async def get_id(ctx, target: str = None):
-    # 1. إذا كتب الأمر بمفرده، يظهر آيدي الحساب الشخصي
     if target is None:
         await ctx.send(f"🆔 آيديك الشخصي: `{ctx.author.id}`")
         return
 
-    # 2. إذا قام بمنشنة (عضو) صريحة
     if target.startswith("<@") and not target.startswith("<@&") and not target.startswith("<@!"):
         try:
             m = await commands.MemberConverter().convert(ctx, target)
@@ -754,7 +781,6 @@ async def get_id(ctx, target: str = None):
             return
         except: pass
         
-    # دعم صيغة المنشن البديلة للأعضاء بالأجهزة الأخرى
     if target.startswith("<@!"):
         try:
             m = await commands.MemberConverter().convert(ctx, target)
@@ -762,7 +788,6 @@ async def get_id(ctx, target: str = None):
             return
         except: pass
 
-    # 3. إذا قام بمنشنة (رتبة)
     if target.startswith("<@&"):
         try:
             r = await commands.RoleConverter().convert(ctx, target)
@@ -770,7 +795,6 @@ async def get_id(ctx, target: str = None):
             return
         except: pass
 
-    # 4. إذا قام بمنشنة (قناة)
     if target.startswith("<#"):
         try:
             c = await commands.GuildChannelConverter().convert(ctx, target)
