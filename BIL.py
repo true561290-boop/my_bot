@@ -6,7 +6,7 @@ import os
 import asyncio
 import aiohttp
 from threading import Thread
-from flask import Flask
+from Flask import Flask
 
 # --- 🌐 خادم ويب صغير لإبقاء البوت مستيقظاً ---
 app = Flask('')
@@ -40,15 +40,15 @@ ADMIN_ROLE_ID = 1515396547528102131  # رتبة اونر لامر الاضافة
 # --- 🧠 بنك الأسئلة المدمج المكون من 100 سؤال صعب جداً ---
 QUESTIONS_POOL = {
     "ما هو أول مسجد بني في الإسلام؟": "مسجد قباء",
-    "ما هو أطول نهر في العالم？": "نهر النيل",
+    "ما هو أطول نهر في العالم؟": "نهر النيل",
     "كم عدد الكواكب في المجموعة الشمسية؟": "8",
     "ما هو الطائر الذي يضع أكبر بيضة في العالم؟": "النعامة",
-    "عاصمة المملكة العربية السعودية هي？": "الرياض",
+    "عاصمة المملكة العربية السعودية هي؟": "الرياض",
     "ما هو الشيء الذي كلما أخذت منه كبر؟": "الحفرة",
     "ما هو الكائن الحي الذي يملك 3 قلوب؟": "الأخطبوط",
     "ما هي عاصمة فرنسا؟": "باريس",
     "من هو الصحابي الملقب بالفاروق؟": "عمر بن الخطاب",
-    "ما هو المعدن السائل الوحيد؟": "الزئبق",
+    "ما هو معدن السائل الوحيد؟": "الزئبق",
     "كم عدد سجدات التلاوة في القرآن الكريم؟": "15",
     "ما هو أسرع كائن حي على الأرض؟": "الفهد",
     "في أي مدينة توجد ساعة بيغ بين الشهيرة؟": "لندن",
@@ -56,7 +56,7 @@ QUESTIONS_POOL = {
     "ما هو الشيء الذي يمشي بلا أرجل ويبكي بلا أعين؟": "السحاب",
     "من هو كليم الله من الأنبياء؟": "موسى",
     "كم عدد قلوب حيوان الحبار؟": "3",
-    "ما هي عاصمة اليابان？": "طوكيو",
+    "ما هي عاصمة اليابان؟": "طوكيو",
     "ما هو الكوكب الملقب بالكوكب الأحمر؟": "المريخ",
     "ما هو الغاز المشهور بغاز الضحك؟": "أكسيد النيتروز",
     "كم عدد عظام الجسم البشري للبالغين؟": "206",
@@ -64,9 +64,9 @@ QUESTIONS_POOL = {
     "ما هي دولة التي تقع فيها أهرامات الجيزة؟": "مصر",
     "ما هو الشيء الذي يتحدث جميع اللغات؟": "صدى الصوت",
     "ما هي أصغر دولة في العالم؟": "الفاتيكان",
-    "ما هو أقرب كوكب إلى الشمس？": "عطارد",
+    "ما هو أقرب كوكب إلى الشمس؟": "عطارد",
     "من هو مكتشف الجاذبية الأرضية؟": "نيوتن",
-    "ما هو الفيتامين الذي نحصل عليه من الشمس؟": "فيتامين د",
+    "ما هو الفيتامين الذي نحصل عليه من الشمس？": "فيتامين د",
     "ما هو الحيوان الذي لا يشرب الماء طوال حياته؟": "الجرذ الكنغري",
     "ما هي عاصمة مصر؟": "القاهرة",
     "كم عدد ألوان قوس قزح؟": "7",
@@ -97,7 +97,7 @@ QUESTIONS_POOL = {
     "ما هو أصلب مادة طبيعية على الأرض؟": "الألماس",
     "ما هو الشيء الذي كلما زاد نقص؟": "العمر",
     "من هو الشاعر المقب بأمير الشعراء؟": "أحمد شوقي",
-    "ما هو البحر الذي لا يغرق فيه أحد لشدة ملوحته？": "البحر الميت",
+    "ما هو البحر الذي لا يغرق فيه أحد لشدة ملوحته؟": "البحر الميت",
     "كم عدد أضلاع المثلث؟": "3",
     "ما هي عاصمة المغرب؟": "الرباط",
     "ما هو أسرع الأسماك في المحيط؟": "سمكة الشراع",
@@ -120,7 +120,7 @@ QUESTIONS_POOL = {
     "ما هي عاصمة الكويت؟": "الكويت",
     "ما هو المعدن المستخدم في صناعة المسامير بكثرة؟": "الحديد",
     "ما هو الشيء الذي يحترق ليدير الضوء للآخرين؟": "الشمعة",
-    "من هو النبي الملقب بذو النون؟": "يونس",
+    "من هو النبي الملقب بذو النون？": "يونس",
     "ما هو النهر الذي يمر عبر لندن؟": "التايمز",
     "كم عدد أصابع اليدين والقدمين معاً للإنسان؟": "20",
     "ما هي عاصمة قطر؟": "الدوحة",
@@ -143,7 +143,7 @@ QUESTIONS_POOL = {
     "كم عدد الغرف في قلب الإنسان؟": "4",
     "ما هي عاصمة سوريا؟": "دمشق",
     "ما هو الحيوان الذي يغير لونه ليتخفى؟": "الحرباء",
-    "ما هو الشيء الذي تراه في الليل 3 مرات وفي النهار مرة واحدة؟": "حرف الياء"
+    "ما هو الشيء الذي تراه في الليل 3 مرات وفي النهار مرة واحدة؟": "حرف الراء"
 }
 
 # --- 🧠 بنك ألغاز لعبة الهروب ---
@@ -241,7 +241,81 @@ async def auto_ping():
         except Exception as e:
             print(f"⚠️ [Self-Ping] خطأ: {e}")
 
-# --- 🎮 واجهات الألعاب والمتجر التفاعلية ---
+# --- 🎛️ واجهات وتفاعلات الألعاب والسرقة ---
+
+# أزرار الانضمام لعصابة السرقة
+class HeistJoinView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=30.0)
+        self.participants = []
+
+    @discord.ui.button(label="🕶️ انضمام للعصابة", style=discord.ButtonStyle.grey)
+    async def join_heist(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user in self.participants:
+            await interaction.response.send_message("🎒 أنت بالفعل داخل العصابة ومستعد لتنفيذ العملية!", ephemeral=True)
+            return
+        self.participants.append(interaction.user)
+        await interaction.response.send_message(f"🔫 تم انضمامك بنجاح للعملية يا {interaction.user.name}!", ephemeral=True)
+
+# أزرار مهمة المفجر في السرقة
+class HeistBombView(discord.ui.View):
+    def __init__(self, target_player, correct_wire):
+        super().__init__(timeout=15.0)
+        self.target_player = target_player
+        self.correct_wire = correct_wire
+        self.success = False
+        self.answered = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user != self.target_player:
+            await interaction.response.send_message("❌ لست أنت المفجر المسؤول عن فتح الخزنة!", ephemeral=True)
+            return False
+        return True
+
+    async def check_wire(self, interaction: discord.Interaction, chosen: str):
+        self.answered = True
+        self.stop()
+        if chosen == self.correct_wire:
+            self.success = True
+            await interaction.response.edit_message(content=f"⚡ **كفو!** تم قطع السلك الصحيح ({chosen}) وانفتحت بوابة الخزنة الحديدية بنجاح!", view=None)
+        else:
+            await interaction.response.edit_message(content=f"💥 **كارثة!** قمت بقطع السلك الخطأ ودق جرس إنذار البنك المركزي!", view=None)
+
+    @discord.ui.button(label="الأصفر 🟡", style=discord.ButtonStyle.secondary)
+    async def yellow(self, interaction: discord.Interaction, button: discord.ui.Button): await self.check_wire(interaction, "الأصفر")
+    @discord.ui.button(label="الأزرق 🔵", style=discord.ButtonStyle.primary)
+    async def blue(self, interaction: discord.Interaction, button: discord.ui.Button): await self.check_wire(interaction, "الأزرق")
+
+# أزرار مهمة السائق في السرقة
+class HeistDriverView(discord.ui.View):
+    def __init__(self, target_player, correct_way):
+        super().__init__(timeout=15.0)
+        self.target_player = target_player
+        self.correct_way = correct_way
+        self.success = False
+        self.answered = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user != self.target_player:
+            await interaction.response.send_message("❌ لست أنت السائق المسؤول عن الهروب!", ephemeral=True)
+            return False
+        return True
+
+    async def check_way(self, interaction: discord.Interaction, chosen: str):
+        self.answered = True
+        self.stop()
+        if chosen == self.correct_way:
+            self.success = True
+            await interaction.response.edit_message(content=f"🚓 **عبقري!** اخترت {chosen} وتجاوزت كمين الشرطة بنجاح صاعق!", view=None)
+        else:
+            await interaction.response.edit_message(content=f"🚔 **حاصرتكم المدرعات!** دخلت في {chosen} وهو طريق مسدود بالكامل!", view=None)
+
+    @discord.ui.button(label="النفق السفلي 🚇", style=discord.ButtonStyle.danger)
+    async def tunnel(self, interaction: discord.Interaction, button: discord.ui.Button): await self.check_way(interaction, "النفق السفلي")
+    @discord.ui.button(label="الجسر السريع 🌉", style=discord.ButtonStyle.success)
+    async def bridge(self, interaction: discord.Interaction, button: discord.ui.Button): await self.check_way(interaction, "الجسر السريع")
+
+
 class BombButtons(discord.ui.View):
     def __init__(self, author, correct_wire):
         super().__init__(timeout=30.0)
@@ -395,7 +469,7 @@ class ItemPurchaseSelect(discord.ui.Select):
             return
             
         if role in interaction.user.roles:
-            await interaction.response.send_message("🎒 تمتلك هذه Mيزة بالفعل!", ephemeral=True)
+            await interaction.response.send_message("🎒 تمتلك هذه الميزة بالفعل!", ephemeral=True)
             return
             
         try:
@@ -409,7 +483,7 @@ class ItemPurchaseSelect(discord.ui.Select):
             await async_update_balance(self.author.id, -item["price"])
             await interaction.response.send_message(f"🎉 مبروك! تم شراء **{item['name']}** وخصم **{item['price']} دولار** 💸!", ephemeral=True)
         except:
-            await interaction.response.send_message("❌ البوت لا يملك صلاحية الرتب أو ترتيبه أقل من الرتبة المشتраة.", ephemeral=True)
+            await interaction.response.send_message("❌ البوت لا يملك صلاحية الرتب أو ترتيبه أقل من الرتبة المشتراة.", ephemeral=True)
 
 class ItemPurchaseView(discord.ui.View):
     def __init__(self, author, items_dict, placeholder_text, is_color_shop=False):
@@ -446,9 +520,153 @@ class MainShopView(discord.ui.View):
         super().__init__(timeout=60.0)
         self.add_item(ShopSelect(author))
 
-# --- 🎮 الأوامر ---
+# --- 🎮 الأوامر الأساسية والألعاب ---
 
-# 🌟 الأمر الجديد: عرض قائمة الألعاب المتاحة
+# 🌟 الأمر الجديد الأسطوري: سرقة البنك المركزي الجماعية
+@bot.command(name="سرقة")
+async def start_heist(ctx):
+    view_join = HeistJoinView()
+    view_join.participants.append(ctx.author) # من أطلق الأمر يدخل تلقائياً
+    
+    embed_lobby = discord.Embed(
+        title="🚨 عملية سطو مسلح كبرى على البنك المركزي! 🚨",
+        description=f"أعلن **{ctx.author.name}** عن بدء خطة لسرقة خزنة البنك الآن! 💰\n\n"
+                    "⚠️ **مطلوب شركاء فوراً!** تحتاج العملية لتضافر الجهود.\n"
+                    "اضغط على الزر بالأسفل للانضمام إلى طاقم العصابة.\n"
+                    "⏱️ **ينتهي باب الانضمام وتوزيع المهام بعد 30 ثانية!**",
+        color=discord.Color.red()
+    )
+    lobby_msg = await ctx.send(embed=embed_lobby, view=view_join)
+    await asyncio.sleep(30)
+    view_join.stop()
+    
+    team = view_join.participants
+    if len(team) < 2:
+        # إذا لم ينضم أحد، يتم إشراك لاعبين وهميين أو جعلها فردية لتفادي التوقف، لكن لجعلها أسطورية نلزم وجود شخصين أو يلعب الشخص كل الأدوار.
+        # هنا سنجعل البوت يوزع الأدوار المتاحة على العدد الموجود حتى لو كان شخص واحد بمفرده.
+        pass
+
+    await lobby_msg.edit(content=f"🔒 **أُغلق باب الانضمام!** عدد أفراد العصابة المستعدين: `{len(team)}` مجرمين.\nجاري الاتصال بـ المخطط وتوزيع المهام الآن...", embed=None, view=None)
+    await asyncio.sleep(3)
+
+    # تحديد عشوائي للأدوار (المخترق، المفجر، السائق)
+    # نستخدم المتاحين ونوزع عليهم الأدوار بالتناوب
+    hacker_player = random.choice(team)
+    bomber_player = random.choice(team)
+    driver_player = random.choice(team)
+    
+    heist_failed = False
+
+    # --- 1. مهمة المخترق (تعطيل الكاميرات) ---
+    secret_code = str(random.randint(1000, 9999))
+    embed_hacker = discord.Embed(
+        title="🖥️ المرحلة الأولى: إختراق أنظمة الأمان",
+        description=f"المخترق المعين: {hacker_player.mention}\n"
+                    f"عليك كتابة الكود السري التالي في الشات لتعطيل كاميرات المراقبة بالكامل:\n\n"
+                    f"🔑 الكود المطلوب: `{secret_code}`\n\n"
+                    "⏱️ **لديك 15 ثانية لتنفيذ المهمة الآن وإلا كُشفت الخطة!**",
+        color=discord.Color.blue()
+    )
+    hacker_msg = await ctx.send(embed=embed_hacker)
+    
+    def check_hacker(m):
+        return m.author == hacker_player and m.channel == ctx.channel and m.content.strip() == secret_code
+
+    try:
+        await bot.wait_for('message', check=check_hacker, timeout=15.0)
+        await ctx.send("✅ **رائع!** تم اختراق السيرفرات وتعطيل نظام الكاميرات والإنذار المبكر بنجاح!")
+    except asyncio.TimeoutError:
+        heist_failed = True
+        await ctx.send(f"🚨 **انتهى الوقت!** فشل {hacker_player.mention} في إدخال الكود، انطلقت صفارات الإنذار ووصلت قوات مكافحة الشغب! تم إفشال العملية.")
+
+    if heist_failed:
+        await finish_heist(ctx, team, success=False)
+        return
+
+    await asyncio.sleep(3)
+
+    # --- 2. مهمة المفجر (فتح الخزنة) ---
+    correct_wire = random.choice(["الأصفر", "الأزرق"])
+    view_bomb = HeistBombView(bomber_player, correct_wire)
+    embed_bomb = discord.Embed(
+        title="💥 المرحلة الثانية: تفجير أبواب الخزنة الكبرى",
+        description=f"المفجر المعين: {bomber_player.mention}\n"
+                    "وصلتم إلى باب الخزنة الفولاذي! أمامك جهاز شحنات يحتوي على سلكين.\n"
+                    "أحدهما يفتح الباب بسلام، والآخر يطلق فخ الغاز القاتل!\n\n"
+                    "⏱️ **أمامك 15 ثانية فقط للاختيار عبر الأزرار بالأسفل!**",
+        color=discord.Color.orange()
+    )
+    bomb_msg = await ctx.send(embed=embed_bomb, view=view_bomb)
+    await view_bomb.wait()
+    
+    if not view_bomb.answered or not view_bomb.success:
+        heist_failed = True
+        if not view_bomb.answered:
+            await bomb_msg.edit(content=f"🚨 **انتهى الوقت!** تجمد {bomber_player.mention} من الرعب ولم يختر سلكاً، حاصرتكم حراس البنك وتم اعتقالكم!", view=None)
+
+    if heist_failed:
+        await finish_heist(ctx, team, success=False)
+        return
+
+    await asyncio.sleep(3)
+
+    # --- 3. مهمة السائق (الهروب النهائي) ---
+    correct_way = random.choice(["النفق السفلي", "الجسر السريع"])
+    view_driver = HeistDriverView(driver_player, correct_way)
+    embed_driver = discord.Embed(
+        title="🚓 المرحلة الثالثة والأخيرة: الهروب الكبير",
+        description=f"السائق المعين: {driver_player.mention}\n"
+                    "الأموال بحوزتكم الآن وسيارات الشرطة تملأ الأفق وصوت الهليكوبتر فوقكم!\n"
+                    "أمامك خيارين سريعين لتوجيه مدرعة الهروب:\n\n"
+                    "⏱️ **أمامك 15 ثانية حاسمة للاختيار بالضغط على الأزرار!**",
+        color=discord.Color.dark_gold()
+    )
+    driver_msg = await ctx.send(embed=embed_driver, view=view_driver)
+    await view_driver.wait()
+    
+    if not view_driver.answered or not view_driver.success:
+        heist_failed = True
+        if not view_driver.answered:
+            await driver_msg.edit(content=f"🚨 **انتهى الوقت!** ضاع السائق {driver_player.mention} في الخريطة وأحاطت بكم مدرعات مكافحة الإرهاب!", view=None)
+
+    if heist_failed:
+        await finish_heist(ctx, team, success=False)
+    else:
+        await finish_heist(ctx, team, success=True)
+
+# دالة إنهاء سرقة البنك وحساب الأموال
+async def finish_heist(ctx, team, success):
+    if success:
+        total_loot = random.randint(1500, 3000)
+        share = total_loot // len(team)
+        
+        for member in team:
+            await async_update_balance(member.id, share)
+            
+        embed_win = discord.Embed(
+            title="🏆 تم نصر العملية والهروب الأسطوري بنجاح! 🏆",
+            description=f"كفوووو يا أبطال السطو! نجحت الخطة بالكامل وتمت سرقة البنك المركزي بنجاح ساحق!\n\n"
+                        f"💰 **إجمالي الغنيمة الكبرى:** `{total_loot} دولار`\n"
+                        f"💸 **نصيب كل فرد مشارك بالعصابة:** `{share} دولار` كاش في حسابه السحابي!\n\n"
+                        "عاش الفريق الأسطوري! 😎🕶️",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed_win)
+    else:
+        penalty = 150
+        for member in team:
+            await async_update_balance(member.id, -penalty)
+            
+        embed_lose = discord.Embed(
+            title="💀 فشلت العملية وتم زجكم في السجن خلف القضبان! 💀",
+            description=f"للأسف تم القبض على أفراد العصابة بالكامل من قبل قوات النخبة.\n\n"
+                        f"❌ تم تغريم كل لاعب شارك في العملية مبلغ **{penalty} دولار** كغرامة كفالة للخروج من السجن.\n"
+                        "حاولوا المرة القادمة بتنسيق وتوقيت أسرع! 🚔",
+            color=discord.Color.dark_grey()
+        )
+        await ctx.send(embed=embed_lose)
+
+
 @bot.command(name="العاب")
 async def list_games(ctx):
     embed = discord.Embed(
@@ -457,21 +675,28 @@ async def list_games(ctx):
         color=discord.Color.purple()
     )
     embed.add_field(
-        name="🧠 1. فعالية الأسئلة (`!سؤال`)",
+        name="🚨 1. عملية السطو الكبرى (`!سرقة`) [🔥 نادرة وجديدة]",
+        value="• **الوصف:** لعبة تعاونية جماعية تتطلب سرعة وتوزيع أدوار (مخترق، مفجر، سائق).\n"
+              "• **طريقة اللعب:** اكتب `!سرقة` وانضم للعصابة، ثم نفذ مهمتك خلال **15 ثانية** عند طلبها.\n"
+              "• **النتيجة:** نصر يوزع من **1500 إلى 3000 دولار** على الفريق! وفشل يسجنكم بغرامة. 💰🕶️",
+        inline=False
+    )
+    embed.add_field(
+        name="🧠 2. فعالية الأسئلة (`!سؤال`)",
         value="• **الوصف:** أسئلة ثقافية وتحديات صعبة وسريعة في الشات.\n"
               "• **طريقة اللعب:** اكتب `!سؤال` أو `!سؤال [عدد الجولات]` (مثال: `!سؤال 5`).\n"
               "• **الجائزة:** **50 دولار** لكل إجابة صحيحة وسريعة! ⏱️",
         inline=False
     )
     embed.add_field(
-        name="💥 2. لعبة تفكيك القنبلة (`!قنبلة`)",
+        name="💥 3. لعبة تفكيك القنبلة (`!قنبلة`)",
         value="• **الوصف:** قنبلة موقوتة تحتوي على 3 أسلاك ملونة وعليك اختيار السلك الصحيح.\n"
               "• **طريقة اللعب:** اكتب `!قنبلة` واضغط على الزر الملون.\n"
               "• **النتيجة:** نصر يعطيك **50 دولار**، وانفجار يخصم منك **20 دولار**! 🔴🔵🟢",
         inline=False
     )
     embed.add_field(
-        name="🚪 3. مغامرة الهروب من الغرفة المظلمة (`!هروب`)",
+        name="🚪 4. مغامرة الهروب من الغرفة المظلمة (`!هروب`)",
         value="• **الوصف:** لعبة مغامرة ورعب مكونة من 3 مراحل تعتمد على الأزرار والذكاء الذاتي.\n"
               "• **طريقة اللعب:** اكتب `!هروب` واتبع التعليمات بالضغط على الأزرار وحل اللغز المكتوب.\n"
               "• **النتيجة:** الهروب الناجح يمنحك جائزة كبرى من **200 إلى 500 دولار**! والخسارة تكلفك خصم رصيد. 💀🏆",
@@ -597,7 +822,7 @@ async def show_avatar(ctx, member: discord.Member = None):
     member = member or ctx.author
     e = discord.Embed(title=f"👤 صورة {member.name}", color=discord.Color.blue())
     e.set_image(url=member.display_avatar.url)
-    await ctx.send(embed=e)
+    await ctx.send(e=e)
 
 @bot.command(name="بنر")
 async def show_banner(ctx, member: discord.Member = None):
@@ -612,7 +837,7 @@ async def show_banner(ctx, member: discord.Member = None):
 async def on_ready():
     print("🤖 B✰IL bot is checking database...")
     await load_data_from_github()
-    print(f"Logged in as {bot.user.name} with Games List Menu!")
+    print(f"Logged in as {bot.user.name} with The Heist Game Integrated!")
     try:
         auto_ping.start()
     except: pass
