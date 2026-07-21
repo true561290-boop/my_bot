@@ -260,7 +260,7 @@ async def on_message(message):
                 await message.delete()
                 await message.channel.send(
                     f"⚠️ | عذراً {message.author.mention}، لا يمكنك إرسال خط بحجم كبير! هذه الميزة خاصة بأصحاب رتبة **Level 50** فقط. 👑", 
-                    delete_after=5
+                    delete_after=2
                 )
             except:
                 pass
@@ -359,10 +359,10 @@ class BombButtons(discord.ui.View):
         self.stop()
         if chosen_wire == self.correct_wire:
             await async_update_balance(self.author.id, 50)
-            await interaction.response.edit_message(content=f"🎉 **نجوت!** قطعت السلك الصحيح ({chosen_wire}) وربحت **50 دولار**! رصيدك: {get_balance(self.author.id)}.", view=None)
+            await interaction.response.edit_message(content=f"🎉 **نجوت!** قطعت السلك الصحيح ({chosen_wire}) وربحت **50 طولار**! رصيدك: {get_balance(self.author.id)}.", view=None)
         else:
             await async_update_balance(self.author.id, -20)
-            await interaction.response.edit_message(content=f"💥 **طرااااخ!** انفجرت القنبلة! السلك الصحيح كان ({self.correct_wire}). خسرت **20 دولار**.", view=None)
+            await interaction.response.edit_message(content=f"💥 ** انفجرت القنبلة! السلك الصحيح كان ({self.correct_wire}). خسرت **20 طولار**.", view=None)
 
     @discord.ui.button(label="أحمر 🔴", style=discord.ButtonStyle.danger)
     async def red_wire(self, interaction: discord.Interaction, button: discord.ui.Button): await self.process_choice(interaction, "أحمر")
@@ -393,14 +393,14 @@ class EscapeFinalView(discord.ui.View):
             embed_win = discord.Embed(
                 title="🎉 حرية أسطورية ونصر ساحق! 🎉",
                 description=f"كفوووو يا أسطورة! انفتحت البوابة الكبرى وخرجت إلى النور والشمس الساطعة! ☀️\n"
-                            f"وجدت صندوق مكافأة عند المخرج يحتوي على **{prize} دولار** كاش! 💰\n"
-                            f"رصيدك الحالي أصبح: **{get_balance(self.author.id)} دولار**.",
+                            f"وجدت صندوق مكافأة عند المخرج يحتوي على **{prize} طولار** كاش! 💰\n"
+                            f"رصيدك الحالي أصبح: **{get_balance(self.author.id)} طولار**.",
                 color=discord.Color.green()
             )
             await interaction.response.edit_message(embed=embed_win, view=None)
         else:
             await async_update_balance(self.author.id, -100)
-            await interaction.response.edit_message(content=f"💀 {self.author.mention} **نهاية مأساوية!** ضغطت على الجهاز الخطأ فانفجرت القاعة بالكامل! خسرت **100 دولار**.", embed=None, view=None)
+            await interaction.response.edit_message(content=f"💀 {self.author.mention} **نهاية مأساوية!** ضغطت على الجهاز الخطأ فانفجرت القاعة بالكامل! خسرت **100 طولار**.", embed=None, view=None)
 
 class EscapeRoomOneView(discord.ui.View):
     def __init__(self, author, ctx):
@@ -422,7 +422,7 @@ class EscapeRoomOneView(discord.ui.View):
         
         if choice != self.correct_door:
             await async_update_balance(self.author.id, -50)
-            await interaction.response.edit_message(content=f"💥 {self.author.mention} **فخ قاتل!** فتحت الباب وسقطت في حفرة مليئة بالأشواك السامة! خسرت **50 دولار** تكلفة الإنعاش.", embed=None, view=None)
+            await interaction.response.edit_message(content=f"💥 {self.author.mention} **فخ قاتل!** فتحت الباب وسقطت في حفرة مليئة بالأشواك السامة! خسرت **50 طولار** تكلفة الإنعاش.", embed=None, view=None)
             return
 
         riddle = random.choice(ESCAPE_RIDDLES)
@@ -431,7 +431,7 @@ class EscapeRoomOneView(discord.ui.View):
             description=f"كفو! دخلت من الباب الصحيح ووجدت ممرًا يقودك إلى **غرفة الألغاز السحرية**! ✨\n"
                         "لكي يفتح الجدار السري وتمر للمرحلة الأخيرة، يجب أن تحل هذا اللغز:\n\n"
                         f"📝 **اللغز:** `{riddle['q']}`\n\n"
-                        "⏱️ **لديك 20 ثانية للإجابة كتابةً في الشات مباشرة!** (بدون أوامر)",
+                        "⏱️ **لديك 20 ثانية للإجابة كتابةً في الشات مباشرة!** ",
             color=discord.Color.blue()
         )
         await interaction.response.edit_message(embed=embed_2, view=None)
@@ -475,7 +475,7 @@ class ItemPurchaseSelect(discord.ui.Select):
         self.is_color_shop = is_color_shop
         options = []
         for key, item in items_dict.items():
-            options.append(discord.SelectOption(label=item["name"], description=f"السعر: {item['price']} دولار", value=key))
+            options.append(discord.SelectOption(label=item["name"], description=f"السعر: {item['price']} طولار", value=key))
         super().__init__(placeholder=placeholder_text, options=options)
 
     async def callback(self, interaction: discord.Interaction):
@@ -485,7 +485,7 @@ class ItemPurchaseSelect(discord.ui.Select):
         
         user_balance = get_balance(self.author.id)
         if user_balance < item["price"]:
-            await interaction.response.send_message(f"⚠️ رصيدك غير كافٍ! تحتاج {item['price'] - user_balance} دولار إضافية.", ephemeral=True)
+            await interaction.response.send_message(f"⚠️ رصيدك غير كافٍ! تحتاج {item['price'] - user_balance} طولار إضافية.", ephemeral=True)
             return
             
         role = interaction.guild.get_role(item["role_id"])
@@ -506,7 +506,7 @@ class ItemPurchaseSelect(discord.ui.Select):
             
             await interaction.user.add_roles(role)
             await async_update_balance(self.author.id, -item["price"])
-            await interaction.response.send_message(f"🎉 مبروك! تم شراء **{item['name']}** وخصم **{item['price']} دولار** 💸!", ephemeral=True)
+            await interaction.response.send_message(f"🎉  تم شراء **{item['name']}** وخصم **{item['price']} طولار** 💸!", ephemeral=True)
         except:
             await interaction.response.send_message("❌ البوت لا يملك صلاحية الرتب أو ترتيبه أقل من الرتبة المشتراة.", ephemeral=True)
 
@@ -534,11 +534,11 @@ class ShopSelect(discord.ui.Select):
         if self.values[0] == "roles":
             embed = discord.Embed(title="👑 قسم الرتب المتاحة للشراء", description="اختر الرتبة التي ترغب بشرائها من القائمة المنسدلة بالأسفل:", color=discord.Color.purple())
             for key, det in ROLES_SHOP.items(): 
-                embed.add_field(name=f"{det['name']} - {det['price']} دولار", value=f"ℹ️ {det['desc']}", inline=False)
+                embed.add_field(name=f"{det['name']} - {det['price']} طولار", value=f"ℹ️ {det['desc']}", inline=False)
             await interaction.response.edit_message(embed=embed, view=ItemPurchaseView(self.author, ROLES_SHOP, "👑 اختر رتبة لشراؤها...", is_color_shop=False))
         elif self.values[0] == "colors":
             embed = discord.Embed(title="🎨 قسم ألوان الأسماء المتاحة للشراء", description="اختر اللون الذي ترغب بشرائه من القائمة المنسدلة بالأسفل:\n*ملاحظة: شراء لون جديد يزيل اللون القديم تلقائياً!*", color=discord.Color.blue())
-            for key, det in COLORS_SHOP.items(): embed.add_field(name=det["name"], value=f"السعر: **{det['price']} دولار**", inline=False)
+            for key, det in COLORS_SHOP.items(): embed.add_field(name=det["name"], value=f"السعر: **{det['price']} طولار**", inline=False)
             await interaction.response.edit_message(embed=embed, view=ItemPurchaseView(self.author, COLORS_SHOP, "🎨 اختر لوناً لشراؤه...", is_color_shop=True))
 
 class MainShopView(discord.ui.View):
@@ -657,8 +657,8 @@ async def finish_heist(ctx, team, success):
             await async_update_balance(member.id, share)
         embed_win = discord.Embed(
             title="🏆 تم نصر العملية والهروب الأسطوري بنجاح! 🏆",
-            description=f"💰 **إجمالي الغنيمة الكبرى:** `{total_loot} دولار`\n"
-                        f"💸 **نصيب كل فرد مشارك بالعصابة:** `{share} دولار` كاش في حسابه السحابي!",
+            description=f"💰 **إجمالي الغنيمة الكبرى:** `{total_loot} طولار`\n"
+                        f"💸 **نصيب كل فرد مشارك بالعصابة:** `{share} طولار` كاش في حسابه السحابي!",
             color=discord.Color.green()
         )
         await ctx.send(embed=win)
@@ -668,7 +668,7 @@ async def finish_heist(ctx, team, success):
             await async_update_balance(member.id, -penalty)
         embed_lose = discord.Embed(
             title="💀 فشلت العملية وتم زجكم في السجن! 💀",
-            description=f"❌ تم تغريم كل لاعب مبلغ **{penalty} دولار** كغرامة كفالة للخروج من السجن.",
+            description=f"❌ تم تغريم كل لاعب مبلغ **{penalty} طولار** كغرامة كفالة للخروج من السجن.",
             color=discord.Color.dark_grey()
         )
         await ctx.send(embed=lose)
@@ -701,7 +701,7 @@ async def game_quiz(ctx, rounds: int = 1):
         try:
             msg = await bot.wait_for('message', check=check, timeout=8.0)
             await async_update_balance(msg.author.id, 50)
-            await ctx.send(embed=discord.Embed(title="🎉 إجابة صحيحة!", description=f"كفو {msg.author.mention}! ربح **50 دولار** 💵.", color=discord.Color.green()))
+            await ctx.send(embed=discord.Embed(title="🎉 إجابة صحيحة!", description=f"كفو {msg.author.mention}! ربح **50 طولار** 💵.", color=discord.Color.green()))
         except asyncio.TimeoutError:
             await ctx.send(embed=discord.Embed(title="⏱️ انتهى الوقت!", description=f"الإجابة الصحيحة: **{a}** 💡", color=discord.Color.orange()))
         if r < rounds: await asyncio.sleep(3)
@@ -729,9 +729,9 @@ async def start_escape(ctx):
         await msg.edit(content=f"💀 {ctx.author.mention}، تأخرت كثيراً! انتهت اللعبة.", embed=None, view=None)
 
 # --- باقي الأوامر الخدمية الأساسية ---
-@bot.command(name="فلوس")
+@bot.command(name="طولاري")
 async def check_wallet(ctx):
-    await ctx.send(f"💳 | رصيدك الحالي يا {ctx.author.mention} هو: **{get_balance(ctx.author.id)} دولار** 💵.")
+    await ctx.send(f"💳 | رصيدك الحالي يا {ctx.author.mention} هو: **{get_balance(ctx.author.id)} طولار** 💵.")
 
 @bot.command(name="متجر")
 async def show_shop(ctx):
@@ -746,7 +746,7 @@ async def transfer_money(ctx, member: discord.Member, amount: int):
         return
     await async_update_balance(ctx.author.id, -amount)
     await async_update_balance(member.id, amount)
-    await ctx.send(f"💸 تم تحويل {amount} دولار بنجاح إلى {member.mention} ✅!")
+    await ctx.send(f"💸 تم تحويل {amount} طولار بنجاح إلى {member.mention} ✅!")
 
 @bot.command(name="اضافة")
 async def add_money(ctx, member: discord.Member, amount: int):
@@ -755,7 +755,7 @@ async def add_money(ctx, member: discord.Member, amount: int):
         await ctx.send("❌ هذا الأمر خاص بالأونر فقط!")
         return
     await async_update_balance(member.id, amount)
-    await ctx.send(f"💰 تم إضافة **{amount} دولار** إلى {member.mention} 🌟!")
+    await ctx.send(f"💰 تم إضافة **{amount} طولار** إلى {member.mention} 🌟!")
 
 @bot.command(name="مسح")
 async def clear_messages(ctx, amount: int):
