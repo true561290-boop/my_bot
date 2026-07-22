@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 import random
 import json
 import os
@@ -7,8 +7,6 @@ import asyncio
 import aiohttp
 from threading import Thread
 from flask import Flask
-from PIL import Image, ImageDraw, ImageFont
-import io
 
 # --- 🌐 خادم ويب صغير لإبقاء البوت مستيقظاً 24/7 ---
 app = Flask('')
@@ -167,7 +165,7 @@ COLORS_SHOP = {
 
 bot.user_bank = {}
 
-# --- 🔄 دالات GitHub ---
+# --- 🔄 دالات GitHub وحماية البيانات ---
 async def load_data_from_github():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -178,19 +176,24 @@ async def load_data_from_github():
                 if r.status == 200:
                     content = await r.json()
                     file_data = base64.b64decode(content['content']).decode('utf-8')
-                    bot.user_bank = json.loads(file_data)
-                    print("✅ [GitHub Cloud] تم تحميل البيانات!")
+                    data = json.loads(file_data)
+                    bot.user_bank.update(data)
+                    print("✅ [GitHub Cloud] تم تحميل البيانات بنجاح ثابتاً!")
                 else:
-                    bot.user_bank = {}
+                    print(f"⚠️ [GitHub Cloud] فشل التحميل بكود الحالة: {r.status}")
         except Exception as e:
-            print(f"⚠️ [GitHub Cloud] خطأ التحميل: {e}")
-            bot.user_bank = {}
+            print(f"⚠️ [GitHub Cloud] خطأ أثناء تحميل البيانات: {e}")
 
 async def async_update_balance(user_id, amount):
     uid = str(user_id)
     import base64
+    
+    if not bot.user_bank:
+        await load_data_from_github()
+
     if uid not in bot.user_bank:
         bot.user_bank[uid] = 200
+
     bot.user_bank[uid] += amount
     
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
@@ -216,64 +219,15 @@ async def async_update_balance(user_id, amount):
                 
             async with session.put(url, headers=headers, json=payload) as r_put:
                 if r_put.status in [200, 201]:
-                    print("✅ [GitHub Cloud] تم الحفظ سحابياً!")
+                    print("✅ [GitHub Cloud] تم الحفظ سحابياً بنجاح!")
         except Exception as e:
-            print(f"⚠️ [GitHub Cloud] خطأ الحفظ: {e}")
+            print(f"⚠️ [GitHub Cloud] خطأ أثناء الحفظ: {e}")
 
 def get_balance(user_id):
     uid = str(user_id)
     if uid not in bot.user_bank:
         bot.user_bank[uid] = 200
     return bot.user_bank[uid]
-
-# --- 🖼️ دالة توليد بطاقة الرصيد الآمنة (دون مشاكل خطوط) ---
-def create_wallet_card(user_name, balance):
-    width, height = 550, 200
-    img = Image.new("RGB", (width, height), color=(15, 23, 42))
-    draw = ImageDraw.Draw(img)
-
-    # إطار خارجي
-    draw.rectangle([10, 10, width - 10, height - 10], outline=(59, 130, 246), width=3)
-    
-    # كتابة النصوص بطريقة مستقرة
-    draw.text((30, 30), "=== BIL BANK CARD ===", fill=(234, 179, 8))
-    draw.text((30, 70), f"User Name : {user_name}", fill=(255, 255, 255))
-    draw.text((30, 110), f"Balance   : ${balance:,} USD", fill=(34, 197, 94))
-    draw.text((30, 150), "Status    : Active Account", fill=(148, 163, 184))
-
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-    return buffer
-
-# --- 🎨 دالة توليد صورة المتجر الآمنة ---
-def create_shop_card():
-    width, height = 650, 350
-    img = Image.new("RGB", (width, height), color=(24, 24, 27))
-    draw = ImageDraw.Draw(img)
-
-    draw.rectangle([10, 10, width - 10, height - 10], outline=(234, 179, 8), width=3)
-    
-    draw.text((220, 25), "=== BIL SERVER SHOP ===", fill=(234, 179, 8))
-    
-    y = 65
-    draw.text((30, y), "[ ROLES SECTION ]", fill=(168, 85, 247))
-    y += 25
-    for k, item in ROLES_SHOP.items():
-        draw.text((40, y), f"* {item['name']} | Price: ${item['price']} | {item['desc']}", fill=(255, 255, 255))
-        y += 22
-
-    y += 15
-    draw.text((30, y), "[ COLORS SECTION ]", fill=(59, 130, 246))
-    y += 25
-    for k, item in COLORS_SHOP.items():
-        draw.text((40, y), f"* {item['name']} | Price: ${item['price']}", fill=(255, 255, 255))
-        y += 22
-
-    buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-    return buffer
 
 # --- 🛡️ نظام حماية الخط الكبير ---
 @bot.event
@@ -296,20 +250,56 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# --- 💳 أمر !فلوس (صورة) ---
+# --- 🎮 أمر !العاب ---
+@bot.command(name="العاب")
+async def show_games(ctx):
+    embed = discord.Embed(
+        title="🎮 قائمة الألعاب والفعاليات",
+        description="إليك الألعاب المتاحة حالياً في البوت مع طريقة الاستخدام:",
+        color=discord.Color.blue()
+    )
+    embed.add_field(
+        name="❓ لعبة الأسئلة: `!سؤال [عدد الجولات]`",
+        value="يطرح البوت أسئلة من بنك الأسئلة (يمكنك تحديد الجولات من 1 إلى 10)، والإجابة السريعة تمنحك **100 دولار** 💸.",
+        inline=False
+    )
+    embed.add_field(
+        name="🚔 لعبة السجن: `!سجن @العضو`",
+        value="يسجن العضو المحدد ويطرح عليه لغزاً، ولديه **30 ثانية** للحل والهروب من السجن 🔓.",
+        inline=False
+    )
+    embed.set_footer(text="B✰IL Gaming System")
+    await ctx.send(embed=embed)
+
+# --- 💳 أمر !فلوس ---
 @bot.command(name="فلوس")
 async def check_wallet(ctx):
     balance = get_balance(ctx.author.id)
-    img_buffer = create_wallet_card(ctx.author.name, balance)
-    file = discord.File(fp=img_buffer, filename="wallet.png")
-    await ctx.send(content=f"💳 | بطاقة البنك الخاصة بك يا {ctx.author.mention}:", file=file)
+    embed = discord.Embed(
+        title="💳 بطاقة حسابك البنكي",
+        color=discord.Color.gold()
+    )
+    embed.add_field(name="صاحب الحساب", value=ctx.author.mention, inline=False)
+    embed.add_field(name="الرصيد الحالي", value=f"**${balance:,}** دولار 💸", inline=False)
+    embed.set_footer(text="B✰IL Bank System")
+    await ctx.send(embed=embed)
 
-# --- 🛒 أمر !متجر (صورة + أزرار) ---
+# --- 🛒 أمر !متجر ---
 @bot.command(name="متجر")
 async def show_shop(ctx):
-    img_buffer = create_shop_card()
-    file = discord.File(fp=img_buffer, filename="shop.png")
-    await ctx.send(content="🛒 **إليك قائمة المتجر الحالية:**", file=file, view=MainShopView(ctx.author))
+    embed = discord.Embed(
+        title="🛒 متجر السيرفر",
+        description="اختر القسم الذي تريد الشراء منه باستخدام القائمة أدناه:",
+        color=discord.Color.purple()
+    )
+    
+    roles_desc = "\n".join([f"• **{item['name']}** - ${item['price']} ({item['desc']})" for item in ROLES_SHOP.values()])
+    colors_desc = "\n".join([f"• **{item['name']}** - ${item['price']}" for item in COLORS_SHOP.values()])
+    
+    embed.add_field(name="👑 قسم الرتب", value=roles_desc, inline=False)
+    embed.add_field(name="🎨 قسم الألوان", value=colors_desc, inline=False)
+    
+    await ctx.send(embed=embed, view=MainShopView(ctx.author))
 
 # --- 🛒 واجهات الشراء والمشتروات ---
 class ItemPurchaseSelect(discord.ui.Select):
@@ -352,7 +342,7 @@ class ItemPurchaseSelect(discord.ui.Select):
             await async_update_balance(self.author.id, -item["price"])
             await interaction.response.send_message(f"🎉 مبروك! تم شراء **{item['name']}** وخصم **{item['price']} دولار** 💸!", ephemeral=True)
         except:
-            await interaction.response.send_message("❌ البوت لا يملك صلاحية الرتب.", ephemeral=True)
+            await interaction.response.send_message("❌ البوت لا يملك صلاحية إدارة الرتب.", ephemeral=True)
 
 class ItemPurchaseView(discord.ui.View):
     def __init__(self, author, items_dict, placeholder_text, is_color_shop=False):
