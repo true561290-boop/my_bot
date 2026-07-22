@@ -250,7 +250,7 @@ ESCAPE_RIDDLES = [
 ROLES_SHOP = {
     "role_1": {"name": "Level 25", "price": 1000, "role_id": 1515396547473309710, "desc": "تستطيع ارسال صور"},
     "role_2": {"name": "Level 35", "price": 2000, "role_id": 1515396547473309711, "desc": "تستطيع ارسال صور وارسال ستيكر وايموجي"},
-    "role_3": {"name": "Level 50", "price": 3500, "role_id": 1515396547473309712, "desc": "كل ما سبق + تستطيع ارسال خط بحجم كبير (#)"}
+    "role_3": {"name": "Level 50", "price": 3500, "role_id": 1515396547473309712, "desc": "كل ما سبق اضافة تستطيع ارسال خط بحجم كبير (#)"}
 }
 
 COLORS_SHOP = {
@@ -268,7 +268,7 @@ async def load_data_from_github():
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(url, headers=headers) as r:
-                if r.status == 0:
+                if r.status == 200:
                     content = await r.json()
                     file_data = base64.b64decode(content['content']).decode('utf-8')
                     data = json.loads(file_data)
@@ -287,7 +287,7 @@ async def async_update_balance(user_id, amount):
         await load_data_from_github()
 
     if uid not in bot.user_bank:
-        bot.user_bank[uid] = 0
+        bot.user_bank[uid] = 200
 
     bot.user_bank[uid] += amount
     
@@ -298,7 +298,7 @@ async def async_update_balance(user_id, amount):
         try:
             sha = None
             async with session.get(url, headers=headers) as r:
-                if r.status == 0:
+                if r.status == 200:
                     res_json = await r.json()
                     sha = res_json['sha']
             
@@ -313,7 +313,7 @@ async def async_update_balance(user_id, amount):
                 payload["sha"] = sha
                 
             async with session.put(url, headers=headers, json=payload) as r_put:
-                if r_put.status in [0, 1]:
+                if r_put.status in [200, 201]:
                     print("✅ [GitHub Cloud] تم الحفظ سحابياً بنجاح!")
         except Exception as e:
             print(f"⚠️ [GitHub Cloud] خطأ أثناء الحفظ: {e}")
@@ -321,7 +321,7 @@ async def async_update_balance(user_id, amount):
 def get_balance(user_id):
     uid = str(user_id)
     if uid not in bot.user_bank:
-        bot.user_bank[uid] = 0
+        bot.user_bank[uid] = 200
     return bot.user_bank[uid]
 
 # --- 🛡️ نظام حماية الخط الكبير ---
@@ -337,7 +337,7 @@ async def on_message(message):
                 await message.delete()
                 await message.channel.send(
                     f"⚠️ | عذراً {message.author.mention}، لا يمكنك إرسال خط بحجم كبير! هذه الميزة خاصة بأصحاب رتبة **Level 50** فقط. 👑", 
-                    delete_after=2
+                    delete_after=5
                 )
             except:
                 pass
@@ -355,12 +355,12 @@ async def show_games(ctx):
     )
     embed.add_field(
         name="❓ لعبة الأسئلة: `!سؤال [عدد الجولات]`",
-        value="🔥 **أسئلة جديدة معقدة وصعبة!**\n⏱️ لديك **8 ثوانٍ** فقط للإجابة وسرعة البديهة مطلوبة.\n💸 الجائزة: **30 طولار** لكل إجابة صحيحة.",
+        value="🔥 **أسئلة جديدة معقدة وصعبة!**\n⏱️ لديك **8 ثوانٍ** فقط للإجابة وسرعة البديهة مطلوبة.\n💸 الجائزة: **100 دولار** لكل إجابة صحيحة.",
         inline=False
     )
     embed.add_field(
         name="🚔 لعبة السجن: `!سجن`",
-        value="🔓 **تسجن نفسك فوراً بدون الحاجة لمنشن!**\n🧩 يُطرح عليك لغز من أصل **100 لغز صعب**.\n⏱️ لديك **10 ثوانٍ** فقط للحل والهروب قبل إغلاق السجن.\n💸 الجائزة: **30 طولار** عند الهروب بنجاح.",
+        value="🔓 **تسجن نفسك فوراً بدون الحاجة لمنشن!**\n🧩 يُطرح عليك لغز من أصل **100 لغز صعب**.\n⏱️ لديك **10 ثوانٍ** فقط للحل والهروب قبل إغلاق السجن.\n💸 الجائزة: **30 دولار** عند الهروب بنجاح.",
         inline=False
     )
     embed.set_footer(text="B✰IL Hardcore Gaming System")
@@ -396,11 +396,11 @@ async def ask_question(ctx, rounds: int = 1):
 
         try:
             msg = await bot.wait_for('message', timeout=8.0, check=check)
-            await async_update_balance(msg.author.id, 30)
+            await async_update_balance(msg.author.id, 100)
             
             win_embed = discord.Embed(
                 title="🎉 إجابة صحيحة وسريعة!",
-                description=f"كفو يا {msg.author.mention}! الإجابة هي **{answer}**.\nفزت بـ **30 طولار** 💸!",
+                description=f"كفو يا {msg.author.mention}! الإجابة هي **{answer}**.\nفزت بـ **100 دولار** 💸!",
                 color=discord.Color.green()
             )
             await ctx.send(embed=win_embed)
@@ -434,12 +434,12 @@ async def jail_user(ctx):
     try:
         await bot.wait_for('message', timeout=10.0, check=check)
         await async_update_balance(member.id, 30)
-        await ctx.send(f"🔓 **مبروك!** {member.mention} حل اللغز الصعب بنجاح، ونجح في الهروب وحصل على **30 طولار** 💸!")
+        await ctx.send(f"🔓 **مبروك!** {member.mention} حل اللغز الصعب بنجاح، ونجح في الهروب وحصل على **30 دولار** 💸!")
     except asyncio.TimeoutError:
         await ctx.send(f"🔒 **انتهى الوقت!** {member.mention} لم يجب خلال 10 ثوانٍ ويبقى محبوساً!")
 
 # --- 💳 أمر !فلوس ---
-@bot.command(name="طولاري")
+@bot.command(name="فلوس")
 async def check_wallet(ctx):
     balance = get_balance(ctx.author.id)
     embed = discord.Embed(
@@ -447,7 +447,7 @@ async def check_wallet(ctx):
         color=discord.Color.gold()
     )
     embed.add_field(name="صاحب الحساب", value=ctx.author.mention, inline=False)
-    embed.add_field(name="الرصيد الحالي", value=f"**${balance:,}** طولار 💸", inline=False)
+    embed.add_field(name="الرصيد الحالي", value=f"**${balance:,}** دولار 💸", inline=False)
     embed.set_footer(text="B✰IL Bank System")
     await ctx.send(embed=embed)
 
@@ -476,7 +476,7 @@ class ItemPurchaseSelect(discord.ui.Select):
         self.is_color_shop = is_color_shop
         options = []
         for key, item in items_dict.items():
-            options.append(discord.SelectOption(label=item["name"], description=f"السعر: {item['price']} طولار", value=key))
+            options.append(discord.SelectOption(label=item["name"], description=f"السعر: {item['price']} دولار", value=key))
         super().__init__(placeholder=placeholder_text, options=options)
 
     async def callback(self, interaction: discord.Interaction):
@@ -486,7 +486,7 @@ class ItemPurchaseSelect(discord.ui.Select):
         
         user_balance = get_balance(self.author.id)
         if user_balance < item["price"]:
-            await interaction.response.send_message(f"⚠️ رصيدك غير كافٍ! تحتاج {item['price'] - user_balance} طولار إضافية.", ephemeral=True)
+            await interaction.response.send_message(f"⚠️ رصيدك غير كافٍ! تحتاج {item['price'] - user_balance} دولار إضافية.", ephemeral=True)
             return
             
         role = interaction.guild.get_role(item["role_id"])
@@ -507,7 +507,7 @@ class ItemPurchaseSelect(discord.ui.Select):
             
             await interaction.user.add_roles(role)
             await async_update_balance(self.author.id, -item["price"])
-            await interaction.response.send_message(f"🎉 مبروك! تم شراء **{item['name']}** وخصم **{item['price']} طولار** 💸!", ephemeral=True)
+            await interaction.response.send_message(f"🎉 مبروك! تم شراء **{item['name']}** وخصم **{item['price']} دولار** 💸!", ephemeral=True)
         except:
             await interaction.response.send_message("❌ البوت لا يملك صلاحية إدارة الرتب.", ephemeral=True)
 
@@ -551,16 +551,16 @@ async def transfer_money(ctx, member: discord.Member = None, amount: int = None)
 
     sender_bal = get_balance(ctx.author.id)
     if sender_bal < amount:
-        await ctx.send(f"⚠️ رصيدك غير كافٍ! رصيدك الحالي: **{sender_bal} طولار**")
+        await ctx.send(f"⚠️ رصيدك غير كافٍ! رصيدك الحالي: **{sender_bal} دولار**")
         return
 
     await async_update_balance(ctx.author.id, -amount)
     await async_update_balance(member.id, amount)
 
-    await ctx.send(f"✅ تم تحويل **{amount} طولار** بنجاح إلى {member.mention} 💸!")
+    await ctx.send(f"✅ تم تحويل **{amount} دولار** بنجاح إلى {member.mention} 💸!")
 
 # --- 👑 أمر إعطاء الأدمن ---
-@bot.command(name="اضافة")
+@bot.command(name="اعطاء")
 async def give_money(ctx, member: discord.Member = None, amount: int = None):
     has_admin = any(role.id == ADMIN_ROLE_ID for role in ctx.author.roles)
     if not has_admin and not ctx.author.guild_permissions.administrator:
@@ -572,7 +572,7 @@ async def give_money(ctx, member: discord.Member = None, amount: int = None):
         return
 
     await async_update_balance(member.id, amount)
-    await ctx.send(f"👑 تم إضافة **{amount} طولار** إلى حساب {member.mention} بنجاح!")
+    await ctx.send(f"👑 تم إضافة **{amount} دولار** إلى حساب {member.mention} بنجاح!")
 
 # --- 🚀 تشغيل البوت ---
 @bot.event
