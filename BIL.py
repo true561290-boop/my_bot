@@ -10,7 +10,7 @@ from flask import Flask
 from PIL import Image, ImageDraw, ImageFont
 import io
 
-# --- 🌐 خادم ويب صغير لإبقاء البوت مستيقظاً ---
+# --- 🌐 خادم ويب صغير لإبقاء البوت مستيقظاً 24/7 ---
 app = Flask('')
 
 @app.route('/')
@@ -31,7 +31,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- ⚙️ إعدادات مستودع GitHub وبياناتك الحقيقية ---
+# --- ⚙️ إعدادات مستودع GitHub والبيانات ---
 GITHUB_TOKEN = "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"
 REPO_OWNER = "true561290-boop"
 REPO_NAME = "my_bot"
@@ -40,7 +40,7 @@ FILE_PATH = "bank.json"
 ADMIN_ROLE_ID = 1515396547528102131
 LEVEL_50_ROLE_ID = 1515396547473309712
 
-# --- 🧠 بنك الأسئلة المكون من 100 سؤال وجواب ---
+# --- 🧠 بنك الأسئلة المكون من 100 سؤال ---
 QUESTIONS_POOL = {
     "ما هو أول مسجد بني في الإسلام؟": "مسجد قباء",
     "ما هو أطول نهر في العالم؟": "نهر النيل",
@@ -94,7 +94,7 @@ QUESTIONS_POOL = {
     "ما هو العنصر الكيميائي الممرمز بـ Au؟": "الذهب",
     "ما هو أكبر عضو داخلي في جسم الإنسان؟": "الكبد",
     "ما هي عاصمة الأردن؟": "عمان",
-    "ما هو أسرع كائن بحري؟": "سمك سمك الشراع",
+    "ما هو أسرع كائن بحري؟": "سمك الشراع",
     "ما هي عاصمة العراق؟": "بغداد",
     "كم عدد لاعبي فريق كرة القدم في الملعب؟": "11",
     "ما هي السورة التي تُسمى عروس القرآن؟": "الرحمن",
@@ -144,7 +144,7 @@ QUESTIONS_POOL = {
     "ما هي الدولة العربية الأكبر من حيث المساحة؟": "الجزائر"
 }
 
-# --- 🧩 ألغاز السجن والهروب ---
+# --- 🧩 ألغاز السجن ---
 ESCAPE_RIDDLES = [
     {"q": "أنا موجود في الشتاء وغير موجود في الصيف، ومن 4 حروف، ما أنا؟", "a": "مطر"},
     {"q": "يسير بلا رجلين ولا يدخل إلا بالأذنين، ما هو؟", "a": "الصوت"},
@@ -153,7 +153,7 @@ ESCAPE_RIDDLES = [
     {"q": "كلما أخذت منه كبر وكلما أضفت إليه صغر، ما هو؟", "a": "الحفرة"}
 ]
 
-# --- 🛒 قوائم المتجر ---
+# --- 🛒 المتجر ---
 ROLES_SHOP = {
     "role_1": {"name": "Level 25", "price": 1000, "role_id": 1515396547473309710, "desc": "تستطيع ارسال صور"},
     "role_2": {"name": "Level 35", "price": 2000, "role_id": 1515396547473309711, "desc": "تستطيع ارسال صور وارسال ستيكر وايموجي"},
@@ -167,7 +167,7 @@ COLORS_SHOP = {
 
 bot.user_bank = {}
 
-# --- 🔄 دالات الحفظ السحابي (GitHub Storage) ---
+# --- 🔄 دالات GitHub ---
 async def load_data_from_github():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -179,11 +179,11 @@ async def load_data_from_github():
                     content = await r.json()
                     file_data = base64.b64decode(content['content']).decode('utf-8')
                     bot.user_bank = json.loads(file_data)
-                    print("✅ [GitHub Cloud] تم تحميل بيانات البنك بنجاح!")
+                    print("✅ [GitHub Cloud] تم تحميل البيانات!")
                 else:
                     bot.user_bank = {}
         except Exception as e:
-            print(f"⚠️ [GitHub Cloud] فشل تحميل البيانات: {e}")
+            print(f"⚠️ [GitHub Cloud] خطأ التحميل: {e}")
             bot.user_bank = {}
 
 async def async_update_balance(user_id, amount):
@@ -208,7 +208,7 @@ async def async_update_balance(user_id, amount):
             encoded = base64.b64encode(js_bytes).decode('utf-8')
             
             payload = {
-                "message": "🔄 تحديث تلقائي لرصيد البنك عبر البوت",
+                "message": "🔄 تحديث تلقائي لرصيد البنك",
                 "content": encoded
             }
             if sha:
@@ -216,9 +216,9 @@ async def async_update_balance(user_id, amount):
                 
             async with session.put(url, headers=headers, json=payload) as r_put:
                 if r_put.status in [200, 201]:
-                    print("✅ [GitHub Cloud] تم حفظ الرصيد الجديد سحابياً!")
+                    print("✅ [GitHub Cloud] تم الحفظ سحابياً!")
         except Exception as e:
-            print(f"⚠️ [GitHub Cloud] فشل حفظ الرصيد سحابياً: {e}")
+            print(f"⚠️ [GitHub Cloud] خطأ الحفظ: {e}")
 
 def get_balance(user_id):
     uid = str(user_id)
@@ -226,59 +226,56 @@ def get_balance(user_id):
         bot.user_bank[uid] = 200
     return bot.user_bank[uid]
 
-# --- 🖼️ دالة توليد بطاقة الرصيد صورة (Image Generation) ---
+# --- 🖼️ دالة توليد بطاقة الرصيد الآمنة (دون مشاكل خطوط) ---
 def create_wallet_card(user_name, balance):
-    width, height = 600, 250
+    width, height = 550, 200
     img = Image.new("RGB", (width, height), color=(15, 23, 42))
     draw = ImageDraw.Draw(img)
 
-    # إطار زينة
-    draw.rectangle([15, 15, width - 15, height - 15], outline=(59, 130, 246), width=3)
-    draw.rectangle([20, 20, width - 20, height - 20], outline=(147, 51, 234), width=1)
-
-    font_large = ImageFont.load_default()
-
-    draw.text((40, 40), "B✰IL BANK CARD", fill=(234, 179, 8), font=font_large)
-    draw.text((40, 80), f"User: {user_name}", fill=(255, 255, 255), font=font_large)
-    draw.text((40, 130), f"Balance: ${balance:,} USD", fill=(34, 197, 94), font=font_large)
-    draw.text((40, 180), "Status: VIP Member", fill=(148, 163, 184), font=font_large)
+    # إطار خارجي
+    draw.rectangle([10, 10, width - 10, height - 10], outline=(59, 130, 246), width=3)
+    
+    # كتابة النصوص بطريقة مستقرة
+    draw.text((30, 30), "=== BIL BANK CARD ===", fill=(234, 179, 8))
+    draw.text((30, 70), f"User Name : {user_name}", fill=(255, 255, 255))
+    draw.text((30, 110), f"Balance   : ${balance:,} USD", fill=(34, 197, 94))
+    draw.text((30, 150), "Status    : Active Account", fill=(148, 163, 184))
 
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
 
-# --- 🎨 دالة توليد صورة المتجر (Shop Image) ---
+# --- 🎨 دالة توليد صورة المتجر الآمنة ---
 def create_shop_card():
-    width, height = 700, 400
+    width, height = 650, 350
     img = Image.new("RGB", (width, height), color=(24, 24, 27))
     draw = ImageDraw.Draw(img)
 
-    draw.rectangle([15, 15, width - 15, height - 15], outline=(234, 179, 8), width=3)
+    draw.rectangle([10, 10, width - 10, height - 10], outline=(234, 179, 8), width=3)
     
-    font = ImageFont.load_default()
-    draw.text((230, 30), "=== B✰IL SERVER SHOP ===", fill=(234, 179, 8), font=font)
+    draw.text((220, 25), "=== BIL SERVER SHOP ===", fill=(234, 179, 8))
     
-    y = 80
-    draw.text((40, y), "[ ROLES SHOP ]", fill=(168, 85, 247), font=font)
-    y += 30
+    y = 65
+    draw.text((30, y), "[ ROLES SECTION ]", fill=(168, 85, 247))
+    y += 25
     for k, item in ROLES_SHOP.items():
-        draw.text((60, y), f"• {item['name']} -> Price: ${item['price']} | {item['desc']}", fill=(255, 255, 255), font=font)
-        y += 25
+        draw.text((40, y), f"* {item['name']} | Price: ${item['price']} | {item['desc']}", fill=(255, 255, 255))
+        y += 22
 
-    y += 20
-    draw.text((40, y), "[ COLORS SHOP ]", fill=(59, 130, 246), font=font)
-    y += 30
+    y += 15
+    draw.text((30, y), "[ COLORS SECTION ]", fill=(59, 130, 246))
+    y += 25
     for k, item in COLORS_SHOP.items():
-        draw.text((60, y), f"• {item['name']} -> Price: ${item['price']}", fill=(255, 255, 255), font=font)
-        y += 25
+        draw.text((40, y), f"* {item['name']} | Price: ${item['price']}", fill=(255, 255, 255))
+        y += 22
 
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
 
-# --- 🛡️ نظام حماية الشات من الحجم الكبيرة ---
+# --- 🛡️ نظام حماية الخط الكبير ---
 @bot.event
 async def on_message(message):
     if message.author.bot:
@@ -299,7 +296,7 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# --- 💳 أمر !فلوس لإرسال الصورة ---
+# --- 💳 أمر !فلوس (صورة) ---
 @bot.command(name="فلوس")
 async def check_wallet(ctx):
     balance = get_balance(ctx.author.id)
@@ -307,14 +304,14 @@ async def check_wallet(ctx):
     file = discord.File(fp=img_buffer, filename="wallet.png")
     await ctx.send(content=f"💳 | بطاقة البنك الخاصة بك يا {ctx.author.mention}:", file=file)
 
-# --- 🛒 أمر !متجر لإرسال الصورة والقائمة ---
+# --- 🛒 أمر !متجر (صورة + أزرار) ---
 @bot.command(name="متجر")
 async def show_shop(ctx):
     img_buffer = create_shop_card()
     file = discord.File(fp=img_buffer, filename="shop.png")
     await ctx.send(content="🛒 **إليك قائمة المتجر الحالية:**", file=file, view=MainShopView(ctx.author))
 
-# --- 🛒 القوائم التفاعلية للمتجر ---
+# --- 🛒 واجهات الشراء والمشتروات ---
 class ItemPurchaseSelect(discord.ui.Select):
     def __init__(self, author, items_dict, placeholder_text, is_color_shop=False):
         self.author = author
@@ -377,14 +374,14 @@ class ShopSelect(discord.ui.Select):
         if self.values[0] == "roles":
             await interaction.response.send_message("👑 اختر الرتبة المراد شراؤها:", view=ItemPurchaseView(self.author, ROLES_SHOP, "👑 اختر رتبة...", is_color_shop=False), ephemeral=True)
         elif self.values[0] == "colors":
-            await interaction.response.send_message("🎨 اختر اللون المراد شاؤه:", view=ItemPurchaseView(self.author, COLORS_SHOP, "🎨 اختر لوناً...", is_color_shop=True), ephemeral=True)
+            await interaction.response.send_message("🎨 اختر اللون المراد شراؤه:", view=ItemPurchaseView(self.author, COLORS_SHOP, "🎨 اختر لوناً...", is_color_shop=True), ephemeral=True)
 
 class MainShopView(discord.ui.View):
     def __init__(self, author):
         super().__init__(timeout=60.0)
         self.add_item(ShopSelect(author))
 
-# --- 🎮 أمر !سؤال مع دعم متعدد الجولات ---
+# --- 🎮 أمر !سؤال مع دعم الجولات ---
 @bot.command(name="سؤال")
 async def ask_question(ctx, rounds: int = 1):
     if rounds < 1 or rounds > 10:
@@ -433,7 +430,7 @@ async def ask_question(ctx, rounds: int = 1):
         if round_num < rounds:
             await asyncio.sleep(2)
 
-# --- 🚨 لعبة السجن والهروب ---
+# --- 🚨 أمر السجن والهروب ---
 @bot.command(name="سجن")
 async def jail_user(ctx, member: discord.Member = None):
     if not member:
@@ -458,7 +455,7 @@ async def jail_user(ctx, member: discord.Member = None):
     except asyncio.TimeoutError:
         await ctx.send(f"🔒 **انتهى الوقت!** {member.mention} فشل في الهروب ويبقى في السجن!")
 
-# --- 💸 أمر تحويل الأموال ---
+# --- 💸 أمر التحويل ---
 @bot.command(name="تحويل")
 async def transfer_money(ctx, member: discord.Member = None, amount: int = None):
     if not member or not amount:
@@ -479,7 +476,7 @@ async def transfer_money(ctx, member: discord.Member = None, amount: int = None)
 
     await ctx.send(f"✅ تم تحويل **{amount} دولار** بنجاح إلى {member.mention} 💸!")
 
-# --- 👑 أمر إعطاء الأموال للأدمن ---
+# --- 👑 أمر إعطاء الأدمن ---
 @bot.command(name="اعطاء")
 async def give_money(ctx, member: discord.Member = None, amount: int = None):
     has_admin = any(role.id == ADMIN_ROLE_ID for role in ctx.author.roles)
@@ -494,7 +491,7 @@ async def give_money(ctx, member: discord.Member = None, amount: int = None):
     await async_update_balance(member.id, amount)
     await ctx.send(f"👑 تم إضافة **{amount} دولار** إلى حساب {member.mention} بنجاح!")
 
-# --- 🚀 تشغيل البوت وجلب البيانات ---
+# --- 🚀 تشغيل البوت ---
 @bot.event
 async def on_ready():
     print("🤖 B✰IL bot is checking database...")
