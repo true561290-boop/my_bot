@@ -1,29 +1,36 @@
-import discord
-from discord.ext import commands
-import random
+import asyncio
+import base64
 import json
 import os
-import asyncio
-import aiohttp
-import base64
+import random
 from threading import Thread
+
+import aiohttp
+import discord
+from discord import app_commands
+from discord.ext import commands
 from flask import Flask
+import requests
 
-# --- 1. خادم الويب والزيارة الذاتية للحفاظ على استمرار التشغيل 24/7 ---
-app = Flask('')
+# --- 1. خادم الويب للحفاظ على استمرار التشغيل 24/7 ---
+app = Flask("")
 
-@app.route('/')
+
+@app.route("/")
 def home():
-    return "B✰IL Bot is Online!"
+  return "B✰IL Bot is Online!"
+
 
 def run_web():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+  port = int(os.environ.get("PORT", 8080))
+  app.run(host="0.0.0.0", port=port)
+
 
 def keep_alive():
-    t = Thread(target=run_web)
-    t.daemon = True
-    t.start()
+  t = Thread(target=run_web)
+  t.daemon = True
+  t.start()
+
 
 keep_alive()
 
@@ -32,545 +39,1068 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = "ghp_2v2m8IXKyh0YQxZRrQnjbl08gmEH5C4E7P3b"
 REPO_OWNER = "true561290-boop"
 REPO_NAME = "my_bot"
-FILE_PATH = "user_balances.json"  # ملف خاص ومستقل لحفظ الأرصدة فقط
+FILE_PATH = "user_balances.json"
 
-ADMIN_ROLE_ID = 1515396547528102131
+# آيدي رتبة ليفل 50 لمنع الخط الكبير #
+LEVEL_50_ROLE_ID = 1515396547473309712
 
-bot.user_bank = {}
 
-# --- بيانات متجر الرتب والألوان ---
-ROLES_DATA = {
-    "1": {"name": "رتبة VIP", "price": 500, "role_id": 1332822168928649310},
-    "2": {"name": "رتبة VIP+", "price": 1000, "role_id": 1332822168928649311},
-    "3": {"name": "رتبة LEGEND", "price": 2000, "role_id": 1332822168928649312}
-}
+# --- دالة جلب أحدث الأرصدة من GitHub عند التشغيل ---
+def fetch_latest_balances_from_github():
+  raw_url = f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/main/{FILE_PATH}"
+  try:
+    response = requests.get(raw_url)
+    if response.status_code == 200:
+      data = response.json()
+      with open(FILE_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+      print("✅ تم جلب أحدث نسخة أرصدة من GitHub بنجاح!")
+    else:
+      print("⚠️ لم يتم العثور على الملف في GitHub أو هو فارغ حالياً.")
+  except Exception as e:
+    print(f"❌ خطأ أثناء جلب الأرصدة من GitHub: {e}")
 
-COLORS_DATA = {
-    "4": {"name": "اللون الاحمر", "price": 200, "role_id": 1332822168928649309},
-    "5": {"name": "اللون الازرق", "price": 200, "role_id": 1332822168928649308},
-    "6": {"name": "اللون الاخضر", "price": 200, "role_id": 1332822168928649307},
-    "7": {"name": "اللون الاصفر", "price": 200, "role_id": 1332822168928649306},
-    "8": {"name": "اللون البنفسجي", "price": 200, "role_id": 1332822168928649305},
-    "9": {"name": "اللون البرتقالي", "price": 200, "role_id": 1332822168928649304},
-    "10": {"name": "اللون الوردي", "price": 200, "role_id": 1332822168928649303}
-}
 
-# --- 🧠 100 سؤال صعب جداً ---
-QUESTIONS_POOL = {
-    "ما هي أصغر عظمة في جسم الإنسان؟": "الركاب",
-    "ما هو العنصر الكيميائي الأكثر وفرة في الكون؟": "الهيدروجين",
-    "في أي سنة حدثت كوارث تشيرنوبل؟": "1986",
-    "ما هي عاصمة أستراليا؟": "كانبرا",
-    "ما هو الغاز الذي يشكل معظم غلاف كوكب الزهرة؟": "ثاني أكسيد الكربون",
-    "من هو الفيلسوف الذي كتب كتاب 'الجمهورية'؟": "أفلاطون",
-    "ما هي الدولة التي تمتلك أكبر عدد من المناطق الزمنية؟": "فرنسا",
-    "ما هو العلم الذي يدرس الأنسجة الحية؟": "الهستولوجيا",
-    "ما هي أصغر القارات مساحة؟": "أستراليا",
-    "ما هو اسم المجرة الأقرب لمجرتنا درب التبانة؟": "أندروميدا",
-    "ما هو العنصر الأكثر كهروسلبية في الجدول الدوري؟": "الفلور",
-    "في أي عام سقطت القسطنطينية؟": "1453",
-    "ما هو الحيوان صاحب أكبر حجم دماغ مقارنة بجسمه؟": "النملة",
-    "من اكتشف الدورة الدموية الصغرى؟": "ابن النفيس",
-    "ما هو الاسم العلمي للرصاص المستخدم في أقلام الرصاص؟": "الجرافيت",
-    "ما هي أكبر محيطات العالم عمقاً ومساحة؟": "المحيط الهادئ",
-    "من هو القائد الذي هزم في معركة واترلو؟": "نابليون بونابرت",
-    "ما هي السورة التي تنتهي جميع آياتها بحرف الدال؟": "الإخلاص",
-    "ما هو الكوكب الملقب بـ 'توأم الأرض'؟": "الزهرة",
-    "ما هي الدولة الوحيدة التي تنتمي لقارتين وتفصل بينهما مضيق البوسفور؟": "تركيا",
-    "ما هو أكثر المعادن تواًجداً في قشرة الأرض؟": "الألومنيوم",
-    "كم عدد الكروموسومات في خلية الإنسان الطبيعية؟": "46",
-    "من هو صاحب نظرية النسبية؟": "ألبرت أينشتاين",
-    "ما هي عاصمة كندا؟": "أوتاوا",
-    "ما هي أعمق نقطة في محيطات الأرض؟": "خندق ماريانا",
-    "ما هو رمز عنصر الذهب في الجدول الدوري؟": "Au",
-    "من كتب مسرحية هاملت؟": "ويليام شكسبير",
-    "ما هي اكبر صحراء رملية متصلة في العالم؟": "الربع الخالي",
-    "ما هو الكوكب الذي يملك أكبر عدد من الأقمار؟": "زحل",
-    "ما هي المادة الأكثر صلابة في جسم الإنسان؟": "مينا الأسنان",
-    "ما اسم الممر المائي الذي يربط بين البحر الأحمر والبحر الأبيض المتوسط؟": "قناة السويس",
-    "ما هي عاصمة البرازيل؟": "برازيليا",
-    "في أي معركة استشهد حمزة بن عبد المطلب؟": "أحد",
-    "ما هو الغاز المسبب لظاهرة الاحتباس الحراري بشكل رئيسي؟": "ثاني أكسيد الكربون",
-    "من اخترع الهاتف؟": "ألكسندر جراهام بيل",
-    "ما هو أكبر عضو في جسم الإنسان؟": "الجلد",
-    "ما هي الدولة الأولى إنتاجاً للقهوة في العالم؟": "البرازيل",
-    "من هو الفاتح الإسلامي لبلاد الأندلس؟": "طارق بن زياد",
-    "ما هي عاصمة كازاخستان الحالية؟": "أستانا",
-    "ما اسم الشريان الرئيسي الذي يخرج من القلب؟": "الأبهر",
-    "ما هي أطول سلسلة جبال فوق مستوى البحر؟": "الأنديز",
-    "من القائل 'أنا أفكر إذاً أنا موجود'؟": "رينيه ديكارت",
-    "ما هي المدينة الملقبة بمدينة التلال السبعة؟": "روما",
-    "ما هو رمز عنصر الفضة في الجدول الدوري؟": "Ag",
-    "كم عدد القلوب لدى الأخطبوط؟": "3",
-    "ما هي السورة القرآنية التي لا تبدأ بـ 'بسم الله الرحمن الرحيم'؟": "التوبة",
-    "ما اسم أول إنسان صعد إلى الفضاء؟": "يوري جاجارين",
-    "ما هي أصغر دولة في العالم؟": "الفاتيكان",
-    "ما هي الدولة ذات أطول خط ساحلي في العالم؟": "كندا",
-    "ما هو الغاز المتواجد بأكبر نسبة في الهواء الجوي؟": "النيتروجين",
-    "من هو مؤسس علم الجبر؟": "الخوارزمي",
-    "ما هي عاصمة إثيوبيا؟": "أديس أبابا",
-    "ما هي وحدة قياس الشدة الضوئية؟": "الكانديلا",
-    "ما اسم المعركة التي أنهت حكم الوجود الإسلامي في الأندلس؟": "سقوط غرناطة",
-    "ما اسم المركب الكيميائي للصودا المخبوزة؟": "بيكربونات الصوديوم",
-    "ما هي أقدم عاصمة مسكونة في التاريخ؟": "دمشق",
-    "ما هو الحيوان الثديي الوحيد الذي يستطيع الطيران؟": "الخفاش",
-    "من هو مكتشف البنسلين؟": "ألكسندر فلمنج",
-    "ما هي الدولة الأكثر إنتاجاً للشاي في العالم؟": "الصين",
-    "ما هو أكبر بحر مغلق في العالم؟": "بحر قزوين",
-    "كم عدد فقرات العمود الفقري للإنسان؟": "33",
-    "ما هو رمز عنصر الحديد في الجدول الدوري؟": "Fe",
-    "ما اسم المضيق الذي يربط بين الخليج العربي وبحر عمان؟": "مضيق هرمز",
-    "من هو مؤلف كتاب 'القانون في الطب'؟": "ابن سينا",
-    "ما هي عاصمة سويسرا؟": "برن",
-    "ما هي أطول عظمتين في جسم الإنسان؟": "عظمة الفخذ",
-    "من قائد معركة نهاوند الملقبة بفتوح الفتوح؟": "النعمان بن مقرن",
-    "ما هي عاصمة نيجيريا؟": "أبوجا",
-    "ما هو المكون الأساسي للزجاج؟": "السيليكا",
-    "كم عدد صمامات قلب الإنسان؟": "4",
-    "ما اسم البركان الذي دمر مدينة بومبي الرومانية؟": "فيزوف",
-    "ما هي الدولة التي تحيط بدولة ليسوتو بالكامل؟": "جنوب أفريقيا",
-    "من الذي اخترع الديناميت؟": "ألفريد نوبل",
-    "ما هو أسرع كائن حي على وجه الأرض (سواء طائر أو بري)؟": "الصقر الشاهين",
-    "ما هي السورة التي تسمى عروس القرآن؟": "الرحمن",
-    "ما هو الكوكب الأكثر سخونة في المجموعة الشمسية؟": "الزهرة",
-    "ما هو الجهاز الذي يقيس الزلازل؟": "السيسموجراف",
-    "ما هي عاصمة المغرب؟": "الرباط",
-    "من هو الرحالة المسلم الذي جاب العالم في القرن 14؟": "ابن بطوطة",
-    "ما هو العلم المختص بدراسة الأحفوريات والمستحثات؟": "الإحاثة",
-    "ما هي أبعد نقطة في المجموعة الشمسية وصلتها مسبار بشري؟": "فوياجر 1",
-    "ما هي وحدة قياس القوة في النظام الدولي؟": "النيوتن",
-    "من هو مؤسس الدولة الأموية؟": "معاوية بن أبي سفيان",
-    "ما هي عاصمة أيسلندا؟": "ريكيافيك",
-    "ما اسم البروتين الرئيسي في شعر الإنسان وأظافره؟": "اليراتين",
-    "ما هي المحافظة الأكبر مساحة في السعودية؟": "المنطقة الشرقية",
-    "ما هو العنصر الكيميائي الذي يرمز له بـ Na؟": "الصوديوم",
-    "من هو الشاعر الملقب بـ 'أمير الشعراء'؟": "أحمد شوقي",
-    "ما هي أكبر جزر البحر الأبيض المتوسط مساحة؟": "صقلية",
-    "ما اسم الطبقة الخارجية للجلد؟": "البشرة",
-    "من هو قائد معركة حطين؟": "صلاح الدين الأيوبي",
-    "ما هي عاصمة فيتنام؟": "هانوي",
-    "ما هو الغاز السام المعروف بقاتل الصامت ولا رائحة له؟": "أول أكسيد الكربون",
-    "ما هي السورة القرآنية التي تحتوي على سجدتين؟": "الحج",
-    "ما هو معدن السائل الوحيد في الدرجات العادية؟": "الزئبق",
-    "من كان أول من صمم تلسكوب لرصد النجوم؟": "جاليليو جاليلي",
-    "ما هي الدولة التي تمتلك أكبر عدد من الأهرامات في العالم؟": "السودان",
-    "ما هي عاصمة نيوزيلندا؟": "ويلينغتون",
-    "ما هي اكبر بكتيريا تم اكتشافها وتُرى بالعين المجردة؟": "ناميبيينسيس",
-    "ما هو رمز عنصر الكالسيوم؟": "Ca"
-}
+fetch_latest_balances_from_github()
 
-# --- 🧩 100 لغز صعب للسجن ---
-ESCAPE_RIDDLES = [
-    {"q": "شيء يملك أسناناً كثيرة ولكنه لا يعض، ما هو؟", "a": "المشط"},
-    {"q": "كلما أخذت منه كبر وكلما أضفت إليه صغر، ما هو؟", "a": "الحفرة"},
-    {"q": "ما هو الشيء الذي يمشي ويقف وليس له أرجل؟", "a": "الماء"},
-    {"q": "ما هو الشيء الذي يتكلم جميع اللغات ولكنه لا ينطق؟", "a": "الصدى"},
-    {"q": "شيء يكسو الناس ولكنه عارٍ بدون ملابس؟", "a": "الإبرة"},
-    {"q": "ما هو الشيء الذي يقرأ ولا يكتب؟", "a": "القلم"},
-    {"q": "يسير بلا رجلين ولا يدخل إلا بالأذنين، ما هو؟", "a": "الصوت"},
-    {"q": "ما هو الشيء الذي يخترق الزجاج ولا يكاسره؟", "a": "الضوء"},
-    {"q": "ما هو الشيء الذي إذا لمسته صرخ؟", "a": "الجرس"},
-    {"q": "بيت بلا أبواب ولا نوافذ، فما هو؟", "a": "البيضة"},
-    {"q": "ما هو الشيء الذي يكتب ولا يقرأ؟", "a": "القلم"},
-    {"q": "له رأس ولا ينطق، وله عين ولا يرى، ما هو؟", "a": "الدبوس"},
-    {"q": "شيء إذا أطعمته كبر وإذا سقيته ماءً مات؟", "a": "النار"},
-    {"q": "ما هو الشيء الذي يحمل طعامه فوق رأسه؟", "a": "القلم"},
-    {"q": "أنا موجود في الشتاء وغير موجود في الصيف ومن 4 حروف؟", "a": "مطر"},
-    {"q": "ما هو الشيء الذي ينبض بلا قلب؟", "a": "الساعة"},
-    {"q": "شيء كلما زاد نقص، ما هو؟", "a": "العمر"},
-    {"q": "ما هو الشيء الذي لا يمكنك استخدامه إلا بعد كسره؟", "a": "البيض"},
-    {"q": "أخت خالك وليست خالتك، فمن تكون؟", "a": "أمك"},
-    {"q": "ما هو الشيء الذي يملك عيناً واحدة ولكنه لا يرى بها؟", "a": "الإبرة"},
-    {"q": "ما هو الشيء الذي يتبعك أينما ذهبت في النهار وينتفي ليلاً؟", "a": "الظل"},
-    {"q": "شيء يتواجد في السماء إذا أضفت إليه حرفاً أصبح في الأرض؟", "a": "نجم"},
-    {"q": "ما هو القفص الذي لا يحبس طيراً ولا حيواناً؟", "a": "القفص الصدري"},
-    {"q": "ما هو الشيء الذي تحمله ويحملك في نفس الوقت؟", "a": "الحذاء"},
-    {"q": "شيء يمر من خلال الماء دون أن يبتل؟", "a": "الضوء"},
-    {"q": "ما هي المائدة التي ليس عليها أي طعام؟", "a": "مائدة المفاوضات"},
-    {"q": "ما هو الشيء الذي إذا أغليته جمد؟", "a": "البيض"},
-    {"q": "شيء يملك أوراقاً وليس بنبات، وله لسان وليس بحيوان؟", "a": "الكتاب"},
-    {"q": "ما هو الباب الذي لا يمكن فتحه؟", "a": "الباب المفتوح"},
-    {"q": "شيء يبكي بلا عينين ويمشي بلا رجلين؟", "a": "السحابة"},
-    {"q": "شيء إذا أصببت عليه الماء لا يبتل؟", "a": "الظل"},
-    {"q": "ما هو البحر الذي لا يوجد به ماء؟", "a": "بحر الخريطة"},
-    {"q": "شيء أبيض وأسود ويقرأه الجميع في العالم؟", "a": "الجريدة"},
-    {"q": "ما هو الذي يدور حول الحديقة دون أن يتحرك؟", "a": "السور"},
-    {"q": "شيء يسقط على رأسك ولا يؤلمك؟", "a": "المطر"},
-    {"q": "له أقدام ولكن لا يمشي، ما هو؟", "a": "الكرسي"},
-    {"q": "ما هو الشيء الذي ليس له بداية ولا نهاية؟", "a": "الدائرة"},
-    {"q": "شيء يحتوي على مفاتيح كثيرة ولكنه لا يفتح أي باب؟", "a": "البيانو"},
-    {"q": "ما هو الشجر الذي ليس له ظل ولا ثمار؟", "a": "شجرة العائلة"},
-    {"q": "شيء إذا حذفت أوله أصبح اسم شخص، وإذا حذفت وسطه أصبح ثلج؟", "a": "دبي"},
-    {"q": "ما هو الشيء الذي يقرط أذنك دون أن يعضك؟", "a": "البرد"},
-    {"q": "شيء إذا وضعت يدك عليه صرخ، وإذا تركته صمت؟", "a": "الجرس"},
-    {"q": "ما هي الكلمة التي تُنطق دائماً بشكل خاطئ؟", "a": "خاطئ"},
-    {"q": "شيء يجعلك ترى من خلال الجدار؟", "a": "النافذة"},
-    {"q": "ما هو الشيء الذي يملك أرقاماً ولكنه لا يحسب؟", "a": "الساعة"},
-    {"q": "شيء يدخل الرطب ويخرج جافاً؟", "a": "الخبز"},
-    {"q": "له مدخل واحد و3 مخارج، ما هو؟", "a": "القميص"},
-    {"q": "ما هو السؤال الذي لا يمكنك إجابته بنعم أبداً؟", "a": "هل أنت نائم؟"},
-    {"q": "شيء يصبح أطول عندما يكون صغيراً، وأقصر عندما يكبر؟", "a": "الشمعة"},
-    {"q": "ما هو الشيء الذي يملك الكثير من القلوب ولكنه لا يحب؟", "a": "ورق اللعب"},
-    {"q": "شيء يطير بلا أجنحة ويبكي بلا أعيُن؟", "a": "السحاب"},
-    {"q": "ما هو الشيء الذي ينتمي إليك ولكن يستخدمه الآخرون أكثر منك؟", "a": "اسمك"},
-    {"q": "شيء لا يمشي إلا بالضرب؟", "a": "المسمار"},
-    {"q": "ما هو الشيء الذي إذا لمسته يصدر صوتاً رناناً؟", "a": "الوتر"},
-    {"q": "من هو الشخص الذي يرى عدوه وصديقه بعين واحدة؟", "a": "الأعور"},
-    {"q": "ما هو الشيء الذي يتحرك حولك طوال الوقت ولا تراه؟", "a": "الهواء"},
-    {"q": "شيء كلما زاد نقص التفاؤل به؟", "a": "الظلام"},
-    {"q": "ما هي التي تأكل ولا تشبع؟", "a": "النار"},
-    {"q": "ما هو الشيء الذي إذا أردت استخدامه رميته؟", "a": "شبكة الصيد"},
-    {"q": "له وجه ويدان ولا يملك أذرعاً ولا أرجلاً؟", "a": "الساعة"},
-    {"q": "شيء يوجد بين السماء والأرض؟", "a": "حرف الواو"},
-    {"q": "ما هو البيت الذي لا يسكنه أحد؟", "a": "بيت الشعر"},
-    {"q": "ما هو الشيء الذي يزداد حسناً كلما زاد تجعداً؟", "a": "المخ"},
-    {"q": "شيء يمشي أمامك ولا يمكنك إمساكه؟", "a": "المستقبل"},
-    {"q": "شيء يولد كبيراً ويموت صغيراً؟", "a": "الشمعة"},
-    {"q": "ما هو الشيء الذي إذا أكلته كله استفدت، وإذا أكلت نصفه مِت؟", "a": "سمسم"},
-    {"q": "شيء في جماد ولكنه ينمو مع الزمن؟", "a": "الحفرة"},
-    {"q": "أنا صلب كالحجر وأختفي عند وضعي في الماء؟", "a": "السكر"},
-    {"q": "ما هي المادة التي تطفو على الماء وهي صلبة؟", "a": "الثلج"},
-    {"q": "شيء يمكنك كسره دون أن تلمسه؟", "a": "الوعد"},
-    {"q": "ما هو الشيء الذي يمشي أينما أردت دون أن يتحرك من مكانه؟", "a": "الطريق"},
-    {"q": "شيء يسير ببطء شديد ويترك أثراً فضياً خلفه؟", "a": "الحلزون"},
-    {"q": "شيء يرتفع ولا ينزل أبداً؟", "a": "العمر"},
-    {"q": "ما هو أسرع شيء في الكون؟", "a": "الضوء"},
-    {"q": "ما هو الشيء الذي ليس له وزن ولكن يمكنه إغراق سفينة؟", "a": "الثقب"},
-    {"q": "شيء يستطيع ملء الغرفة دون أن يشغل أي مساحة؟", "a": "الضوء"},
-    {"q": "شيء تصنعه ولا تراه، وتراه ولا تلبسه؟", "a": "الفخ"},
-    {"q": "ما هي الكلمة الوحيدة التي تبدأ بحرف 'ح' وتنهي بـ 'ح'؟", "a": "بلح"},
-    {"q": "شيء يملك سناماً ولا يملك أرجلاً؟", "a": "التل"},
-    {"q": "ما هو الذي يركض في الشوارع بلا أرجل؟", "a": "الماء"},
-    {"q": "شيء يحتوي على مدن بلا بيوت وبحار بلا ماء؟", "a": "الخريطة"},
-    {"q": "ما هو الشيء الذي يمكنه السفر حول العالم وهو قابع في الزاوية؟", "a": "الطابع"},
-    {"q": "ما هو الشيء الذي يملك رقبة وليس له رأس؟", "a": "الزجاجة"},
-    {"q": "شيء يحرق نفسه ليوفر الضوء للآخرين؟", "a": "الشمعة"},
-    {"q": "ما هو الشيء الذي يصعد المرتفعات ويهبط بلا تحرك؟", "a": "درجة الحرارة"},
-    {"q": "شيء له 4 أرجل في الصباح ورجلان في الظهيرة و3 في المساء؟", "a": "الإنسان"},
-    {"q": "ما هو الشي الذي يعيش في الماء وإذا خرج منه مات؟", "a": "السمك"},
-    {"q": "ما هو الشي الذي إذا قطعت رأسه طار؟", "a": "قطار"},
-    {"q": "شيء لا ينفس ولكن له حياة؟", "a": "النبات"},
-    {"q": "ما هو أصل الصلابة وأصل الهشاشة؟", "a": "الماس"},
-    {"q": "شيء يسير أمامك دائماً ولكنه مخفي؟", "a": "الغد"},
-    {"q": "ما هو الشيء الذي ينقص كلما تم مسحه؟", "a": "السبورة"},
-    {"q": "شيء تراه في الليل 3 مرات وفي النهار مرة واحدة؟", "a": "حرف اللام"},
-    {"q": "ما هي التي تولد من النار وتعيش في النور؟", "a": "الشرارة"},
-    {"q": "شيء إذا حذفت أول حرف منه طار؟", "a": "مطار"},
-    {"q": "ما هو الشيء الذي يزن كثيراً ولكنه ينفذ بالهواء؟", "a": "البالون"},
-    {"q": "شيء يلمع في الليل ولا يستضار به النهار؟", "a": "النجم"},
-    {"q": "ما هو الشيء الذي يحمي بيتك ولا يتكلم؟", "a": "القفل"},
-    {"q": "شيء تضع أيديك عليه ليعمل، فما هو؟", "a": "المقود"},
-    {"q": "ما هو الشيء الذي لا يتكلم وإذا جاع كذب؟", "a": "الساعة"}
-]
 
-# --- 3. نظام البنك المطور للحفاظ على الحسابات من التصفير ---
+def load_balances():
+  if os.path.exists(FILE_PATH):
+    with open(FILE_PATH, "r", encoding="utf-8") as f:
+      try:
+        return json.load(f)
+      except json.JSONDecodeError:
+        return {}
+  return {}
 
-async def load_data_from_github():
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, headers=headers) as r:
-                if r.status == 200:
-                    content = await r.json()
-                    file_data = base64.b64decode(content['content']).decode('utf-8')
-                    data = json.loads(file_data)
-                    bot.user_bank.update(data)
-                    print("✅ [GitHub Cloud] تم تحميل بيانات الأرصدة بنجاح!")
-                    return data
-                elif r.status == 404:
-                    print("ℹ️ [GitHub Cloud] ملف الأرصدة غير موجود بعد، وسيتم إنشاؤه تلقائياً.")
-                else:
-                    print(f"⚠️ [GitHub Cloud] فشل التحميل بكود: {r.status}")
-        except Exception as e:
-            print(f"⚠️ [GitHub Cloud] خطأ أثناء التحميل: {e}")
-    return {}
 
-async def async_update_balance(user_id, amount):
-    uid = str(user_id)
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    
-    async with aiohttp.ClientSession() as session:
-        try:
-            sha = None
-            current_cloud_data = {}
-            
-            # قراءة الملف الحالي من GitHub أولاً لمنع الفقدان عند إعادة تشغيل البوت
-            async with session.get(url, headers=headers) as r:
-                if r.status == 200:
-                    res_json = await r.json()
-                    sha = res_json['sha']
-                    file_data = base64.b64decode(res_json['content']).decode('utf-8')
-                    current_cloud_data = json.loads(file_data)
-            
-            # دمج البيانات القديمة مع بيانات البوت الحالية
-            current_cloud_data.update(bot.user_bank)
-            
-            # تعديل رصيد العضو المحدد
-            if uid not in current_cloud_data:
-                current_cloud_data[uid] = 0
-            current_cloud_data[uid] += amount
-            
-            # التحديث في ذاكرة البوت المحلية
-            bot.user_bank[uid] = current_cloud_data[uid]
-            
-            # إعادة الحفظ السحابي
-            js_bytes = json.dumps(current_cloud_data, ensure_ascii=False, indent=4).encode('utf-8')
-            encoded = base64.b64encode(js_bytes).decode('utf-8')
-            
-            payload = {
-                "message": f"🔄 تحديث رصيد العضو {uid}",
-                "content": encoded
-            }
-            if sha:
-                payload["sha"] = sha
-                
-            async with session.put(url, headers=headers, json=payload) as r_put:
-                if r_put.status in [200, 201]:
-                    print(f"✅ [GitHub Cloud] تم تحديث رصيد {uid} بنجاح!")
-        except Exception as e:
-            print(f"⚠️ [GitHub Cloud] خطأ أثناء الحفظ: {e}")
+def save_balances_local_and_cloud(balances):
+  with open(FILE_PATH, "w", encoding="utf-8") as f:
+    json.dump(balances, f, ensure_ascii=False, indent=4)
+
+  url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
+  headers = {
+      "Authorization": f"token {GITHUB_TOKEN}",
+      "Accept": "application/vnd.github.v3+json",
+  }
+
+  get_res = requests.get(url, headers=headers)
+  sha = get_res.json().get("sha") if get_res.status_code == 200 else None
+
+  content_str = json.dumps(balances, ensure_ascii=False, indent=4)
+  encoded_content = base64.b64encode(content_str.encode("utf-8")).decode(
+      "utf-8"
+  )
+
+  data = {
+      "message": "🔄 تحديث أرصدة الأعضاء تلقائياً",
+      "content": encoded_content,
+  }
+  if sha:
+    data["sha"] = sha
+
+  put_res = requests.put(url, headers=headers, json=data)
+  if put_res.status_code in [200, 201]:
+    print("☁️ تم تحديث الأرصدة سحابياً على GitHub بنجاح!")
+  else:
+    print(f"❌ فشل تحديث GitHub: {put_res.text}")
+
+
+user_balances = load_balances()
+
 
 def get_balance(user_id):
-    uid = str(user_id)
-    if uid not in bot.user_bank:
-        bot.user_bank[uid] = 0
-    return bot.user_bank[uid]
+  return user_balances.get(str(user_id), 0)
 
-# --- 4. واجهة القوائم المنسدلة التفاعلية للمتجر ---
-class ItemSelect(discord.ui.Select):
-    def __init__(self, items, is_color=False):
-        self.is_color = is_color
-        options = []
-        for key, item in items.items():
-            options.append(discord.SelectOption(
-                label=item['name'],
-                value=key,
-                description=f"السعر: {item['price']} طولار"
-            ))
-        super().__init__(placeholder="اختر ما تريد شراءه...", min_values=1, max_values=1, options=options)
 
-    async def callback(self, interaction: discord.Interaction):
-        item_key = self.values[0]
-        all_items = {**ROLES_DATA, **COLORS_DATA}
-        item = all_items[item_key]
-        price = item['price']
-        user_bal = get_balance(interaction.user.id)
+def add_balance(user_id, amount):
+  uid = str(user_id)
+  user_balances[uid] = user_balances.get(uid, 0) + amount
+  save_balances_local_and_cloud(user_balances)
 
-        # 1. التحقق من الرصيد
-        if user_bal < price:
-            await interaction.response.send_message(f"❌ لا تملك طولارات كافية! سعر المنتج: **{price} طولار** ورصيدك: **{user_bal} طولار**.", ephemeral=True)
-            return
 
-        role = interaction.guild.get_role(item['role_id'])
-        if not role:
-            await interaction.response.send_message("⚠️ خطأ: لم يتم العثور على هذه الرتبة في السيرفر!", ephemeral=True)
-            return
+def remove_balance(user_id, amount):
+  uid = str(user_id)
+  current = user_balances.get(uid, 0)
+  if current >= amount:
+    user_balances[uid] = current - amount
+    save_balances_local_and_cloud(user_balances)
+    return True
+  return False
 
-        # 2. التحقق من امتلاك نفس الرتبة
-        if role in interaction.user.roles:
-            await interaction.response.send_message(f"⚠️ أنت تملك بالفعل **{item['name']}**!", ephemeral=True)
-            return
 
-        # 3. إزالة أي لون قديم تلقائياً إذا كان الشراء للون جديد
-        removed_roles_names = []
-        if self.is_color:
-            for color_key, color_info in COLORS_DATA.items():
-                old_role = interaction.guild.get_role(color_info['role_id'])
-                if old_role and old_role in interaction.user.roles:
-                    await interaction.user.remove_roles(old_role)
-                    removed_roles_names.append(color_info['name'])
+# --- 3. المتجر التفاعلي وقوائم الشراء ---
 
-        try:
-            await interaction.user.add_roles(role)
-            await async_update_balance(interaction.user.id, -price)
-            
-            msg = f"🎉 **مبروك!** تم شراء **{item['name']}** بنجاح وخصم **{price} طولار** من حسابك!"
-            if removed_roles_names:
-                msg += f"\n🔄 (تم إزالة لونك القديم تلقائياً: {', '.join(removed_roles_names)})"
+# رتب المستويات والفي آي بي
+SHOP_VIP_ROLES = {
+    "lvl_25": {
+        "name": " Level 25(ارسال صور)",
+        "price": 1000,
+        "id":1515396547473309710,
+    },
+    "lvl_35": {
+        "name": " Level 35(ارسال صور وستيكرات من سيرفر اخر)",
+        "price": 2000,
+        "id":1515396547473309711,
+    },
+    "lvl_50": {
+        "name": " Level 50 (كل ما سبق+ ميزة الخط الكبير)",
+        "price": 3500,
+        "id":1515396547473309712,
+    },
+    "founder": {
+        "name": "⚡ الزنجي المؤسس",
+        "price": 5000,
+        "id":1527739093163708548,
+    },
+    
 
-            await interaction.response.send_message(msg, ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"⚠️ حدث خطأ أثناء إضافة الرتبة، تأكد من ترتيب رتبة البوت بالسيرفر! الخطأ: {e}", ephemeral=True)
+}
 
-class SubCategoryView(discord.ui.View):
-    def __init__(self, items, is_color=False):
-        super().__init__(timeout=60)
-        self.add_item(ItemSelect(items, is_color=is_color))
+# ألوان الأسماء السبعة
+SHOP_COLOR_ROLES = {
+    "c_red": {"name": " أحمر", "price": 300, "id":1515396547536355469},
+    "c_blue": {"name": " أزرق", "price": 300, "id":1515396547528102135},
+    "c_green": {"name": " أخضر", "price": 300, "id":1515396547528102136},
+    "c_purple": {"name": " بنفسجي", "price": 300, "id":1515396547528102134},
+    "c_yellow": {"name": " أصفر", "price": 300, "id":1515396547528102137},
+    "c_gray": {"name": " رمادي", "price": 300, "id":1515487581138190376},
+    "c_skin": {"name": " Skin", "price": 300, "id":1515480359553335441},
+}
 
-class CategorySelect(discord.ui.Select):
-    def __init__(self):
-        options = [
-            discord.SelectOption(label="الألوان 🎨", value="colors", description="عرض الألوان السبعة المتاحة للشراء"),
-            discord.SelectOption(label="الرتب VIP 👑", value="roles", description="عرض رتب المميزين المتاحة للشراء")
-        ]
-        super().__init__(placeholder="اختر القسم الذي تريد تصفحه...", min_values=1, max_values=1, options=options)
 
-    async def callback(self, interaction: discord.Interaction):
-        category = self.values[0]
-        if category == "colors":
-            embed = discord.Embed(
-                title="🎨 متجر الألوان",
-                description="اختر اللون الذي تريده من القائمة أدناه.\n⚠️ *تنبيه: شراء لون جديد يزيل اللون القديم تلقائياً!*",
-                color=discord.Color.magenta()
-            )
-            await interaction.response.edit_message(embed=embed, view=SubCategoryView(COLORS_DATA, is_color=True))
-        elif category == "roles":
-            embed = discord.Embed(
-                title="👑 متجر الرتب المميزة",
-                description="اختر الرتبة التي تريدها من القائمة أدناه:",
-                color=discord.Color.gold()
-            )
-            await interaction.response.edit_message(embed=embed, view=SubCategoryView(ROLES_DATA, is_color=False))
+# زر العودة للقائمة الرئيسية
+class BackToMainButton(discord.ui.Button):
+
+  def __init__(self):
+    super().__init__(
+        label="رجوع للقائمة الرئيسية",
+        style=discord.ButtonStyle.secondary,
+        emoji="🔙",
+    )
+
+  async def callback(self, interaction: discord.Interaction):
+    embed = discord.Embed(
+        title=" المتجر ",
+        description=(
+            f"أهلاً بك يا {interaction.user.mention} في المتجر!\n"
+            f"💳 رصيدك الحالي: **{get_balance(interaction.user.id)}** طولار\n\n"
+            "اختر القسم الذي تريد تصفحه من القائمة أدناه:"
+        ),
+        color=discord.Color.purple(),
+    )
+    view = MainShopView()
+    await interaction.response.edit_message(embed=embed, view=view)
+
+
+class ColorSelect(discord.ui.Select):
+
+  def __init__(self):
+    options = [
+        discord.SelectOption(
+            label=item["name"],
+            value=key,
+            description=f"السعر: {item['price']} طولار",
+        )
+        for key, item in SHOP_COLOR_ROLES.items()
+    ]
+    super().__init__(
+        placeholder=" اختر اللون ",
+        min_values=1,
+        max_values=1,
+        options=options,
+    )
+
+  async def callback(self, interaction: discord.Interaction):
+    selected_key = self.values[0]
+    item = SHOP_COLOR_ROLES[selected_key]
+    user = interaction.user
+    guild = interaction.guild
+    role = guild.get_role(item["id"])
+
+    if not role:
+      await interaction.response.send_message(
+          "❌ الرتبة غير موجودة في السيرفر، يرجى مراجعة الإدارة.",
+          ephemeral=True,
+      )
+      return
+
+    if role in user.roles:
+      await interaction.response.send_message(
+          f"⚠️ أنت تملك رتبة **{role.name}** بالفعل!", ephemeral=True
+      )
+      return
+
+    if get_balance(user.id) < item["price"]:
+      await interaction.response.send_message(
+          f"❌ رصيدك غير كافٍ! تحتاج إلى **{item['price']}** طولار.",
+          ephemeral=True,
+      )
+      return
+
+    # إزالة الألوان القديمة إن وجدت
+    all_color_ids = [c["id"] for c in SHOP_COLOR_ROLES.values()]
+    roles_to_remove = [r for r in user.roles if r.id in all_color_ids]
+    if roles_to_remove:
+      await user.remove_roles(*roles_to_remove)
+
+    remove_balance(user.id, item["price"])
+    await user.add_roles(role)
+
+    embed = discord.Embed(
+        title="🎨 تم شراء اللون بنجاح!",
+        description=(
+            f" {user.mention}! تم منحك رتبة **{role.name}** وتجهيزها"
+            f" كولونك الجديد.\n💰 المخصوم: **{item['price']}** طولار."
+        ),
+        color=discord.Color.green(),
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class VIPSelect(discord.ui.Select):
+
+  def __init__(self):
+    options = [
+        discord.SelectOption(
+            label=item["name"],
+            value=key,
+            description=f"السعر: {item['price']} طولار",
+        )
+        for key, item in SHOP_VIP_ROLES.items()
+    ]
+    super().__init__(
+        placeholder=" اختر الرتبة ",
+        min_values=1,
+        max_values=1,
+        options=options,
+    )
+
+  async def callback(self, interaction: discord.Interaction):
+    selected_key = self.values[0]
+    item = SHOP_VIP_ROLES[selected_key]
+    user = interaction.user
+    guild = interaction.guild
+    role = guild.get_role(item["id"])
+
+    if not role:
+      await interaction.response.send_message(
+          "❌ الرتبة غير موجودة في السيرفر، يرجى مراجعة الإدارة.",
+          ephemeral=True,
+      )
+      return
+
+    if role in user.roles:
+      await interaction.response.send_message(
+          f"⚠️ أنت تملك رتبة **{role.name}** بالفعل!", ephemeral=True
+      )
+      return
+
+    if get_balance(user.id) < item["price"]:
+      await interaction.response.send_message(
+          f"❌ رصيدك غير كافٍ! تحتاج إلى **{item['price']}** طولار.",
+          ephemeral=True,
+      )
+      return
+
+    remove_balance(user.id, item["price"])
+    await user.add_roles(role)
+
+    embed = discord.Embed(
+        title="تم شراء الرتبة بنجاح!",
+        description=(
+            f" يا {user.mention}! تم منحك رتبة **{role.name}**"
+            f" بنجاح.\n💰 المخصوم: **{item['price']}** طولار."
+        ),
+        color=discord.Color.gold(),
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class MainCategorySelect(discord.ui.Select):
+
+  def __init__(self):
+    options = [
+        discord.SelectOption(
+            label=" الرتب ",
+            value="cat_vip",
+            description="عرض الرتب ",
+        ),
+        discord.SelectOption(
+            label="🎨 ألوان الأسماء",
+            value="cat_colors",
+            description="عرض قائمة ألوان الأسماء السبعة",
+        ),
+    ]
+    super().__init__(
+        placeholder="🛒 اختر القسم الذي تريد تصفحه...",
+        min_values=1,
+        max_values=1,
+        options=options,
+    )
+
+  async def callback(self, interaction: discord.Interaction):
+    if self.values[0] == "cat_vip":
+      view = discord.ui.View()
+      view.add_item(VIPSelect())
+      view.add_item(BackToMainButton())
+      embed = discord.Embed(
+          title="قسم الرتب ",
+          description=(
+              "اختر الرتبة التي تريد شراءها من القائمة التالية:\n(ملاحظة: شراء"
+              " Level 50 يمنحك ميزة الخط الكبير `#`)"
+          ),
+          color=discord.Color.gold(),
+      )
+      await interaction.response.edit_message(embed=embed, view=view)
+    elif self.values[0] == "cat_colors":
+      view = discord.ui.View()
+      view.add_item(ColorSelect())
+      view.add_item(BackToMainButton())
+      embed = discord.Embed(
+          title="🎨 قسم ألوان الأسماء",
+          description=(
+              "اختر اللون الذي يناسبك"
+          ),
+          color=discord.Color.blue(),
+      )
+      await interaction.response.edit_message(embed=embed, view=view)
+
 
 class MainShopView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=120)
-        self.add_item(CategorySelect())
 
-# --- 5. أوامر الألعاب (سؤال وسجن) ---
-@bot.command(name="العاب")
-async def show_games(ctx):
-    embed = discord.Embed(
-        title="🎮 قائمة الألعاب المتاحة",
-        description="إليك اللعبتان المتاحتان حالياً في البوت مع التعديلات الجديدة الصعبة:",
-        color=discord.Color.blue()
-    )
-    embed.add_field(
-        name="❓ لعبة الأسئلة: `!سؤال [عدد الجولات]`",
-        value="🔥 **أسئلة ثقافية معقدة وصعبة!**\n⏱️ لديك **8 ثوانٍ** فقط للإجابة وسرعة البديهة مطلوبة.\n💸 الجائزة: **40 طولار** لكل إجابة صحيحة.",
-        inline=False
-    )
-    embed.add_field(
-        name="🚔 لعبة السجن: `!سجن`",
-        value="🔓 **تسجن نفسك فوراً وتبحث عن مخرج!**\n🧩 يُطرح عليك لغز من أصل **100 لغز صعب**.\n⏱️ لديك **8 ثوانٍ** فقط للحل والهروب قبل إغلاق السجن.\n💸 الجائزة: **40 طولار** عند الهروب بنجاح.",
-        inline=False
-    )
-    embed.set_footer(text="B✰IL Hardcore Gaming System")
-    await ctx.send(embed=embed)
+  def __init__(self):
+    super().__init__(timeout=None)
+    self.add_item(MainCategorySelect())
+
+
+@bot.command(name="متجر")
+async def shop_command(ctx):
+  embed = discord.Embed(
+      title="المتجر ",
+      description=(
+          f"أهلاً بك يا {ctx.author.mention} في المتجر\n"
+          f"💳 رصيدك الحالي: **{get_balance(ctx.author.id)}** طولار\n\n"
+          "استخدم القائمة أدناه للتنقل بين الأقسام والشراء بسهولة."
+      ),
+      color=discord.Color.purple(),
+  )
+  view = MainShopView()
+  await ctx.send(embed=embed, view=view)
+
+
+# --- 4. نظام منع الخط الكبير (#) بدون رتبة Level 50 ---
+@bot.event
+async def on_message(message):
+  if message.author.bot:
+    return
+
+  # التحقق مما إذا كانت الرسالة تبدأ بـ # للكتابة بخط كبير
+  if message.content.startswith("# "):
+    level_50_role = message.guild.get_role(LEVEL_50_ROLE_ID)
+    if level_50_role and level_50_role not in message.author.roles:
+      try:
+        await message.delete()
+        warning = await message.channel.send(
+            f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك"
+            " لا تملك رتبة **Level 50**! يمكنك شراؤها من المتجر (`!متجر`)."
+        )
+        await asyncio.sleep(2)
+        await warning.delete(2)
+        return
+      except Exception as e:
+        print(f"خطأ أثناء حذف الرسالة: {e}")
+
+  await bot.process_commands(message)
+
+
+# --- 5. نظام الألعاب والأسئلة (100 سؤال و100 لغز صعبة) ---
+
+QUESTIONS = [
+    {"q": "ما هي عاصمة أستراليا؟", "a": ["كانبرا", "كانبيرا"]},
+    {"q": "ما هي أصغر دولة في العالم من حيث المساحة؟", "a": ["الفاتيكان"]},
+    {
+        "q": "ما هو العنصر الكيميائي الذي رمزه 'Fe'؟",
+        "a": ["الحديد", "حديد"],
+    },
+    {"q": "ما هي أكبر صحراء في العالم؟", "a": ["الصحراء الكبرى"]},
+    {
+        "q": "في أي عام وقعت معركة حطين؟",
+        "a": ["1187", "١١٨٧", "1187m"],
+    },
+    {"q": "ما هو أطول نهر في العالم؟", "a": ["النيل", "نهر النيل"]},
+    {
+        "q": "ما هي عاصمة كندا؟",
+        "a": ["أوتاوا", "اوتاوا"],
+    },
+    {
+        "q": "من هو الملقب بـ 'سيف الله المسلول'؟",
+        "a": ["خالد بن الوليد", "خالد ابن الوليد"],
+    },
+    {
+        "q": "ما هو أثقل كوكب في المجموعة الشمسية؟",
+        "a": ["المشتري", "كوكب المشتري"],
+    },
+    {
+        "q": "ما هو الغاز الأكثر وجوداً في الغلاف الجوي؟",
+        "a": ["النيتروجين", "نيتروجين"],
+    },
+    {"q": "ما هي الدولة الأكثر سكاناً في العالم؟", "a": ["الهند"]},
+    {"q": "ما هي أكبر قارة في العالم من حيث المساحة؟", "a": ["آسيا", "اسيا"]},
+    {"q": "ما هو اسم أسرع حيوان بري في العالم؟", "a": ["الفهد", "فهد"]},
+    {
+        "q": "ما هو أصلح معركة حدثت في التاريخ الإسلامي وكانت فتحاً مبيناً؟",
+        "a": ["فتح مكة"],
+    },
+    {
+        "q": "من هو القائد المسلم الذي فتح الأندلس؟",
+        "a": ["طارق بن زياد", "طارق ابن زياد"],
+    },
+    {"q": "ما هي عاصمة اليابان؟", "a": ["طوكيو"]},
+    {
+        "q": "ما هي الوحدة المستخدمة لقياس الشدة الصوتية؟",
+        "a": ["ديسيبل", "الديسيبل"],
+    },
+    {
+        "q": "ما هو الكوكب الملقب بالكوكب الأحمر؟",
+        "a": ["المريخ", "كوكب المريخ"],
+    },
+    {"q": "ما هي عاصمة البرازيل؟", "a": ["برازيليا"]},
+    {
+        "q": "كم عدد قلوب الأخطبوط؟",
+        "a": ["3", "ثلاثة", "٣"],
+    },
+    {
+        "q": "من هو مخترع المصباح الكهربائي؟",
+        "a": ["توماس أديسون", "اديسون", "أديسون"],
+    },
+    {
+        "q": "ما هي أصغر عظمة في جسم الإنسان؟",
+        "a": ["الركاب", "عظمة الركاب"],
+    },
+    {"q": "ما هي عاصمة فرنسا؟", "a": ["باريس"]},
+    {"q": "في أي قارة تقع مصر؟", "a": ["أفريقيا", "افريقيا"]},
+    {
+        "q": "ما هو أكبر محيط في العالم؟",
+        "a": ["المحيط الهادي", "المحيط الهادئ"],
+    },
+    {
+        "q": "كم عدد أضلاع المثلث؟",
+        "a": ["3", "ثلاثة", "٣"],
+    },
+    {"q": "ما هو المكون الرئيسي للزجاج؟", "a": ["الرمل", "الريمال"]},
+    {
+        "q": "ما هي عاصمة ألمانيا؟",
+        "a": ["برلين"],
+    },
+    {
+        "q": "من هو الشاعر الملقب بـ 'أمير الشعراء'؟",
+        "a": ["أحمد شوقي", "احمد شوقي"],
+    },
+    {
+        "q": "ما هي أكبر عضلة في جسم الإنسان؟",
+        "a": ["عضلة الأرداف", "الأرداف"],
+    },
+    {"q": "ما هي عاصمة روسيا؟", "a": ["موسكو"]},
+    {"q": "كم عدد العظام في جسم الإنسان البالغ؟", "a": ["206", "٢٠٦"]},
+    {
+        "q": "ما هو المكون الأساسي للشمس؟",
+        "a": ["الهيدروجين", "غاز الهيدروجين"],
+    },
+    {"q": "ما هي عاصمة إيطاليا؟", "a": ["روما"]},
+    {"q": "في أي مدينة توجد منظمة اليونسكو؟", "a": ["باريس"]},
+    {
+        "q": "ما هي أكبر بحيرة في العالم؟",
+        "a": ["بحر قزوين"],
+    },
+    {"q": "من هو عالم الفيزياء صاحب نظريّة النسبية؟", "a": ["أينشتاين", "اينشتاين"]},
+    {"q": "ما هي عاصمة إسبانيا؟", "a": ["مدريد"]},
+    {"q": "ما هو الحيوان الذي يُسمى 'سفينة الصحراء'؟", "a": ["الجمل", "جمل"]},
+    {
+        "q": "ما هي المادة الأكثر صلابة في طبيعة الأرض؟",
+        "a": ["الألماس", "الماس"],
+    },
+    {
+        "q": "ما هي الدولة المفترض بها الموطن الأصلي للبيتزا؟",
+        "a": ["إيطاليا", "ايطاليا"],
+    },
+    {"q": "ما هي عاصمة تركيا؟", "a": ["أنقرة", "انقرة"]},
+    {"q": "كم عدد الألوان في قوس قزح؟", "a": ["7", "سبعة", "٧"]},
+    {
+        "q": "ما هي أطول سلسة جبلية في العالم؟",
+        "a": ["الأنديز", "جبال الأنديز"],
+    },
+    {"q": "ما هي عاصمة الأرجنتين؟", "a": ["بوينس آيرس", "بوينس ايرس"]},
+    {
+        "q": "ما هو الغاز الذي يستعمله النبات في البناء الضوئي؟",
+        "a": ["ثاني أكسيد الكربون", "ثاني اكسيد الكربون"],
+    },
+    {"q": "ما هي عاصمة المغرب؟", "a": ["الرباط"]},
+    {
+        "q": "ما هي السورة التي تُسمى 'قلب القرآن'؟",
+        "a": ["يس", "يسن"],
+    },
+    {
+        "q": "ما هو العلم الذي يهتم بدراسة الأحافير والحيوانات القديمة؟",
+        "a": ["الفرع الأحفوري", "الإحاثة", "علم الأحافير"],
+    },
+    {"q": "ما هي عاصمة السويد؟", "a": ["ستوكهولم"]},
+    {"q": "ما هو اسم أعمق نقطة في محيطات الأرض؟", "a": ["خندق ماريانا"]},
+    {"q": "ما هي عاصمة مصر؟", "a": ["القاهرة"]},
+    {
+        "q": "كم طابق يوجد في برج خليفة تقريباً؟",
+        "a": ["163", "١٦٣"],
+    },
+    {
+        "q": "ما هو الهرمون المسؤول عن تنظيم مستوى السكر في الدم؟",
+        "a": ["الأنسولين", "الانسولين"],
+    },
+    {"q": "ما هي عاصمة المملكة العربية السعودية؟", "a": ["الرياض"]},
+    {"q": "ما هي عاصمة الصين؟", "a": ["بكين"]},
+    {
+        "q": "ما هو معدن السيولة العالية الفضي السائل في حرارة الغرفة؟",
+        "a": ["الزئبق"],
+    },
+    {"q": "ما هي عاصمة العراق؟", "a": ["بغداد"]},
+    {"q": "من هو أول إنسان صعد إلى الفضاء؟", "a": ["يوري جاجارين", "جاجارين"]},
+    {
+        "q": "ما هي الدولة التي تمتلك أطول خط ساحلي في العالم؟",
+        "a": ["كندا"],
+    },
+    {"q": "ما هي عاصمة الأردن؟", "a": ["عمان", "عمّان"]},
+    {
+        "q": "ما هي السورة التي لا تبدأ بالبسملة؟",
+        "a": ["التوبة", "سورة التوبة"],
+    },
+    {
+        "q": "ما هو اسم أطول بناء في العالم حالياً؟",
+        "a": ["برج خليفة"],
+    },
+    {"q": "ما هي عاصمة اليونان؟", "a": ["أثينا", "اثينا"]},
+    {"q": "كم عدد طبقات الغلاف الجوي الرئيسيّة؟", "a": ["5", "خمسة", "٥"]},
+    {"q": "ما هو أصل لغة إسبانيا؟", "a": ["اللاتينية"]},
+    {"q": "ما هي عاصمة كوريا الجنوبية؟", "a": ["سيول", "سول"]},
+    {
+        "q": "من هو مكتشف البنسلين؟",
+        "a": ["ألكسندر فلمنج", "فلمنج", "الكسندر فلمنج"],
+    },
+    {"q": "ما هي عاصمة هولندا؟", "a": ["أمستردام", "امستردام"]},
+    {"q": "ما هي أكبر جزيرة في العالم؟", "a": ["جرينلاند"]},
+    {"q": "ما هي عاصمة الجزائر؟", "a": ["الجزائر"]},
+    {"q": "كم عدد صمامات قلب الإنسان؟", "a": ["4", "أربعة", "arba'a", "٤"]},
+    {
+        "q": "ما هو أطول نهر في أوروبا؟",
+        "a": ["الفولغا", "نهر الفولغا"],
+    },
+    {"q": "ما هي عاصمة الهند؟", "a": ["نيودلهي", "دلهي"]},
+    {
+        "q": "من هو مؤسس علم الجبر؟",
+        "a": ["الخوارزمي", "الخوارزمي حاسب"],
+    },
+    {"q": "ما هي عاصمة النرويج؟", "a": ["أوسلو", "وسلو"]},
+    {
+        "q": "ما هو اسم الكوكب الأقرب إلى الأرض؟",
+        "a": ["الزهرة", "كوكب الزهرة"],
+    },
+    {"q": "ما هي عاصمة المكسيك؟", "a": ["مكسيكو سيتي", "مكسيكو"]},
+    {
+        "q": "ما هي السورة التي ذكرت فيها البسملة مرتين؟",
+        "a": ["النمل", "سورة النمل"],
+    },
+    {"q": "ما هي عاصمة السودان؟", "a": ["الخرطوم"]},
+    {"q": "كم عدد أحرف اللغة العربية؟", "a": ["28", "٢٨"]},
+    {"q": "ما هو اسم طائر لا يستطيع الطيران ويستمتع بالثلج؟", "a": ["البطريق"]},
+    {"q": "ما هي عاصمة الدنمارك؟", "a": ["كوبنهاجن"]},
+    {
+        "q": "ما هي السلسلة الجبلية الفاصلة بين قارتي آسيا وأوروبا؟",
+        "a": ["أورال", "جبال الأورال"],
+    },
+    {"q": "ما هي عاصمة سوريا؟", "a": ["دمشق"]},
+    {
+        "q": "ما هي أسرع سمكة في البحر؟",
+        "a": ["سمكة الشراع", "الشراع"],
+    },
+    {"q": "ما هي عاصمة بلجيكا؟", "a": ["بروكسل"]},
+    {
+        "q": "ما هي الدولة العربية التي يمر بها خط الاستواء؟",
+        "a": ["الصومال"],
+    },
+    {"q": "ما هي عاصمة تونس؟", "a": ["تونس"]},
+    {
+        "q": "ما هو اسم النهر الوحيد الذي يمر بالعديد من الدول الأوربية؟",
+        "a": ["الدانوب", "نهر الدانوب"],
+    },
+    {"q": "ما هي عاصمة البرتغال؟", "a": ["لشبونة"]},
+    {
+        "q": "من هو الصحابي الجليل الملقب بـ 'ترجمان القرآن'؟",
+        "a": ["عبدالله بن عباس", "عبد الله بن عباس"],
+    },
+    {"q": "ما هي عاصمة النمسا؟", "a": ["فيينا"]},
+    {"q": "ما هو اسم أطول حيوان في العالم؟", "a": ["الزرافة", "زرافة"]},
+    {"q": "ما هي عاصمة اليمن؟", "a": ["صنعاء"]},
+    {"q": "ما هو أصل لعبة الشطرنج؟", "a": ["الهند"]},
+    {"q": "ما هي عاصمة سويسرا؟", "a": ["برن"]},
+    {
+        "q": "ما هو الغاز الذي ينبعث من أشجار الغابات ليلةً؟",
+        "a": ["ثاني أكسيد الكربون"],
+    },
+    {"q": "ما هي عاصمة قطر؟", "a": ["الدوحة"]},
+]
+
+RIDDLES = [
+    {
+        "q": "شيء كلما أخذت منه كبر، فما هو؟",
+        "a": ["الحفرة", "حفرة"],
+    },
+    {
+        "q": "يمشي بلا أرجل ويدخل الأذنين فقط، فما هو؟",
+        "a": ["الصوت", "صوت"],
+    },
+    {
+        "q": "ما هو الشيء الذي يكتب ولا يقرأ؟",
+        "a": ["القلم", "قلم"],
+    },
+    {
+        "q": "ما هو البيت الذي لا توجد فيه أبواب ولا نوافذ؟",
+        "a": ["بيت الشعر"],
+    },
+    {
+        "q": "ما هو الشيء الذي كلما زاد نقص؟",
+        "a": ["العمر", "عمر"],
+    },
+    {
+        "q": "ما هو الشيء الذي يمكنك إمساكه بدون لمسه؟",
+        "a": ["الأعصاب", "أعصابك"],
+    },
+    {
+        "q": "ما هو القفص الذي لا يحبس فيه طائر أو حيوان؟",
+        "a": ["القفص الصدري"],
+    },
+    {
+        "q": "شيء يحترق لكي يضيء للآخرين؟",
+        "a": ["الشمعة", "شمعة"],
+    },
+    {
+        "q": "يمشي ويقف وليس له أرجل؟",
+        "a": ["الظلال", "الظل", "الساعة"],
+    },
+    {
+        "q": "ما هو الشيء الذي يبرد بالحرارة؟",
+        "a": ["الفلفل", "البيض"],
+    },
+    {
+        "q": "أنا ذو ثقوب عديدة ولكني أحتفظ بالماء، فمن أنا؟",
+        "a": ["الإسفنج", "اسفنج"],
+    },
+    {
+        "q": "ما هو الشيء الذي إذا صببت عليه الماء لا يبتل؟",
+        "a": ["الظل", "ظلك"],
+    },
+    {
+        "q": "ما هو الشارع الذي لم يسير فيه أحد؟",
+        "a": ["شارع الرسم", "الشارع على الخريطة", "الخريطة"],
+    },
+    {
+        "q": "ما هو الشيء الذي يقرأ كل الأوراق وبلا عيون؟",
+        "a": ["المسح الضوئي", "الضوء"],
+    },
+    {
+        "q": "ما هو الذي يمر عبر الزجاج ولكن لا يكسره؟",
+        "a": ["الضوء", "ضوء"],
+    },
+    {
+        "q": "له رأس واحد وله أربعة أرجل ولكن لا يسير؟",
+        "a": ["السرير", "سرير"],
+    },
+    {"q": "شيء يأكل ولا يشبع، وإذا شرب الماء يموت؟", "a": ["النار"]},
+    {
+        "q": "تراه في الليل ثلاث مرات وفي النهار مرة واحدة، فما هو؟",
+        "a": ["حرف اللام"],
+    },
+    {
+        "q": "ما هو الشيء الذي ينبض بلا قلب؟",
+        "a": ["الساعة", "ساعة"],
+    },
+    {
+        "q": "ما هو الباب الذي لا يمكن فتحه؟",
+        "a": ["الباب المفتوح"],
+    },
+    {
+        "q": "هو ابن أمك وأبيك وليس بأخيك ولا أختك، فمن هو؟",
+        "a": ["أنت", "انت"],
+    },
+    {
+        "q": "تكون طويلة في شبابها وقصيرة في كبر سنها، فما هي؟",
+        "a": ["الشمعة"],
+    },
+    {
+        "q": "ماهي الأشياء التي تسير بلا قدمين وتصيح بلا فم؟",
+        "a": ["الرياح", "رياح"],
+    },
+    {
+        "q": "له أسنان كثيرة ولكنه لا يعض، فما هو؟",
+        "a": ["المشط", "مشط"],
+    },
+    {
+        "q": "يحبها الجميع ويعطونها للآخرين ولكن لا أحد يستطيع الاحتفاظ بها؟",
+        "a": ["الكلمة", "الوعد"],
+    },
+    {
+        "q": "ما هو الشيء الذي تسمعه ولا تراه، وإذا رأيته لا تسمعه؟",
+        "a": ["الطلقة النارية", "الرعد"],
+    },
+    {
+        "q": "شيء يسير في السماء ويستريح في الأرض؟",
+        "a": ["المطر", "مطر"],
+    },
+    {
+        "q": "تطير بدون أجنحة وتبكي بدون عيون، فما هي؟",
+        "a": ["السحابة", "السحاب"],
+    },
+    {
+        "q": "ما هو الشيء الذي يحتوي على المدن ولكن ليس به بيوت؟",
+        "a": ["الخريطة"],
+    },
+    {
+        "q": "شيء إذا قطعت رأسه طار؟",
+        "a": ["قطار", "القطار"],
+    },
+    {
+        "q": "ما هي التي تملك عيوناً ولا ترى؟",
+        "a": ["الإبرة", "إبرة"],
+    },
+    {
+        "q": "له أوراق كثيرة ولكنه ليس بشجرة؟",
+        "a": ["الكتاب", "كتاب"],
+    },
+    {
+        "q": "أسود عندما تشتريه، وأحمر عندما تستخدمه، وأبيض عندما ترميه؟",
+        "a": ["الفحم"],
+    },
+    {
+        "q": "ما هو الشيء الذي يجري ولكن لا يستطيع المشي؟",
+        "a": ["الماء", "النهر"],
+    },
+    {
+        "q": "يمتلك كل مفاتيح العالم ولكنه لا يستطيع فتح أي باب؟",
+        "a": ["البيانو"],
+    },
+    {
+        "q": "ما هو الشيء الذي ينكسر بمجرد تسميته؟",
+        "a": ["الصمت"],
+    },
+    {
+        "q": "يتحدث كل لغات العالم بدون أن يتكلم؟",
+        "a": ["الصدى"],
+    },
+    {
+        "q": "ما هو الشيء الذي تصنعه ولكن لا تراه؟",
+        "a": ["الضوضاء", "الرقام"],
+    },
+    {"q": "إذا أطعمته ينمو، وإذا سقيته يموت؟", "a": ["النار"]},
+    {
+        "q": "يمتلك رقبة ولكن ليس له رأس؟",
+        "a": ["الزجاجة", "قميص"],
+    },
+    {
+        "q": "ما هو الذي يستطيع الضوء اختراقه والماء المضيء فيه؟",
+        "a": ["الزجاج"],
+    },
+    {
+        "q": "شيء بينك وبين السماء، فما هو؟",
+        "a": ["الكاف", "حرف الكاف"],
+    },
+    {
+        "q": "ما هو الشارع الذي يمشي فيه الناس بلا أقدام؟",
+        "a": ["شارع الخريطة"],
+    },
+    {
+        "q": "ما هو العضو الوحيد الذي لا يصله الدم؟",
+        "a": ["قرنية العين", "القرنية"],
+    },
+    {
+        "q": "ما هي الشيء الذي يولد كبيراً ويموت صغيراً؟",
+        "a": ["الشمعة"],
+    },
+    {
+        "q": "يوجد في منتصف باريس فما هو؟",
+        "a": ["حرف الراء"],
+    },
+    {"q": "ما هو الشيء الذي إذا أكلته كله استفدت منه، وإذا أكلت نصفه مِت؟", "a": ["سمسم"]},
+    {
+        "q": "ما هو الذي يملك عين واحدة ولكنه لا يرى بها؟",
+        "a": ["الإبرة"],
+    },
+    {
+        "q": "ما هو الشيء الذي إذا نام لا يستيقظ؟",
+        "a": ["الرماد"],
+    },
+    {
+        "q": "له يد ولكن لا يستطيع التصفيق؟",
+        "a": ["الساعة"],
+    },
+    {"q": "ما هو الشيء الذي يصعد ولا ينزل أبداً؟", "a": ["العمر"]},
+    {
+        "q": "أخت خالتك وليست خالتك فمن تكون؟",
+        "a": ["أمك", "امي"],
+    },
+    {
+        "q": "يمشي بدون قدمين ولا يدخل إلا بالأذنين؟",
+        "a": ["الصوت"],
+    },
+    {
+        "q": "تأكل منه ولكن لا يمكنك أن تأكله؟",
+        "a": ["الصحن", "الطبق"],
+    },
+    {
+        "q": "يحتاج دائماً إلى إجابة ولكنه لا يطرح أي سؤال؟",
+        "a": ["الهاتف", "الجرس"],
+    },
+    {
+        "q": "ما هو الشيء الذي يسير أمامك ولا تستطيع الوصول إليه؟",
+        "a": ["المستقبل"],
+    },
+    {
+        "q": "ما هو الشيء الذي يملك أقداماً ثلاث ولا يمشي؟",
+        "a": ["المنصة", "الطاولة"],
+    },
+    {"q": "إذا أردت أن تستخدمه يجب عليك رميه أولاً؟", "a": ["شبكة الصيد"]},
+    {
+        "q": "ما هو الشيء الذي لا يتكلم وإذا جاع كذب؟",
+        "a": ["الساعة"],
+    },
+    {
+        "q": "أين يقع البحر الذي ليس به ماء؟",
+        "a": ["على الخريطة"],
+    },
+    {
+        "q": "يمتلك كل العيون ولكنه لا يرى شيئاً؟",
+        "a": ["شاطئ البطاطس", "البطاطس"],
+    },
+    {
+        "q": "ما هو الشهر الذي فيه 28 يوماً؟",
+        "a": ["كل الشهور", "جميع الشهور"],
+    },
+    {
+        "q": "ما هو أصلح شيء للرؤية في الظلام التام؟",
+        "a": ["لا شيء"],
+    },
+    {
+        "q": "ما هو الشيء الذي يملك ذراعين وليس لديه أصابع؟",
+        "a": ["الكرسي"],
+    },
+    {
+        "q": "أين يمكنك إيجاد الجمعة قبل الخميس؟",
+        "a": ["في المعجم", "القاموس"],
+    },
+    {
+        "q": "إذا كان هناك 3 تفاحات وأخذت 2، فكم تفاحة لديك؟",
+        "a": ["2", "تفاحتان"],
+    },
+    {
+        "q": "ما هو القادم الذي لا يصل أبداً؟",
+        "a": ["غداً", "الغد"],
+    },
+    {
+        "q": "أنا بداية النهاية ونهاية الزمان والمكان فمن أنا؟",
+        "a": ["حرف النون"],
+    },
+    {
+        "q": "ما هو الشيء الذي إذا غسلت به يظل متسخاً؟",
+        "a": ["الماء"],
+    },
+    {
+        "q": "ما هو الشيء الذي يطير بدون أجنحة ويدخل العيون بدون استئذان؟",
+        "a": ["الغبار"],
+    },
+    {"q": "يتحرك باستمرار وبلا توقف ولكن لا يتعب؟", "a": ["القلب"]},
+    {
+        "q": "ما هي المادة التي يفرزها الجسم وتصلح لبناء العظام؟",
+        "a": ["الكالسيوم"],
+    },
+    {
+        "q": "ما هو الشيء الذي ينقص كلما أخذت منه أكثر؟",
+        "a": ["الحفرة"],
+    },
+    {
+        "q": "ما هي الشجرة التي ليس لها ظل وليس لها أوراق؟",
+        "a": ["شجرة العائلة"],
+    },
+    {
+        "q": "ما هو أصلح مكان لبناء بيت بدون جدران؟",
+        "a": ["الإنترنت", "العقل"],
+    },
+    {
+        "q": "ما هي الكلمة التي تُنطق دائماً بشكل غير صحيح؟",
+        "a": ["غير صحيح"],
+    },
+    {
+        "q": "يمتلك ريشاً ولكنه لا يطير ولديه أرقام فقط؟",
+        "a": ["سهم الدرجات", "القلم"],
+    },
+    {"q": "ما هي العروس التي لا تبكي عند زفافها؟", "a": ["عروس البحر"]},
+    {
+        "q": "ما هو القماش الذي لا يمكنك ارتداؤه؟",
+        "a": ["قماش العنكبوت"],
+    },
+    {
+        "q": "شيء إذا لمسته صرخ؟",
+        "a": ["جرس الباب", "الجرس"],
+    },
+    {
+        "q": "ما هو العقرب الذي لا يلذغ؟",
+        "a": ["عقرب الساعة"],
+    },
+    {
+        "q": "ما هو العضو الذي يستمر في النمو طوال حياة الإنسان؟",
+        "a": ["الأنف والأذن", "الأنف"],
+    },
+    {
+        "q": "ما هو السؤال الذي لا يمكنك الإجابة عليه بنعم أبداً؟",
+        "a": ["هل أنت نائم؟"],
+    },
+    {"q": "ما هي الكلمة الوحيدة في القاموس التي كُتبت خطأ؟", "a": ["خطأ"]},
+    {"q": "من هو الشخص الذي يرى عدوه وصديقه بعين واحدة؟", "a": ["الأعور"]},
+    {
+        "q": "ما هو الشيء الذي لا يبتل حتى لو نزل في أغزر مياه؟",
+        "a": ["الظل"],
+    },
+    {"q": "له أسنان عديدة لكنه لا يستطيع العض بها؟", "a": ["المشط"]},
+    {
+        "q": "يمتلك زجاجاً ولكنه ليس بنوافذ، ويتصل بالشبكة؟",
+        "a": ["الهاتف الذكي"],
+    },
+    {
+        "q": "ما هو الماء الذي لا يخرج من الأرض ولا ينزل من السماء؟",
+        "a": ["العرق", "دموع العين"],
+    },
+    {
+        "q": "من هو الشخص الذي يقتل مئات الأشخاص يومياً بدون أن يعاقبه أحد؟",
+        "a": ["الحلاق"],
+    },
+    {
+        "q": "ما هي العروس التي لا يراها أحد إلا زوجها؟",
+        "a": ["عروسة اللعبة"],
+    },
+    {
+        "q": "يمتلك شوكة واحدة وأحياناً أربعة ولا يأكل أبداً؟",
+        "a": ["شوكة الطعام"],
+    },
+    {
+        "q": "ما هو السلم الذي لا يصعد عليه أحد؟",
+        "a": ["سلم الرواتب"],
+    },
+    {
+        "q": "تسير في كل أرجاء الغرفة لكنها لا تتحرك أبداً؟",
+        "a": ["الجدران"],
+    },
+    {
+        "q": "تلبس الثوب بالكامل لكنها تظل عارية؟",
+        "a": ["إبرة الخياطة"],
+    },
+    {
+        "q": "ما هو الشيء الذي يسير بلا أقدام ولا يرجع للخلف أبداً؟",
+        "a": ["الوقت", "العمر"],
+    },
+    {
+        "q": "إذا وضعتني في ماء حار أصبح صلباً؟",
+        "a": ["البيض", "بيضة"],
+    },
+    {
+        "q": "ما هو الشيء الذي يحك أذنه بأنفه؟",
+        "a": ["الفيل"],
+    },
+    {
+        "q": "ما هو الشيء الذي تحمله ويحملك في نفس الوقت؟",
+        "a": ["الحذاء"],
+    },
+]
+
 
 @bot.command(name="سؤال")
-async def ask_question(ctx, rounds: int = 1):
-    if rounds < 1 or rounds > 10:
-        await ctx.send("❌ يرجى اختيار عدد جولات بين 1 و 10 فقط!")
-        return
+async def question_game(ctx):
+  q_data = random.choice(QUESTIONS)
+  embed = discord.Embed(
+      title="🧠 سؤال جديد!",
+      description=(
+          f"يا {ctx.author.mention}، أجب عن السؤال التالي كسباً لـ **40**"
+          f" طولار:\n\n❓ **{q_data['q']}**"
+      ),
+      color=discord.Color.blue(),
+  )
+  await ctx.send(embed=embed)
 
-    used_questions = []
-    
-    for round_num in range(1, rounds + 1):
-        available = [q for q in QUESTIONS_POOL.keys() if q not in used_questions]
-        if not available:
-            available = list(QUESTIONS_POOL.keys())
+  def check(m):
+    return m.author == ctx.author and m.channel == ctx.channel
 
-        question = random.choice(available)
-        answer = QUESTIONS_POOL[question]
-        used_questions.append(question)
+  try:
+    msg = await bot.wait_for("message", timeout=10.0, check=check)
+    if msg.content.strip().lower() in [ans.lower() for ans in q_data["a"]]:
+      add_balance(ctx.author.id, 40)
+      await ctx.send(
+          f"🎉 **إجابة صحيحة!** تم إضافة 40 طولار إلى حسابك يا"
+          f" {ctx.author.mention}. رصيدك الجديد: **{get_balance(ctx.author.id)}**"
+          " طولار."
+      )
+    else:
+      await ctx.send(
+          f"❌ **إجابة خاطئة!** الإجابة الصحيحة كانت:"
+          f" **{q_data['a'][0]}**."
+      )
+  except asyncio.TimeoutError:
+    await ctx.send(
+        f"⏰ **انتهى الوقت!** لم تجب خلال 10 ثانية يا {ctx.author.mention}."
+    )
 
-        embed = discord.Embed(
-            title=f"❓ سؤال الجولة {round_num} من {rounds} (صعب 🔥)",
-            description=f"**{question}**\n\n⏰ لديك **10 ثوانٍ فقط** للإجابة الصحيحة!",
-            color=discord.Color.red()
-        )
-        await ctx.send(embed=embed)
-
-        def check(m):
-            return m.channel == ctx.channel and not m.author.bot and m.content.strip().lower() == answer.lower()
-
-        try:
-            msg = await bot.wait_for('message', timeout=10.0, check=check)
-            await async_update_balance(msg.author.id, 40)
-            
-            win_embed = discord.Embed(
-                title="🎉 إجابة صحيحة وسريعة!",
-                description=f"كفو يا {msg.author.mention}! الإجابة هي **{answer}**.\nفزت بـ **40 طولار** 💸!",
-                color=discord.Color.green()
-            )
-            await ctx.send(embed=win_embed)
-        except asyncio.TimeoutError:
-            fail_embed = discord.Embed(
-                title="⏰ انتهى الوقت!",
-                description=f"للأسف لم يجُب أحد بسرعة كافية!\nالإجابة الصحيحة هي: **{answer}**",
-                color=discord.Color.dark_grey()
-            )
-            await ctx.send(embed=fail_embed)
-
-        if round_num < rounds:
-            await asyncio.sleep(2)
 
 @bot.command(name="سجن")
-async def jail_user(ctx):
+async def jail_game(ctx, member: discord.Member = None):
+  if not member:
     member = ctx.author
-    riddle = random.choice(ESCAPE_RIDDLES)
-    
-    embed = discord.Embed(
-        title="🚔 لقد دخلت السجن بنفسك!",
-        description=f"يا {member.mention}، لقد تم سجنك! للهروب، يجب أن تحل اللغز التالي بسرعة خلال **15 ثوانٍ** فقط:\n\n🧩 **{riddle['q']}**",
-        color=discord.Color.dark_red()
+
+  riddle = random.choice(RIDDLES)
+  embed = discord.Embed(
+      title="🚔 لقد دخلت السجن بنفسك!",
+      description=(
+          f"يا {member.mention}، لقد تم سجنك! للهروب، يجب أن تحل اللغز التالي"
+          f" بسرعة خلال **15 ثانية** فقط:\n\n🧩 **{riddle['q']}**"
+      ),
+      color=discord.Color.dark_red(),
+  )
+  await ctx.send(embed=embed)
+
+  def check(m):
+    return m.author == member and m.channel == ctx.channel
+
+  try:
+    msg = await bot.wait_for("message", timeout=15.0, check=check)
+    if msg.content.strip().lower() in [ans.lower() for ans in riddle["a"]]:
+      add_balance(member.id, 40)
+      await ctx.send(
+          f"🔓 **نجحت في الهروب!** أجب لغز السجن بنجاح وتمت مكافأتك بـ 40"
+          f" طولار يا {member.mention}!"
+      )
+    else:
+      await ctx.send(
+          f"🔒 **إجابة خاطئة!** {member.mention} يبقى في السجن! الإجابة كانت:"
+          f" **{riddle['a'][0]}**."
+      )
+  except asyncio.TimeoutError:
+    await ctx.send(
+        f"🔒 **انتهى الوقت!** {member.mention} لم يجب خلال 15 ثانية ويبقى"
+        " محبوساً!"
     )
-    await ctx.send(embed=embed)
 
-    def check(m):
-        return m.author == member and m.channel == ctx.channel and riddle['a'] in m.content.strip().lower()
 
-    try:
-        await bot.wait_for('message', timeout=15.0, check=check)
-        await async_update_balance(member.id, 40)
-        await ctx.send(f"🔓 **مبروك!** {member.mention} حل اللغز الصعب بنجاح، ونجح في الهروب وحصل على **40 طولار** 💸!")
-    except asyncio.TimeoutError:
-        await ctx.send(f"🔒 **انتهى الوقت!** {member.mention} لم يجب خلال 15 ثوانٍ ويبقى محبوساً!")
+@bot.command(name="رصيد")
+async def balance_command(ctx, member: discord.Member = None):
+  target = member or ctx.author
+  bal = get_balance(target.id)
+  await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار.")
 
-# --- 6. أوامر البنك والمتاجر ---
-@bot.command(name="متجر")
-async def show_shop(ctx):
-    embed = discord.Embed(
-        title="🛒 متجر B✰IL السيرفر",
-        description="مرحباً بك في المتجر! اختر الفئة التي تريدها من القائمة المنسدلة أدناه للبدء:",
-        color=discord.Color.blue()
-    )
-    embed.set_footer(text="B✰IL Store Interactive System")
-    await ctx.send(embed=embed, view=MainShopView())
-
-@bot.command(name="طولاري")
-async def check_wallet(ctx):
-    balance = get_balance(ctx.author.id)
-    embed = discord.Embed(title="💳 بطاقة حسابك البنكي", color=discord.Color.gold())
-    embed.add_field(name="صاحب الحساب", value=ctx.author.mention, inline=False)
-    embed.add_field(name="الرصيد الحالي", value=f"**{balance:,}** طولار 💸", inline=False)
-    embed.set_footer(text="B✰IL Bank System")
-    await ctx.send(embed=embed)
-
-@bot.command(name="تحويل")
-async def transfer_money(ctx, member: discord.Member = None, amount: int = None):
-    if not member or not amount or amount <= 0:
-        await ctx.send("⚠️ الاستخدام الصحيح: `!تحويل @العضو المبلغ`")
-        return
-
-    sender_bal = get_balance(ctx.author.id)
-    if sender_bal < amount:
-        await ctx.send(f"⚠️ رصيدك غير كافٍ! رصيدك الحالي: **{sender_bal} طولار**")
-        return
-
-    await async_update_balance(ctx.author.id, -amount)
-    await async_update_balance(member.id, amount)
-    await ctx.send(f"✅ تم تحويل **{amount} طولار** بنجاح إلى {member.mention} 💸!")
-
-@bot.command(name="اضافة")
-async def give_money(ctx, member: discord.Member = None, amount: int = None):
-    has_admin = any(role.id == ADMIN_ROLE_ID for role in ctx.author.roles)
-    if not has_admin and not ctx.author.guild_permissions.administrator:
-        await ctx.send("❌ ليس لديك صلاحية لاستخدام هذا الأمر!")
-        return
-
-    if not member or not amount:
-        await ctx.send("⚠️ الاستخدام الصحيح: `!اضافة @العضو المبلغ`")
-        return
-
-    await async_update_balance(member.id, amount)
-    await ctx.send(f"👑 تم إضافة **{amount} طولار** إلى حساب {member.mention} بنجاح!")
 
 # --- 7. أحداث التشغيل ---
 @bot.event
