@@ -5,6 +5,7 @@ import json
 import os
 import asyncio
 import aiohttp
+import base64
 from threading import Thread
 from flask import Flask
 
@@ -48,13 +49,13 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 GITHUB_TOKEN = "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"
 REPO_OWNER = "true561290-boop"
 REPO_NAME = "my_bot"
-FILE_PATH = "bank.json"
+FILE_PATH = "user_balances.json"  # ملف خاص ومستقل لحفظ الأرصدة فقط
 
 ADMIN_ROLE_ID = 1515396547528102131
 
 bot.user_bank = {}
 
-# --- بيانات متجر الرتب والألوان (المعرفات المخصصة كاملة) ---
+# --- بيانات متجر الرتب والألوان ---
 ROLES_DATA = {
     "1": {"name": "رتبة VIP", "price": 500, "role_id": 1332822168928649310},
     "2": {"name": "رتبة VIP+", "price": 1000, "role_id": 1332822168928649311},
@@ -279,11 +280,11 @@ ESCAPE_RIDDLES = [
     {"q": "ما هو الشيء الذي لا يتكلم وإذا جاع كذب؟", "a": "الساعة"}
 ]
 
-# --- 3. دالات البنك والتخزين السحابي عبر GitHub ---
+# --- 3. نظام البنك المطور للحفاظ على الحسابات من التصفير ---
+
 async def load_data_from_github():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-    import base64
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(url, headers=headers) as r:
@@ -292,40 +293,51 @@ async def load_data_from_github():
                     file_data = base64.b64decode(content['content']).decode('utf-8')
                     data = json.loads(file_data)
                     bot.user_bank.update(data)
-                    print("✅ [GitHub Cloud] تم تحميل بيانات البنك بنجاح!")
+                    print("✅ [GitHub Cloud] تم تحميل بيانات الأرصدة بنجاح!")
+                    return data
+                elif r.status == 404:
+                    print("ℹ️ [GitHub Cloud] ملف الأرصدة غير موجود بعد، وسيتم إنشاؤه تلقائياً.")
                 else:
                     print(f"⚠️ [GitHub Cloud] فشل التحميل بكود: {r.status}")
         except Exception as e:
             print(f"⚠️ [GitHub Cloud] خطأ أثناء التحميل: {e}")
+    return {}
 
 async def async_update_balance(user_id, amount):
     uid = str(user_id)
-    import base64
-    
-    if not bot.user_bank:
-        await load_data_from_github()
-
-    if uid not in bot.user_bank:
-        bot.user_bank[uid] = 0
-
-    bot.user_bank[uid] += amount
-    
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
     
     async with aiohttp.ClientSession() as session:
         try:
             sha = None
+            current_cloud_data = {}
+            
+            # قراءة الملف الحالي من GitHub أولاً لمنع الفقدان عند إعادة تشغيل البوت
             async with session.get(url, headers=headers) as r:
                 if r.status == 200:
                     res_json = await r.json()
                     sha = res_json['sha']
+                    file_data = base64.b64decode(res_json['content']).decode('utf-8')
+                    current_cloud_data = json.loads(file_data)
             
-            js_bytes = json.dumps(bot.user_bank, ensure_ascii=False, indent=4).encode('utf-8')
+            # دمج البيانات القديمة مع بيانات البوت الحالية
+            current_cloud_data.update(bot.user_bank)
+            
+            # تعديل رصيد العضو المحدد
+            if uid not in current_cloud_data:
+                current_cloud_data[uid] = 0
+            current_cloud_data[uid] += amount
+            
+            # التحديث في ذاكرة البوت المحلية
+            bot.user_bank[uid] = current_cloud_data[uid]
+            
+            # إعادة الحفظ السحابي
+            js_bytes = json.dumps(current_cloud_data, ensure_ascii=False, indent=4).encode('utf-8')
             encoded = base64.b64encode(js_bytes).decode('utf-8')
             
             payload = {
-                "message": "🔄 تحديث تلقائي لرصيد البنك",
+                "message": f"🔄 تحديث رصيد العضو {uid}",
                 "content": encoded
             }
             if sha:
@@ -333,7 +345,7 @@ async def async_update_balance(user_id, amount):
                 
             async with session.put(url, headers=headers, json=payload) as r_put:
                 if r_put.status in [200, 201]:
-                    print("✅ [GitHub Cloud] تم حفظ الرصيد بنجاح!")
+                    print(f"✅ [GitHub Cloud] تم تحديث رصيد {uid} بنجاح!")
         except Exception as e:
             print(f"⚠️ [GitHub Cloud] خطأ أثناء الحفظ: {e}")
 
