@@ -27,20 +27,6 @@ def keep_alive():
 
 keep_alive()
 
-async def self_ping():
-    await asyncio.sleep(10)
-    render_url = os.environ.get("RENDER_EXTERNAL_URL", "http://127.0.0.1:8080")
-    
-    async with aiohttp.ClientSession() as session:
-        while True:
-            try:
-                async with session.get(render_url) as resp:
-                    print(f"🔄 [Self-Ping] تم زيارة البوت لنفسه! كود الاستجابة: {resp.status}")
-            except Exception as e:
-                print(f"⚠️ [Self-Ping] خطأ: {e}")
-            
-            await asyncio.sleep(300)
-
 # --- 2. إعدادات البوت والبيانات ---
 intents = discord.Intents.default()
 intents.message_content = True
@@ -591,6 +577,6 @@ async def give_money(ctx, member: discord.Member = None, amount: int = None):
 async def on_ready():
     print(f"✅ تم تسجيل الدخول باسم: {bot.user.name}")
     await load_data_from_github()
-    bot.loop.create_task(self_ping())
+    
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
