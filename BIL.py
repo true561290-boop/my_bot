@@ -8,7 +8,7 @@ import aiohttp
 from threading import Thread
 from flask import Flask
 
-# --- 1. خادم الويب والزيارة الذاتية ---
+# --- 1. خادم الويب والزيارة الذاتية للحفاظ على استمرار التشغيل 24/7 ---
 app = Flask('')
 
 @app.route('/')
@@ -53,6 +53,23 @@ FILE_PATH = "bank.json"
 ADMIN_ROLE_ID = 1515396547528102131
 
 bot.user_bank = {}
+
+# --- بيانات متجر الرتب والألوان (المعرفات المخصصة كاملة) ---
+ROLES_DATA = {
+    "1": {"name": "رتبة VIP", "price": 500, "role_id": 1332822168928649310},
+    "2": {"name": "رتبة VIP+", "price": 1000, "role_id": 1332822168928649311},
+    "3": {"name": "رتبة LEGEND", "price": 2000, "role_id": 1332822168928649312}
+}
+
+COLORS_DATA = {
+    "4": {"name": "اللون الاحمر", "price": 200, "role_id": 1332822168928649309},
+    "5": {"name": "اللون الازرق", "price": 200, "role_id": 1332822168928649308},
+    "6": {"name": "اللون الاخضر", "price": 200, "role_id": 1332822168928649307},
+    "7": {"name": "اللون الاصفر", "price": 200, "role_id": 1332822168928649306},
+    "8": {"name": "اللون البنفسجي", "price": 200, "role_id": 1332822168928649305},
+    "9": {"name": "اللون البرتقالي", "price": 200, "role_id": 1332822168928649304},
+    "10": {"name": "اللون الوردي", "price": 200, "role_id": 1332822168928649303}
+}
 
 # --- 🧠 100 سؤال صعب جداً ---
 QUESTIONS_POOL = {
@@ -262,7 +279,7 @@ ESCAPE_RIDDLES = [
     {"q": "ما هو الشيء الذي لا يتكلم وإذا جاع كذب؟", "a": "الساعة"}
 ]
 
-# --- 3. دالات البنك والحفظ ---
+# --- 3. دالات البنك والتخزين السحابي عبر GitHub ---
 async def load_data_from_github():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
@@ -326,62 +343,103 @@ def get_balance(user_id):
         bot.user_bank[uid] = 0
     return bot.user_bank[uid]
 
-# --- 4. أوامر البنك ---
-@bot.command(name="تجربة")
-async def ping(ctx):
-    await ctx.send("🏓 البوت يعمل بنجاح وبدون مشاكل!")
+# --- 4. واجهة القوائم المنسدلة التفاعلية للمتجر ---
+class ItemSelect(discord.ui.Select):
+    def __init__(self, items, is_color=False):
+        self.is_color = is_color
+        options = []
+        for key, item in items.items():
+            options.append(discord.SelectOption(
+                label=item['name'],
+                value=key,
+                description=f"السعر: {item['price']} طولار"
+            ))
+        super().__init__(placeholder="اختر ما تريد شراءه...", min_values=1, max_values=1, options=options)
 
-@bot.command(name="طولاري")
-async def check_wallet(ctx):
-    balance = get_balance(ctx.author.id)
-    embed = discord.Embed(
-        title="💳 بطاقة حسابك البنكي",
-        color=discord.Color.gold()
-    )
-    embed.add_field(name="صاحب الحساب", value=ctx.author.mention, inline=False)
-    embed.add_field(name="الرصيد الحالي", value=f"**{balance:,}** طولار 💸", inline=False)
-    embed.set_footer(text="B✰IL Bank System")
-    await ctx.send(embed=embed)
+    async def callback(self, interaction: discord.Interaction):
+        item_key = self.values[0]
+        all_items = {**ROLES_DATA, **COLORS_DATA}
+        item = all_items[item_key]
+        price = item['price']
+        user_bal = get_balance(interaction.user.id)
 
-@bot.command(name="تحويل")
-async def transfer_money(ctx, member: discord.Member = None, amount: int = None):
-    if not member or not amount:
-        await ctx.send("⚠️ الاستخدام الصحيح: `!تحويل @العضو المبلغ`")
-        return
+        # 1. التحقق من الرصيد
+        if user_bal < price:
+            await interaction.response.send_message(f"❌ لا تملك طولارات كافية! سعر المنتج: **{price} طولار** ورصيدك: **{user_bal} طولار**.", ephemeral=True)
+            return
 
-    if amount <= 0:
-        await ctx.send("⚠️ لا يمكنك تحويل مبلغ أقل من 1!")
-        return
+        role = interaction.guild.get_role(item['role_id'])
+        if not role:
+            await interaction.response.send_message("⚠️ خطأ: لم يتم العثور على هذه الرتبة في السيرفر!", ephemeral=True)
+            return
 
-    sender_bal = get_balance(ctx.author.id)
-    if sender_bal < amount:
-        await ctx.send(f"⚠️ رصيدك غير كافٍ! رصيدك الحالي: **{sender_bal} طولار**")
-        return
+        # 2. التحقق من امتلاك نفس الرتبة
+        if role in interaction.user.roles:
+            await interaction.response.send_message(f"⚠️ أنت تملك بالفعل **{item['name']}**!", ephemeral=True)
+            return
 
-    await async_update_balance(ctx.author.id, -amount)
-    await async_update_balance(member.id, amount)
-    await ctx.send(f"✅ تم تحويل **{amount} طولار** بنجاح إلى {member.mention} 💸!")
+        # 3. إزالة أي لون قديم تلقائياً إذا كان الشراء للون جديد
+        removed_roles_names = []
+        if self.is_color:
+            for color_key, color_info in COLORS_DATA.items():
+                old_role = interaction.guild.get_role(color_info['role_id'])
+                if old_role and old_role in interaction.user.roles:
+                    await interaction.user.remove_roles(old_role)
+                    removed_roles_names.append(color_info['name'])
 
-@bot.command(name="اضافة")
-async def give_money(ctx, member: discord.Member = None, amount: int = None):
-    has_admin = any(role.id == ADMIN_ROLE_ID for role in ctx.author.roles)
-    if not has_admin and not ctx.author.guild_permissions.administrator:
-        await ctx.send("❌ ليس لديك صلاحية لاستخدام هذا الأمر!")
-        return
+        try:
+            await interaction.user.add_roles(role)
+            await async_update_balance(interaction.user.id, -price)
+            
+            msg = f"🎉 **مبروك!** تم شراء **{item['name']}** بنجاح وخصم **{price} طولار** من حسابك!"
+            if removed_roles_names:
+                msg += f"\n🔄 (تم إزالة لونك القديم تلقائياً: {', '.join(removed_roles_names)})"
 
-    if not member or not amount:
-        await ctx.send("⚠️ الاستخدام الصحيح: `!اضافة @العضو المبلغ`")
-        return
+            await interaction.response.send_message(msg, ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"⚠️ حدث خطأ أثناء إضافة الرتبة، تأكد من ترتيب رتبة البوت بالسيرفر! الخطأ: {e}", ephemeral=True)
 
-    await async_update_balance(member.id, amount)
-    await ctx.send(f"👑 تم إضافة **{amount} طولار** إلى حساب {member.mention} بنجاح!")
+class SubCategoryView(discord.ui.View):
+    def __init__(self, items, is_color=False):
+        super().__init__(timeout=60)
+        self.add_item(ItemSelect(items, is_color=is_color))
 
-# --- 5. أوامر الألعاب الجديدة ---
+class CategorySelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="الألوان 🎨", value="colors", description="عرض الألوان السبعة المتاحة للشراء"),
+            discord.SelectOption(label="الرتب VIP 👑", value="roles", description="عرض رتب المميزين المتاحة للشراء")
+        ]
+        super().__init__(placeholder="اختر القسم الذي تريد تصفحه...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        category = self.values[0]
+        if category == "colors":
+            embed = discord.Embed(
+                title="🎨 متجر الألوان",
+                description="اختر اللون الذي تريده من القائمة أدناه.\n⚠️ *تنبيه: شراء لون جديد يزيل اللون القديم تلقائياً!*",
+                color=discord.Color.magenta()
+            )
+            await interaction.response.edit_message(embed=embed, view=SubCategoryView(COLORS_DATA, is_color=True))
+        elif category == "roles":
+            embed = discord.Embed(
+                title="👑 متجر الرتب المميزة",
+                description="اختر الرتبة التي تريدها من القائمة أدناه:",
+                color=discord.Color.gold()
+            )
+            await interaction.response.edit_message(embed=embed, view=SubCategoryView(ROLES_DATA, is_color=False))
+
+class MainShopView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=120)
+        self.add_item(CategorySelect())
+
+# --- 5. أوامر الألعاب (سؤال وسجن) ---
 @bot.command(name="العاب")
 async def show_games(ctx):
     embed = discord.Embed(
         title="🎮 قائمة الألعاب المتاحة",
-        description="إليك اللعبتين المتاحتين حالياً في البوت مع التعديلات الجديدة الصعبة:",
+        description="إليك اللعبتان المتاحتان حالياً في البوت مع التعديلات الجديدة الصعبة:",
         color=discord.Color.blue()
     )
     embed.add_field(
@@ -467,12 +525,60 @@ async def jail_user(ctx):
     except asyncio.TimeoutError:
         await ctx.send(f"🔒 **انتهى الوقت!** {member.mention} لم يجب خلال 8 ثوانٍ ويبقى محبوساً!")
 
-# --- 6. أحداث التشغيل ---
+# --- 6. أوامر البنك والمتاجر ---
+@bot.command(name="متجر")
+async def show_shop(ctx):
+    embed = discord.Embed(
+        title="🛒 متجر B✰IL السيرفر",
+        description="مرحباً بك في المتجر! اختر الفئة التي تريدها من القائمة المنسدلة أدناه للبدء:",
+        color=discord.Color.blue()
+    )
+    embed.set_footer(text="B✰IL Store Interactive System")
+    await ctx.send(embed=embed, view=MainShopView())
+
+@bot.command(name="طولاري")
+async def check_wallet(ctx):
+    balance = get_balance(ctx.author.id)
+    embed = discord.Embed(title="💳 بطاقة حسابك البنكي", color=discord.Color.gold())
+    embed.add_field(name="صاحب الحساب", value=ctx.author.mention, inline=False)
+    embed.add_field(name="الرصيد الحالي", value=f"**{balance:,}** طولار 💸", inline=False)
+    embed.set_footer(text="B✰IL Bank System")
+    await ctx.send(embed=embed)
+
+@bot.command(name="تحويل")
+async def transfer_money(ctx, member: discord.Member = None, amount: int = None):
+    if not member or not amount or amount <= 0:
+        await ctx.send("⚠️ الاستخدام الصحيح: `!تحويل @العضو المبلغ`")
+        return
+
+    sender_bal = get_balance(ctx.author.id)
+    if sender_bal < amount:
+        await ctx.send(f"⚠️ رصيدك غير كافٍ! رصيدك الحالي: **{sender_bal} طولار**")
+        return
+
+    await async_update_balance(ctx.author.id, -amount)
+    await async_update_balance(member.id, amount)
+    await ctx.send(f"✅ تم تحويل **{amount} طولار** بنجاح إلى {member.mention} 💸!")
+
+@bot.command(name="اضافة")
+async def give_money(ctx, member: discord.Member = None, amount: int = None):
+    has_admin = any(role.id == ADMIN_ROLE_ID for role in ctx.author.roles)
+    if not has_admin and not ctx.author.guild_permissions.administrator:
+        await ctx.send("❌ ليس لديك صلاحية لاستخدام هذا الأمر!")
+        return
+
+    if not member or not amount:
+        await ctx.send("⚠️ الاستخدام الصحيح: `!اضافة @العضو المبلغ`")
+        return
+
+    await async_update_balance(member.id, amount)
+    await ctx.send(f"👑 تم إضافة **{amount} طولار** إلى حساب {member.mention} بنجاح!")
+
+# --- 7. أحداث التشغيل ---
 @bot.event
 async def on_ready():
     print(f"✅ تم تسجيل الدخول باسم: {bot.user.name}")
     await load_data_from_github()
     bot.loop.create_task(self_ping())
 
-# --- 7. التشغيل ---
 bot.run(os.environ.get('DISCORD_TOKEN'))
