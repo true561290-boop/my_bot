@@ -486,7 +486,7 @@ async def ask_question(ctx, rounds: int = 1):
 
         embed = discord.Embed(
             title=f"❓ سؤال الجولة {round_num} من {rounds} (صعب 🔥)",
-            description=f"**{question}**\n\n⏰ لديك **8 ثوانٍ فقط** للإجابة الصحيحة!",
+            description=f"**{question}**\n\n⏰ لديك **10 ثوانٍ فقط** للإجابة الصحيحة!",
             color=discord.Color.red()
         )
         await ctx.send(embed=embed)
@@ -495,7 +495,7 @@ async def ask_question(ctx, rounds: int = 1):
             return m.channel == ctx.channel and not m.author.bot and m.content.strip().lower() == answer.lower()
 
         try:
-            msg = await bot.wait_for('message', timeout=8.0, check=check)
+            msg = await bot.wait_for('message', timeout=10.0, check=check)
             await async_update_balance(msg.author.id, 40)
             
             win_embed = discord.Embed(
@@ -522,7 +522,7 @@ async def jail_user(ctx):
     
     embed = discord.Embed(
         title="🚔 لقد دخلت السجن بنفسك!",
-        description=f"يا {member.mention}، لقد تم سجنك! للهروب، يجب أن تحل اللغز التالي بسرعة خلال **8 ثوانٍ** فقط:\n\n🧩 **{riddle['q']}**",
+        description=f"يا {member.mention}، لقد تم سجنك! للهروب، يجب أن تحل اللغز التالي بسرعة خلال **15 ثوانٍ** فقط:\n\n🧩 **{riddle['q']}**",
         color=discord.Color.dark_red()
     )
     await ctx.send(embed=embed)
@@ -531,11 +531,11 @@ async def jail_user(ctx):
         return m.author == member and m.channel == ctx.channel and riddle['a'] in m.content.strip().lower()
 
     try:
-        await bot.wait_for('message', timeout=8.0, check=check)
+        await bot.wait_for('message', timeout=15.0, check=check)
         await async_update_balance(member.id, 40)
         await ctx.send(f"🔓 **مبروك!** {member.mention} حل اللغز الصعب بنجاح، ونجح في الهروب وحصل على **40 طولار** 💸!")
     except asyncio.TimeoutError:
-        await ctx.send(f"🔒 **انتهى الوقت!** {member.mention} لم يجب خلال 8 ثوانٍ ويبقى محبوساً!")
+        await ctx.send(f"🔒 **انتهى الوقت!** {member.mention} لم يجب خلال 15 ثوانٍ ويبقى محبوساً!")
 
 # --- 6. أوامر البنك والمتاجر ---
 @bot.command(name="متجر")
