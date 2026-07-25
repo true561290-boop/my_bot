@@ -1,3 +1,4 @@
+import typing
 import asyncio
 import base64
 import json
@@ -1164,9 +1165,8 @@ async def get_id(ctx, target: str = None):
         await ctx.send(f"🆔 آيدي الرتبة **{role.name}**: `{role.id}`")
         return
         
-        if ctx.message.channel_mentions:
-        channel = ctx.message.channel_mentions[0]
-        await ctx.send(f"🆔 آيدي الروم {channel.mention}: `{channel.id}`")
+        if isinstance(target, discord.TextChannel):
+        await ctx.send(f"🆔 آيدي الروم {target.mention}: `{target.id}`")
         return
 
     # 3. إذا تم منشن عضو
