@@ -408,8 +408,9 @@ async def on_message(message):
             f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك"
             " لا تملك رتبة **Level 50**! يمكنك شراؤها من المتجر (`!متجر`)."
         )
-        await asyncio.sleep(2)
-        await warning.delete(2)
+        delete_after=(2)
+        await asyncio.sleep()
+        await warning.delete()
         return
       except Exception as e:
         print(f"خطأ أثناء حذف الرسالة: {e}")
@@ -1166,6 +1167,87 @@ async def get_id(ctx, target: str = None):
         return
 
     await ctx.send("❌ لم يتم العثور على عضو أو رتبة بهذا المنشن/الاسم.")
+    
+    # --- أمر مسح الرسائل (خاص برتبة الاونر عبر الـ ID) ---
+OWNER_ROLE_ID =1515396547528102131 # أيدي رتبة الاونر
+
+
+@bot.command(name="مسح", aliases=["clear", "مسح_الرسائل"])
+@commands.has_role(OWNER_ROLE_ID)
+async def clear_messages(ctx, amount: int = None):
+    if amount is None or amount <= 0:
+        await ctx.send(
+            "⚠️ يرجى تحديد عدد الرسائل المراد مسحها.\nمثال: `!مسح 10`",
+            delete_after=2,
+        )
+        return
+
+    # مسح الرسائل (مع إضافة 1 لحذف رسالة الأمر نفسه)
+    deleted = await ctx.channel.purge(limit=amount + 1)
+
+    # إرسال رسالة تأكيد وحذفها بعد 2 ثوانٍ
+    await ctx.send(
+        f"🧹 تم مسح **{len(deleted) - 1}** رسالة بنجاح!", delete_after=1
+    )
+
+
+# التعامل مع الأخطاء الخاصة بأمر المسح
+@clear_messages.error
+async def clear_messages_error(ctx, error):
+    if isinstance(error, commands.MissingRole):
+        await ctx.send(
+            "❌ هذا الأمر مخصص  للـ اونر فقط!", delete_after=2
+        )
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send(
+            "❌ يرجى كتابة عدد الرسائل بالأرقام فقط (مثال: `!مسح 5`).",
+            delete_after=1,
+        )
+    elif isinstance(error, commands.BotMissingPermissions):
+        await ctx.send(
+            "❌ البوت لا يملك صلاحية `Manage Messages` (إدارة الرسائل) لمسح الشات!"
+        )
+        
+        # --- أمر الأفتار (صورة فقط بحجم كبير) ---
+@bot.command(name="افتار", aliases=["avatar", "افتاري"])
+async def show_avatar(ctx, member: discord.Member = None):
+    target = member or ctx.author
+    avatar_url = target.display_avatar.url
+
+    # إرسال الصورة فقط داخل إمبيد بدون أي عنوان أو نصوص
+    embed = discord.Embed(color=discord.Color.dark_theme())
+    embed.set_image(url=avatar_url)
+
+    await ctx.send(embed=embed)
+
+
+# --- أمر البنر (بنر فقط بحجم كبير) ---
+@bot.command(name="بنر", aliases=["banner", "بنري"])
+async def show_banner(ctx, member: discord.Member = None):
+    target = member or ctx.author
+
+    # جلب بيانات العضو الكاملة للحصول على البنر
+    user = await bot.fetch_user(target.id)
+
+    if not user.banner:
+        await ctx.send("❌ هذا الحساب لا يملك بنر!", delete_after=2)
+        return
+
+    banner_url = user.banner.url
+
+    # إرسال البنر فقط داخل إمبيد بدون أي كتابة
+    embed = discord.Embed(color=discord.Color.dark_theme())
+    embed.set_image(url=banner_url)
+
+    await ctx.send(embed=embed)
+
+
+# التعامل مع أخطاء المنشن
+@show_avatar.error
+@show_banner.error
+async def avatar_banner_error(ctx, error):
+    if isinstance(error, commands.BadArgument):
+        await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت!", delete_after=2)
 
 
 # --- 7. أحداث التشغيل ---
