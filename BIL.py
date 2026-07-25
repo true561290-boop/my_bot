@@ -1045,7 +1045,7 @@ async def question_game(ctx):
       await ctx.send(
           f"🎉 **إجابة صحيحة!** تم إضافة 40 طولار إلى حسابك يا"
           f" {ctx.author.mention}. رصيدك الجديد: **{get_balance(ctx.author.id)}**"
-          " طولار."
+          " طولار.", allowed_mentions=discord.AllowedMentions.none()
       )
     else:
       await ctx.send(
@@ -1083,7 +1083,7 @@ async def jail_game(ctx, member: discord.Member = None):
       add_balance(member.id, 40)
       await ctx.send(
           f"🔓 **نجحت في الهروب!** أجب لغز السجن بنجاح وتمت مكافأتك بـ 40"
-          f" طولار يا {member.mention}!"
+          f" طولار يا {member.mention}!"‚ allowed_mentions=discord.AllowedMentions.none()
       )
     else:
       await ctx.send(
@@ -1101,7 +1101,8 @@ async def jail_game(ctx, member: discord.Member = None):
 async def balance_command(ctx, member: discord.Member = None):
   target = member or ctx.author
   bal = get_balance(target.id)
-  await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار.")
+  await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار."‚ allowed_mentions=discord.AllowedMentions.none()
+)
   
   # أداة لتحديد روم معين لكل أمر
 def in_channel(channel_id: int):
@@ -1132,7 +1133,7 @@ async def add_money(ctx, member: discord.Member, amount: int):
     add_balance(member.id, amount)
     await ctx.send(
         f"✅ تم إضافة **{amount}** طولار إلى حساب {member.mention} بنجاح!\n"
-        f"💳 رصيده الجديد: **{get_balance(member.id)}** طولار."
+        f"💳 رصيده الجديد: **{get_balance(member.id)}** طولار.", allowed_mentions=discord.AllowedMentions.none()
     )
 
 
