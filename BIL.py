@@ -1045,8 +1045,8 @@ async def question_game(ctx):
       await ctx.send(
           f"🎉 **إجابة صحيحة!** تم إضافة 40 طولار إلى حسابك يا"
           f" {ctx.author.mention}. رصيدك الجديد: **{get_balance(ctx.author.id)}**"
-          " طولار.", allowed_mentions=discord.AllowedMentions.none()
-      )
+          " طولار.", allowed_mentions=discord.AllowedMentions.none())
+      
     else:
       await ctx.send(
           f"❌ **إجابة خاطئة!** الإجابة الصحيحة كانت:"
@@ -1054,9 +1054,8 @@ async def question_game(ctx):
       )
   except asyncio.TimeoutError:
     await ctx.send(
-        f"⏰ **انتهى الوقت!** لم تجب خلال 10 ثانية يا {ctx.author.mention}."
-    )
-
+        f"⏰ **انتهى الوقت!** لم تجب خلال 10 ثانية يا {ctx.author.mention}."‚allowed_mentions=discord.AllowedMentions.none())
+    
 
 @bot.command(name="سجن")
 async def jail_game(ctx, member: discord.Member = None):
@@ -1083,26 +1082,26 @@ async def jail_game(ctx, member: discord.Member = None):
       add_balance(member.id, 40)
       await ctx.send(
           f"🔓 **نجحت في الهروب!** أجب لغز السجن بنجاح وتمت مكافأتك بـ 40"
-          f" طولار يا {member.mention}!"‚ allowed_mentions=discord.AllowedMentions.none()
-      )
+          f" طولار يا {member.mention}!"‚ allowed_mentions=discord.AllowedMentions.none())
+      
     else:
       await ctx.send(
           f"🔒 **إجابة خاطئة!** {member.mention} يبقى في السجن! الإجابة كانت:"
-          f" **{riddle['a'][0]}**."
-      )
+          f" **{riddle['a'][0]}**."‚allowed_mentions=discord.AllowedMentions.none())
+      
   except asyncio.TimeoutError:
     await ctx.send(
         f"🔒 **انتهى الوقت!** {member.mention} لم يجب خلال 15 ثانية ويبقى"
-        " محبوساً!"
-    )
+        " محبوساً!"‚allowed_mentions=discord.AllowedMentions.none())
+   
 
 
 @bot.command(name="طولاري")
 async def balance_command(ctx, member: discord.Member = None):
   target = member or ctx.author
   bal = get_balance(target.id)
-  await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار."‚ allowed_mentions=discord.AllowedMentions.none()
-)
+  await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار."‚ allowed_mentions=discord.AllowedMentions.none())
+
   
   # أداة لتحديد روم معين لكل أمر
 def in_channel(channel_id: int):
