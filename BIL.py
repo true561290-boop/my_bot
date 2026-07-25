@@ -10,6 +10,7 @@ import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
+import typing
 from flask import Flask
 import requests
 
@@ -1153,7 +1154,12 @@ async def add_money_error(ctx, error):
     
   # --- أمر معرفة الآيدي (للأعضاء والرتب) ---
 @bot.command(name="ايدي")
-async def get_id(ctx, target: str = None):
+async def get_id(
+    ctx,
+    target: typing.Union[
+        discord.TextChannel, discord.Member, discord.Role, str
+    ] = None,
+):
     # 1. إذا لم يُرسل المستخدم أي شيء (عرض آيدي صاحب الأمر)
     if not target:
         await ctx.send(f"🆔 الآيدي الخاص بك: `{ctx.author.id}`")
