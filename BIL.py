@@ -1100,6 +1100,72 @@ async def balance_command(ctx, member: discord.Member = None):
   target = member or ctx.author
   bal = get_balance(target.id)
   await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار.")
+  
+  # --- أمر إضافة رصيد (خاص برتبة الاونر عبر الـ ID) ---
+OWNER_ROLE_ID = 1527739093163708548  # أيدي رتبة الاونر
+
+
+@bot.command(name="اضافة")
+@commands.has_role(OWNER_ROLE_ID)  # التحقق بآيدي الرتبة
+async def add_money(ctx, member: discord.Member, amount: int):
+    if amount <= 0:
+        await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من 0.")
+        return
+
+    add_balance(member.id, amount)
+    await ctx.send(
+        f"✅ تم إضافة **{amount}** طولار إلى حساب {member.mention} بنجاح!\n"
+        f"💳 رصيده الجديد: **{get_balance(member.id)}** طولار."
+    )
+
+
+# التعامل مع الأخطاء الخاصة بالأمر
+@add_money.error
+async def add_money_error(ctx, error):
+    if isinstance(error, commands.MissingRole):
+        await ctx.send("❌ هذا الأمر مخصص لصاحب رتبة الاونر فقط!")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(
+            "⚠️ **طريقة الاستخدام الصحيحة:**\n"
+            "`!اضافة @العضو المبلغ`\n"
+            "مثال: `!اضافة @User 500`"
+        )
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.")
+        
+    
+  # --- أمر معرفة الآيدي (للأعضاء والرتب) ---
+@bot.command(name="ايدي")
+async def get_id(ctx, target: str = None):
+    # 1. إذا لم يُرسل المستخدم أي شيء (عرض آيدي صاحب الأمر)
+    if not target:
+        await ctx.send(f"🆔 الآيدي الخاص بك: `{ctx.author.id}`")
+        return
+
+    # 2. إذا تم منشن رتبة
+    if ctx.message.role_mentions:
+        role = ctx.message.role_mentions[0]
+        await ctx.send(f"🆔 آيدي الرتبة **{role.name}**: `{role.id}`")
+        return
+
+    # 3. إذا تم منشن عضو
+    if ctx.message.mentions:
+        member = ctx.message.mentions[0]
+        await ctx.send(f"🆔 آيدي العضو {member.mention}: `{member.id}`")
+        return
+
+    # 4. إذا قام بإدخال اسم بدون منشن صريح (محاولة البحث)
+    member = discord.utils.find(lambda m: m.name == target or m.display_name == target, ctx.guild.members)
+    if member:
+        await ctx.send(f"🆔 آيدي العضو {member.mention}: `{member.id}`")
+        return
+
+    role = discord.utils.find(lambda r: r.name == target, ctx.guild.roles)
+    if role:
+        await ctx.send(f"🆔 آيدي الرتبة **{role.name}**: `{role.id}`")
+        return
+
+    await ctx.send("❌ لم يتم العثور على عضو أو رتبة بهذا المنشن/الاسم.")
 
 
 # --- 7. أحداث التشغيل ---
