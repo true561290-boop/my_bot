@@ -1102,11 +1102,26 @@ async def balance_command(ctx, member: discord.Member = None):
   bal = get_balance(target.id)
   await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار.")
   
+  # أداة لتحديد روم معين لكل أمر
+def in_channel(channel_id: int):
+    async def predicate(ctx):
+        if ctx.channel.id != channel_id:
+            # يرسل رسالة تحتوي على رابط/منشن الروم المخصص وتنحذف بعد 3 ثوانٍ
+            await ctx.send(
+                f"❌ هذا الأمر يعمل فقط في الروم المخصص: <#{channel_id}>",
+                delete_after=3,
+            )
+            return False
+        return True
+
+    return commands.check(predicate)
+  
   # --- أمر إضافة رصيد (خاص برتبة الاونر عبر الـ ID) ---
 OWNER_ROLE_ID =1515396547528102131 # أيدي رتبة الاونر
 
 
 @bot.command(name="اضافة")
+@in_channel(AVATAR_CHANNEL_ID)
 @commands.has_role(OWNER_ROLE_ID)  # التحقق بآيدي الرتبة
 async def add_money(ctx, member: discord.Member, amount: int):
     if amount <= 0:
@@ -1147,6 +1162,11 @@ async def get_id(ctx, target: str = None):
     if ctx.message.role_mentions:
         role = ctx.message.role_mentions[0]
         await ctx.send(f"🆔 آيدي الرتبة **{role.name}**: `{role.id}`")
+        return
+        
+        if ctx.message.channel_mentions:
+        channel = ctx.message.channel_mentions[0]
+        await ctx.send(f"🆔 آيدي الروم {channel.mention}: `{channel.id}`")
         return
 
     # 3. إذا تم منشن عضو
