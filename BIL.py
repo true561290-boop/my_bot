@@ -1,4 +1,3 @@
-import typing
 import asyncio
 import base64
 import json
