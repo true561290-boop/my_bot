@@ -1102,11 +1102,13 @@ async def balance_command(ctx, member: discord.Member = None):
   await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار.")
 
 
-# --- 7. أحداث التشغيل ---
+# --- 6. أحداث التشغيل وقفل البوت ---
 @bot.event
 async def on_ready():
-    print(f"✅ تم تسجيل الدخول باسم: {bot.user.name}")
-    await load_data_from_github()
-    
+    print("----------------------------------------")
+    print(f"🤖 تم تسجيل الدخول بنجاح باسم: {bot.user.name}")
+    print(f"🆔 معرف البوت (ID): {bot.user.id}")
+    print("🌐 خادم الويب يعمل للحفاظ على التشغيل 24/7.")
+    print("----------------------------------------")
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
