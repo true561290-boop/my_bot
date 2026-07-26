@@ -1025,8 +1025,8 @@ RIDDLES = [
 @bot.command(name="سؤال")
 async def quiz_game(ctx, rounds: int = 1):
 	if rounds < 1 or rounds > 10:
-	    await ctx.send(
-     "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط!", delete_after=2
+    await ctx.send(
+    "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط!", delete_after=2
         )
         return
 async def question_game(ctx):
