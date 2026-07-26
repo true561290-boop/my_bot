@@ -1022,53 +1022,54 @@ RIDDLES = [
 ]
 
 
-@bot.command(name="سؤال")
+# --- أمر المسابقة (الأسئلة) ---
+@bot.command(name="سؤال", aliases=["quiz", "اسئلة"])
 async def quiz_game(ctx, rounds: int = 1):
-	if rounds < 1 or rounds > 10:
-    await ctx.send(
-    "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط!", delete_after=2
+    if rounds < 1 or rounds > 10:
+        await ctx.send(
+            "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط!", delete_after=3
         )
         return
-async def question_game(ctx):
-  selected_questions = random.sample(
-        questions_bank, min(rounds, len(questions_bank))
-    )
 
-    for round_num, item in enumerate(
-        selected_questions, 1
-  q_data = random.choice(QUESTIONS)
-  embed = discord.Embed(
-      title="🧠 سؤال جديد!",
-      description=(
-          f"يا {ctx.author.mention}، أجب عن السؤال التالي كسباً لـ **40**"
-          f" طولار:\n\n❓ **{q_data['q']}**"
-      ),
-      color=discord.Color.blue(),
-  )
-  embed.set_footer(text="⏱️ لديك 10 ثوانٍ للإجابة على هذا السؤال!")
-  await ctx.send(embed=embed)
+    for round_num in range(rounds):
+        q_data = random.choice(QUESTIONS)
 
-  def check(m):
-    return m.author == ctx.author and m.channel == ctx.channel
+        embed = discord.Embed(
+            title="❓ سؤال جديد!",
+            description=(
+                f"يا {ctx.author.mention}، أجب عن"
+                f" السؤال التالي كسباً لـ **40** دولار:\n\n❓ **{q_data['q']}**"
+            ),
+            color=discord.Color.blue(),
+        )
+        embed.set_footer(text="⏱️ لديك 10 ثوانٍ للإجابة على هذا السؤال!")
 
-  try:
-    msg = await bot.wait_for("message", timeout=10.0, check=check)
-    if msg.content.strip().lower() in [ans.lower() for ans in q_data["a"]]:
-      add_balance(ctx.author.id, 40)
-      await ctx.send(
-          f"🎉 **إجابة صحيحة!** تم إضافة 40 طولار إلى حسابك يا"
-          f" {ctx.author.mention}. رصيدك الجديد: **{get_balance(ctx.author.id)}**"
-          " طولار.",allowed_mentions=discord.AllowedMentions(users=False)
-          )
-      
-    else:
-      await ctx.send(
-          f"❌ **إجابة خاطئة!** الإجابة الصحيحة كانت:"
-          f" **{q_data['a'][0]}**."
-      )
-  except asyncio.TimeoutError:
-    await ctx.send(
-        f"⏰ **انتهى الوقت!** لم تجب خلال 10 ثانية يا {ctx.author.mention}."‚allowed_mentions=discord.AllowedMentions.none())
+        await ctx.send(embed=embed)
+
+        def check(m):
+            return m.author == ctx.author and m.channel == ctx.channel
+
+        try:
+            msg = await bot.wait_for("message", timeout=10.0, check=check)
+            if msg.content.strip().lower() in [
+                ans.lower() for ans in q_data["a"]
+            ]:
+                add_balance(ctx.author.id, 40)
+                await ctx.send(
+                    f"🎉 **إجابة صحيحة!** تم إضافة 40 دولار إلى حسابك يا"
+                    f" {ctx.author.mention}!",
+                    allowed_mentions=discord.AllowedMentions(users=False),
+                )
+            else:
+                await ctx.send(
+                    f"❌ **إجابة خاطئة!** الإجابة الصحيحة هي:"
+                    f" **{q_data['a'][0]}**"
+                )
+        except asyncio.TimeoutError:
+            await ctx.send(
+                f"⏰ **انتهى الوقت!** الإجابة الصحيحة كانت:"
+                f" **{q_data['a'][0]}**"
+            )
     
 
 @bot.command(name="سجن")
