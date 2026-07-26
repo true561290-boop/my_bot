@@ -1097,7 +1097,7 @@ async def jail_game(ctx, member: discord.Member = None):
       add_balance(member.id, 40)
       await ctx.send(
           f"🔓 **نجحت في الهروب!** أجب لغز السجن بنجاح وتمت مكافأتك بـ 40"
-          f" طولار يا {member.mention}!"‚allowed_mentions=discord.AllowedMentions(users=False)
+          f" طولار يا {member.mention}!", allowed_mentions=discord.AllowedMentions(users=False)
           )
       
     else:
@@ -1108,7 +1108,7 @@ async def jail_game(ctx, member: discord.Member = None):
   except asyncio.TimeoutError:
     await ctx.send(
         f"🔒 **انتهى الوقت!** {member.mention} لم يجب خلال 15 ثانية ويبقى"
-        " محبوساً!"‚allowed_mentions=discord.AllowedMentions(users=False)
+        " محبوساً!", allowed_mentions=discord.AllowedMentions(users=False)
         )
    
 
