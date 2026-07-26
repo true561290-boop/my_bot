@@ -1103,7 +1103,7 @@ async def jail_game(ctx, member: discord.Member = None):
     else:
       await ctx.send(
           f"🔒 **إجابة خاطئة!** {member.mention} يبقى في السجن! الإجابة كانت:"
-          f" **{riddle['a'][0]}**."‚allowed_mentions=discord.AllowedMentions(users=False)
+          f" **{riddle['a'][0]}**.",allowed_mentions=discord.AllowedMentions(users=False)
       
   except asyncio.TimeoutError:
     await ctx.send(
