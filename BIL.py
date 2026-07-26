@@ -1252,7 +1252,9 @@ async def clear_messages_error(ctx, error):
         )
         
         # --- أمر الأفتار (صورة فقط بحجم كبير) ---
-@bot.command(name="افتار", aliases=["avatar", "افتاري"])
+@bot.command(name="افتار",
+@in_channel(1515396548392128671)
+ aliases=["avatar", "افتاري"])
 async def show_avatar(ctx, member: discord.Member = None):
     target = member or ctx.author
     avatar_url = target.display_avatar.url
@@ -1265,7 +1267,9 @@ async def show_avatar(ctx, member: discord.Member = None):
 
 
 # --- أمر البنر (بنر فقط بحجم كبير) ---
-@bot.command(name="بنر", aliases=["banner", "بنري"])
+@bot.command(name="بنر",
+@in_channel(1515396548392128671)
+ aliases=["banner", "بنري"])
 async def show_banner(ctx, member: discord.Member = None):
     target = member or ctx.author
 
