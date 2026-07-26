@@ -1117,7 +1117,7 @@ async def jail_game(ctx, member: discord.Member = None):
 async def balance_command(ctx, member: discord.Member = None):
   target = member or ctx.author
   bal = get_balance(target.id)
-  await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار."‚allowed_mentions=discord.AllowedMentions(users=False)
+  await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار.",allowed_mentions=discord.AllowedMentions(users=False)
   
   )
 
