@@ -1023,7 +1023,19 @@ RIDDLES = [
 
 
 @bot.command(name="سؤال")
+async def quiz_game(ctx, rounds: int = 1):
+	if rounds < 1 or rounds > 10:
+        await ctx.send(
+            "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط!", delete_after=2
+        )
+        return
 async def question_game(ctx):
+  selected_questions = random.sample(
+        questions_bank, min(rounds, len(questions_bank))
+    )
+
+    for round_num, item in enumerate(
+        selected_questions, 1
   q_data = random.choice(QUESTIONS)
   embed = discord.Embed(
       title="🧠 سؤال جديد!",
@@ -1033,6 +1045,7 @@ async def question_game(ctx):
       ),
       color=discord.Color.blue(),
   )
+  embed.set_footer(text="⏱️ لديك 10 ثوانٍ للإجابة على هذا السؤال!")
   await ctx.send(embed=embed)
 
   def check(m):
@@ -1045,7 +1058,8 @@ async def question_game(ctx):
       await ctx.send(
           f"🎉 **إجابة صحيحة!** تم إضافة 40 طولار إلى حسابك يا"
           f" {ctx.author.mention}. رصيدك الجديد: **{get_balance(ctx.author.id)}**"
-          " طولار.", allowed_mentions=discord.AllowedMentions.none())
+          " طولار.",allowed_mentions=discord.AllowedMentions(users=False)
+          )
       
     else:
       await ctx.send(
@@ -1082,17 +1096,19 @@ async def jail_game(ctx, member: discord.Member = None):
       add_balance(member.id, 40)
       await ctx.send(
           f"🔓 **نجحت في الهروب!** أجب لغز السجن بنجاح وتمت مكافأتك بـ 40"
-          f" طولار يا {member.mention}!"‚ allowed_mentions=discord.AllowedMentions.none())
+          f" طولار يا {member.mention}!"‚allowed_mentions=discord.AllowedMentions(users=False)
+          )
       
     else:
       await ctx.send(
           f"🔒 **إجابة خاطئة!** {member.mention} يبقى في السجن! الإجابة كانت:"
-          f" **{riddle['a'][0]}**."‚allowed_mentions=discord.AllowedMentions.none())
+          f" **{riddle['a'][0]}**."‚allowed_mentions=discord.AllowedMentions(users=False)
       
   except asyncio.TimeoutError:
     await ctx.send(
         f"🔒 **انتهى الوقت!** {member.mention} لم يجب خلال 15 ثانية ويبقى"
-        " محبوساً!"‚allowed_mentions=discord.AllowedMentions.none())
+        " محبوساً!"‚allowed_mentions=discord.AllowedMentions(users=False)
+        )
    
 
 
@@ -1100,7 +1116,9 @@ async def jail_game(ctx, member: discord.Member = None):
 async def balance_command(ctx, member: discord.Member = None):
   target = member or ctx.author
   bal = get_balance(target.id)
-  await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار."‚ allowed_mentions=discord.AllowedMentions.none())
+  await ctx.send(f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار."‚allowed_mentions=discord.AllowedMentions(users=False)
+  
+  )
 
   
   # أداة لتحديد روم معين لكل أمر
