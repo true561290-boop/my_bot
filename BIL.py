@@ -155,7 +155,7 @@ def remove_balance(user_id, amount):
   return False
 
 
-# --- 3. المتجر التفاعلي ورسم الصور محلياً بدون روابط خارجية ---
+# --- 3. المتجر التفاعلي ورسم الصور محلياً مطابقة للتصميم ---
 
 SHOP_VIP_ROLES = {
     "lvl_25": {
@@ -193,11 +193,11 @@ SHOP_COLOR_ROLES = {
 
 def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
   width, height = 800, 450
-  img = Image.new("RGBA", (width, height), color=(18, 15, 25, 255))
+  img = Image.new("RGBA", (width, height), color=(14, 12, 22, 255))
   draw = ImageDraw.Draw(img)
 
-  draw.rectangle([15, 15, width - 15, height - 15], outline=(212, 175, 55), width=4)
-  draw.rectangle([22, 22, width - 22, height - 22], outline=(120, 90, 30), width=1)
+  draw.rectangle([20, 20, width - 20, height - 20], outline=(230, 190, 70), width=3)
+  draw.rectangle([26, 26, width - 26, height - 26], outline=(100, 80, 30), width=1)
 
   font_large = ImageFont.load_default()
   font_med = ImageFont.load_default()
@@ -205,41 +205,41 @@ def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
 
   if os.path.exists(FONT_PATH):
     try:
-      font_large = ImageFont.truetype(FONT_PATH, 42)
+      font_large = ImageFont.truetype(FONT_PATH, 46)
       font_med = ImageFont.truetype(FONT_PATH, 34)
-      font_sub = ImageFont.truetype(FONT_PATH, 24)
+      font_sub = ImageFont.truetype(FONT_PATH, 22)
     except Exception as e:
-      print(f"Font loading error: {e}")
+      print(f"Font error: {e}")
 
   if title_text:
     draw.text(
-        (width // 2, 80),
+        (width // 2, 85),
         title_text,
         font=font_large,
-        fill=(255, 215, 0),
+        fill=(245, 205, 75),
         anchor="mm",
     )
     draw.line(
-        [(width // 2 - 150, 115), (width // 2 + 150, 115)],
-        fill=(212, 175, 55),
+        [(width // 2 - 130, 125), (width // 2 + 130, 125)],
+        fill=(180, 150, 60),
         width=2,
     )
 
   if main_text:
     draw.text(
-        (width // 2, 215),
+        (width // 2, 220),
         main_text,
         font=font_med,
-        fill=(240, 240, 245),
+        fill=(255, 255, 255),
         anchor="mm",
     )
 
   if sub_text:
     draw.text(
-        (width // 2, 340),
+        (width // 2, 345),
         sub_text,
         font=font_sub,
-        fill=(180, 180, 190),
+        fill=(200, 200, 210),
         anchor="mm",
     )
 
@@ -428,25 +428,6 @@ class MainShopView(discord.ui.View):
   def __init__(self):
     super().__init__(timeout=None)
     self.add_item(MainCategorySelect())
-
-  @discord.ui.button(
-      label="رصيدي",
-      style=discord.ButtonStyle.success,
-      emoji="💼",
-      custom_id="btn_balance",
-  )
-  async def show_user_balance(
-      self, interaction: discord.Interaction, button: discord.ui.Button
-  ):
-    bal = get_balance(interaction.user.id)
-    img_buf = make_card_with_text(
-        None,
-        "خزانة الرصيد",
-        f"{bal} طولار",
-        f"حفظت الخزانة الملكية رصيدك يا {interaction.user.display_name}",
-    )
-    file = discord.File(fp=img_buf, filename="balance.png")
-    await interaction.response.send_message(file=file, ephemeral=True)
 
 
 @bot.command(name="متجر", aliases=["اقتصاد"])
