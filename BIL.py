@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import io
 import json
 import os
 import random
@@ -11,6 +12,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from flask import Flask
+from PIL import Image, ImageDraw, ImageFont
 import requests
 
 # --- 1. خادم الويب للحفاظ على استمرار التشغيل 24/7 ---
@@ -45,11 +47,8 @@ REPO_OWNER = "true561290-boop"
 REPO_NAME = "my_bot"
 FILE_PATH = "user_balances.json"
 
-# آيدي رتبة ليفل 50 لمنع الخط الكبير
 LEVEL_50_ROLE_ID = 1515396547473309712
-# آيدي روم الأفتار والبنر
 AVATAR_CHANNEL_ID = 1515396548392128671
-# آيدي رتبة الأونر
 OWNER_ROLE_ID = 1515396547528102131
 
 
@@ -137,66 +136,97 @@ def remove_balance(user_id, amount):
   return False
 
 
-# --- 3. المتجر التفاعلي وقوائم الشراء ---
+# --- 3. المتجر التفاعلي ورسم الصور ---
 
-# رتب المستويات والفي آي بي
 SHOP_VIP_ROLES = {
     "lvl_25": {
-        "name": " Level 25(ارسال صور)",
+        "name": "Level 25 (إرسال صور)",
         "price": 1000,
-        "id":1515396547473309710,
+        "id": 1515396547473309710,
     },
     "lvl_35": {
-        "name": " Level 35(ارسال صور وستيكرات من سيرفر اخر)",
+        "name": "Level 35 (إرسال صور وستيكرات من سيرفر آخر)",
         "price": 2000,
-        "id":1515396547473309711,
+        "id": 1515396547473309711,
     },
     "lvl_50": {
-        "name": " Level 50 (كل ما سبق+ ميزة الخط الكبير)",
+        "name": "Level 50 (كل ما سبق + ميزة الخط الكبير)",
         "price": 3500,
-        "id":1515396547473309712,
+        "id": 1515396547473309712,
     },
     "founder": {
         "name": "⚡ الزنجي المؤسس",
         "price": 5000,
-        "id":1527739093163708548,
+        "id": 1527739093163708548,
     },
 }
 
-# ألوان الأسماء السبعة
 SHOP_COLOR_ROLES = {
-    "c_red": {"name": " أحمر", "price": 300, "id":1515396547536355469},
-    "c_blue": {"name": " أزرق", "price": 300, "id":1515396547528102135},
-    "c_green": {"name": " أخضر", "price": 300, "id":1515396547528102136},
-    "c_purple": {"name": " بنفسجي", "price": 300, "id":1515396547528102134},
-    "c_yellow": {"name": " أصفر", "price": 300, "id":1515396547528102137},
-    "c_gray": {"name": " رمادي", "price": 300, "id":1515487581138190376},
-    "c_skin": {"name": " Skin", "price": 300, "id":1515480359553335441},
+    "c_red": {"name": "أحمر", "price": 300, "id": 1515396547536355469},
+    "c_blue": {"name": "أزرق", "price": 300, "id": 1515396547528102135},
+    "c_green": {"name": "أخضر", "price": 300, "id": 1515396547528102136},
+    "c_purple": {"name": "بنفسجي", "price": 300, "id": 1515396547528102134},
+    "c_yellow": {"name": "أصفر", "price": 300, "id": 1515396547528102137},
+    "c_gray": {"name": "رمادي", "price": 300, "id": 1515487581138190376},
+    "c_skin": {"name": "Skin", "price": 300, "id": 1515480359553335441},
+}
+
+IMAGE_URLS = {
+    "main_shop": "https://i.imgur.com/gK9q31V.jpeg",
+    "balance": "https://i.imgur.com/2s8K1eG.jpeg",
+    "vip": "https://i.imgur.com/wVj81vS.jpeg",
+    "colors": "https://i.imgur.com/cO18gL7.jpeg",
 }
 
 
-# زر العودة للقائمة الرئيسية
+def make_card_with_text(bg_url, title_text, main_text, sub_text=""):
+  try:
+    res = requests.get(bg_url)
+    img = Image.open(io.BytesIO(res.content)).convert("RGBA")
+  except Exception:
+    img = Image.new("RGBA", (800, 450), color=(30, 20, 15, 255))
+
+  draw = ImageDraw.Draw(img)
+
+  try:
+    font_large = ImageFont.truetype("arial.ttf", 40)
+    font_med = ImageFont.truetype("arial.ttf", 28)
+  except OSError:
+    font_large = ImageFont.load_default()
+    font_med = ImageFont.load_default()
+
+  if title_text:
+    draw.text((400, 70), title_text, fill=(255, 215, 0), anchor="mm")
+
+  if main_text:
+    draw.text((400, 220), main_text, fill=(255, 255, 255), anchor="mm")
+
+  if sub_text:
+    draw.text((400, 360), sub_text, fill=(200, 200, 200), anchor="mm")
+
+  buf = io.BytesIO()
+  img.save(buf, format="PNG")
+  buf.seek(0)
+  return buf
+
+
 class BackToMainButton(discord.ui.Button):
 
   def __init__(self):
     super().__init__(
-        label="رجوع للقائمة الرئيسية",
-        style=discord.ButtonStyle.secondary,
-        emoji="🔙",
+        label="رجوع للمتجر", style=discord.ButtonStyle.secondary, emoji="🔙"
     )
 
   async def callback(self, interaction: discord.Interaction):
-    embed = discord.Embed(
-        title=" المتجر ",
-        description=(
-            f"أهلاً بك يا {interaction.user.mention} في المتجر!\n"
-            f"💳 رصيدك الحالي: **{get_balance(interaction.user.id)}** طولار\n\n"
-            "اختر القسم الذي تريد تصفحه من القائمة أدناه:"
-        ),
-        color=discord.Color.purple(),
+    img_buf = make_card_with_text(
+        IMAGE_URLS["main_shop"],
+        "المتجر الملكي",
+        "خزانة البلاط ومراسيمه",
+        "اختر القسم للتنقل والشراء",
     )
+    file = discord.File(fp=img_buf, filename="shop.png")
     view = MainShopView()
-    await interaction.response.edit_message(embed=embed, view=view)
+    await interaction.response.edit_message(attachments=[file], view=view)
 
 
 class ColorSelect(discord.ui.Select):
@@ -211,7 +241,7 @@ class ColorSelect(discord.ui.Select):
         for key, item in SHOP_COLOR_ROLES.items()
     ]
     super().__init__(
-        placeholder=" اختر اللون ",
+        placeholder="اختر لوناً للشراء...",
         min_values=1,
         max_values=1,
         options=options,
@@ -244,7 +274,6 @@ class ColorSelect(discord.ui.Select):
       )
       return
 
-    # إزالة الألوان القديمة إن وجدت
     all_color_ids = [c["id"] for c in SHOP_COLOR_ROLES.values()]
     roles_to_remove = [r for r in user.roles if r.id in all_color_ids]
     if roles_to_remove:
@@ -253,15 +282,11 @@ class ColorSelect(discord.ui.Select):
     remove_balance(user.id, item["price"])
     await user.add_roles(role)
 
-    embed = discord.Embed(
-        title="🎨 تم شراء اللون بنجاح!",
-        description=(
-            f" {user.mention}! تم منحك رتبة **{role.name}** وتجهيزها"
-            f" كولونك الجديد.\n💰 المخصوم: **{item['price']}** طولار."
-        ),
-        color=discord.Color.green(),
+    await interaction.response.send_message(
+        f"🎨 **تم الشراء بنجاح!** تم منحك رتبة **{role.name}** بمبلغ"
+        f" **{item['price']}** طولار.",
+        ephemeral=True,
     )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class VIPSelect(discord.ui.Select):
@@ -276,7 +301,7 @@ class VIPSelect(discord.ui.Select):
         for key, item in SHOP_VIP_ROLES.items()
     ]
     super().__init__(
-        placeholder=" اختر الرتبة ",
+        placeholder="اختر رتبة للشراء...",
         min_values=1,
         max_values=1,
         options=options,
@@ -312,15 +337,11 @@ class VIPSelect(discord.ui.Select):
     remove_balance(user.id, item["price"])
     await user.add_roles(role)
 
-    embed = discord.Embed(
-        title="تم شراء الرتبة بنجاح!",
-        description=(
-            f" يا {user.mention}! تم منحك رتبة **{role.name}**"
-            f" بنجاح.\n💰 المخصوم: **{item['price']}** طولار."
-        ),
-        color=discord.Color.gold(),
+    await interaction.response.send_message(
+        f"👑 **تم الشراء بنجاح!** تم منحك رتبة **{role.name}** بمبلغ"
+        f" **{item['price']}** طولار.",
+        ephemeral=True,
     )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class MainCategorySelect(discord.ui.Select):
@@ -328,18 +349,16 @@ class MainCategorySelect(discord.ui.Select):
   def __init__(self):
     options = [
         discord.SelectOption(
-            label=" الرتب ",
-            value="cat_vip",
-            description="عرض الرتب ",
+            label="الرتب", value="cat_vip", description="عرض الرتب والخصائص"
         ),
         discord.SelectOption(
-            label="🎨 ألوان الأسماء",
+            label="ألوان الأسماء",
             value="cat_colors",
-            description="عرض قائمة ألوان الأسماء السبعة",
+            description="عرض قائمة الألوان السبعة",
         ),
     ]
     super().__init__(
-        placeholder="🛒 اختر القسم الذي تريد تصفحه...",
+        placeholder="تصفح أقسام المتجر...",
         min_values=1,
         max_values=1,
         options=options,
@@ -350,25 +369,21 @@ class MainCategorySelect(discord.ui.Select):
       view = discord.ui.View()
       view.add_item(VIPSelect())
       view.add_item(BackToMainButton())
-      embed = discord.Embed(
-          title="قسم الرتب ",
-          description=(
-              "اختر الرتبة التي تريد شراءها من القائمة التالية:\n(ملاحظة: شراء"
-              " Level 50 يمنحك ميزة الخط الكبير `#`)"
-          ),
-          color=discord.Color.gold(),
+      img_buf = make_card_with_text(
+          IMAGE_URLS["vip"], "قسم الرتب", "رتب Perms المتاحة"
       )
-      await interaction.response.edit_message(embed=embed, view=view)
+      file = discord.File(fp=img_buf, filename="vip.png")
+      await interaction.response.edit_message(attachments=[file], view=view)
+
     elif self.values[0] == "cat_colors":
       view = discord.ui.View()
       view.add_item(ColorSelect())
       view.add_item(BackToMainButton())
-      embed = discord.Embed(
-          title="🎨 قسم ألوان الأسماء",
-          description="اختر اللون الذي يناسبك",
-          color=discord.Color.blue(),
+      img_buf = make_card_with_text(
+          IMAGE_URLS["colors"], "لون ثابت", "اختر مرسومك من القائمة بالأسفل"
       )
-      await interaction.response.edit_message(embed=embed, view=view)
+      file = discord.File(fp=img_buf, filename="colors.png")
+      await interaction.response.edit_message(attachments=[file], view=view)
 
 
 class MainShopView(discord.ui.View):
@@ -377,20 +392,37 @@ class MainShopView(discord.ui.View):
     super().__init__(timeout=None)
     self.add_item(MainCategorySelect())
 
-
-@bot.command(name="متجر")
-async def shop_command(ctx):
-  embed = discord.Embed(
-      title="المتجر ",
-      description=(
-          f"أهلاً بك يا {ctx.author.mention} في المتجر\n"
-          f"💳 رصيدك الحالي: **{get_balance(ctx.author.id)}** طولار\n\n"
-          "استخدم القائمة أدناه للتنقل بين الأقسام والشراء بسهولة."
-      ),
-      color=discord.Color.purple(),
+  @discord.ui.button(
+      label="رصيدي",
+      style=discord.ButtonStyle.success,
+      emoji="💼",
+      custom_id="btn_balance",
   )
+  async def show_user_balance(
+      self, interaction: discord.Interaction, button: discord.ui.Button
+  ):
+    bal = get_balance(interaction.user.id)
+    img_buf = make_card_with_text(
+        IMAGE_URLS["balance"],
+        "خزانة الرصيد",
+        f"{bal} طولار",
+        f"حفظت الخزانة الملكية رصيدك يا {interaction.user.display_name}",
+    )
+    file = discord.File(fp=img_buf, filename="balance.png")
+    await interaction.response.send_message(file=file, ephemeral=True)
+
+
+@bot.command(name="متجر", aliases=["اقتصاد"])
+async def shop_command(ctx):
+  img_buf = make_card_with_text(
+      IMAGE_URLS["main_shop"],
+      "المتجر الملكي",
+      "خزانة البلاط ومراسيمه",
+      "اختر القسم للتنقل والشراء",
+  )
+  file = discord.File(fp=img_buf, filename="shop.png")
   view = MainShopView()
-  await ctx.send(embed=embed, view=view)
+  await ctx.send(file=file, view=view)
 
 
 # --- 4. نظام منع الخط الكبير (#) بدون رتبة Level 50 ---
@@ -399,7 +431,6 @@ async def on_message(message):
   if message.author.bot:
     return
 
-  # التحقق مما إذا كانت الرسالة تبدأ بـ # للكتابة بخط كبير
   if message.content.startswith("# "):
     level_50_role = message.guild.get_role(LEVEL_50_ROLE_ID)
     if level_50_role and level_50_role not in message.author.roles:
@@ -930,13 +961,17 @@ async def jail_game(ctx, member: discord.Member = None):
 async def balance_command(ctx, member: discord.Member = None):
   target = member or ctx.author
   bal = get_balance(target.id)
-  await ctx.send(
-      f"💳 رصيد {target.mention} الحالي هو: **{bal}** طولار.",
-      allowed_mentions=discord.AllowedMentions(users=False),
+
+  img_buf = make_card_with_text(
+      IMAGE_URLS["balance"],
+      "خزانة الرصيد",
+      f"{bal} طولار",
+      f"حفظت الخزانة الملكية رصيدك يا {target.display_name}",
   )
+  file = discord.File(fp=img_buf, filename="balance.png")
+  await ctx.send(file=file)
 
 
-# أداة لتحديد روم معين لكل أمر
 def in_channel(channel_id: int):
 
   async def predicate(ctx):
@@ -981,7 +1016,6 @@ async def add_money_error(ctx, error):
     await ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.")
 
 
-# --- أمر معرفة الآيدي (للأعضاء والرتب) ---
 @bot.command(name="ايدي")
 async def get_id(
     ctx,
@@ -1053,7 +1087,6 @@ async def clear_messages_error(ctx, error):
     )
 
 
-# --- أمر الأفتار (صورة فقط بحجم كبير) ---
 @bot.command(name="افتار", aliases=["avatar", "افتاري"])
 @in_channel(1515396548392128671)
 async def show_avatar(ctx, member: discord.Member = None):
@@ -1066,7 +1099,6 @@ async def show_avatar(ctx, member: discord.Member = None):
   await ctx.send(embed=embed)
 
 
-# --- أمر البنر (بنر فقط بحجم كبير) ---
 @bot.command(name="بنر", aliases=["banner", "بنري"])
 @in_channel(1515396548392128671)
 async def show_banner(ctx, member: discord.Member = None):
