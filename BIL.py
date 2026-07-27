@@ -155,7 +155,7 @@ def remove_balance(user_id, amount):
   return False
 
 
-# --- 3. المتجر التفاعلي ورسم الصور ---
+# --- 3. المتجر التفاعلي ورسم الصور محلياً بدون روابط خارجية ---
 
 SHOP_VIP_ROLES = {
     "lvl_25": {
@@ -190,50 +190,58 @@ SHOP_COLOR_ROLES = {
     "c_skin": {"name": "Skin", "price": 300, "id": 1515480359553335441},
 }
 
-IMAGE_URLS = {
-    "main_shop": "https://i.imgur.com/gK9q31V.jpeg",
-    "balance": "https://i.imgur.com/2s8K1eG.jpeg",
-    "vip": "https://i.imgur.com/wVj81vS.jpeg",
-    "colors": "https://i.imgur.com/cO18gL7.jpeg",
-}
 
-
-def make_card_with_text(bg_url, title_text, main_text, sub_text=""):
-  headers = {
-      "User-Agent": (
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-      )
-  }
-  try:
-    res = requests.get(bg_url, headers=headers, timeout=5)
-    if res.status_code == 200:
-      img = Image.open(io.BytesIO(res.content)).convert("RGBA")
-    else:
-      img = Image.new("RGBA", (800, 450), color=(30, 20, 15, 255))
-  except Exception:
-    img = Image.new("RGBA", (800, 450), color=(30, 20, 15, 255))
-
+def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
+  width, height = 800, 450
+  img = Image.new("RGBA", (width, height), color=(18, 15, 25, 255))
   draw = ImageDraw.Draw(img)
+
+  draw.rectangle([15, 15, width - 15, height - 15], outline=(212, 175, 55), width=4)
+  draw.rectangle([22, 22, width - 22, height - 22], outline=(120, 90, 30), width=1)
+
+  font_large = ImageFont.load_default()
+  font_med = ImageFont.load_default()
+  font_sub = ImageFont.load_default()
 
   if os.path.exists(FONT_PATH):
     try:
       font_large = ImageFont.truetype(FONT_PATH, 42)
-      font_med = ImageFont.truetype(FONT_PATH, 28)
-    except Exception:
-      font_large = ImageFont.load_default()
-      font_med = ImageFont.load_default()
-  else:
-    font_large = ImageFont.load_default()
-    font_med = ImageFont.load_default()
+      font_med = ImageFont.truetype(FONT_PATH, 34)
+      font_sub = ImageFont.truetype(FONT_PATH, 24)
+    except Exception as e:
+      print(f"Font loading error: {e}")
 
   if title_text:
-    draw.text((400, 70), title_text, font=font_large, fill=(255, 215, 0), anchor="mm")
+    draw.text(
+        (width // 2, 80),
+        title_text,
+        font=font_large,
+        fill=(255, 215, 0),
+        anchor="mm",
+    )
+    draw.line(
+        [(width // 2 - 150, 115), (width // 2 + 150, 115)],
+        fill=(212, 175, 55),
+        width=2,
+    )
 
   if main_text:
-    draw.text((400, 220), main_text, font=font_large, fill=(255, 255, 255), anchor="mm")
+    draw.text(
+        (width // 2, 215),
+        main_text,
+        font=font_med,
+        fill=(240, 240, 245),
+        anchor="mm",
+    )
 
   if sub_text:
-    draw.text((400, 360), sub_text, font=font_med, fill=(200, 200, 200), anchor="mm")
+    draw.text(
+        (width // 2, 340),
+        sub_text,
+        font=font_sub,
+        fill=(180, 180, 190),
+        anchor="mm",
+    )
 
   buf = io.BytesIO()
   img.save(buf, format="PNG")
@@ -250,7 +258,7 @@ class BackToMainButton(discord.ui.Button):
 
   async def callback(self, interaction: discord.Interaction):
     img_buf = make_card_with_text(
-        IMAGE_URLS["main_shop"],
+        None,
         "المتجر الملكي",
         "خزانة البلاط ومراسيمه",
         "اختر القسم للتنقل والشراء",
@@ -400,9 +408,7 @@ class MainCategorySelect(discord.ui.Select):
       view = discord.ui.View()
       view.add_item(VIPSelect())
       view.add_item(BackToMainButton())
-      img_buf = make_card_with_text(
-          IMAGE_URLS["vip"], "قسم الرتب", "رتب Perms المتاحة"
-      )
+      img_buf = make_card_with_text(None, "قسم الرتب", "رتب Perms المتاحة")
       file = discord.File(fp=img_buf, filename="vip.png")
       await interaction.response.edit_message(attachments=[file], view=view)
 
@@ -411,7 +417,7 @@ class MainCategorySelect(discord.ui.Select):
       view.add_item(ColorSelect())
       view.add_item(BackToMainButton())
       img_buf = make_card_with_text(
-          IMAGE_URLS["colors"], "لون ثابت", "اختر مرسومك من القائمة بالأسفل"
+          None, "لون ثابت", "اختر مرسومك من القائمة بالأسفل"
       )
       file = discord.File(fp=img_buf, filename="colors.png")
       await interaction.response.edit_message(attachments=[file], view=view)
@@ -434,7 +440,7 @@ class MainShopView(discord.ui.View):
   ):
     bal = get_balance(interaction.user.id)
     img_buf = make_card_with_text(
-        IMAGE_URLS["balance"],
+        None,
         "خزانة الرصيد",
         f"{bal} طولار",
         f"حفظت الخزانة الملكية رصيدك يا {interaction.user.display_name}",
@@ -446,7 +452,7 @@ class MainShopView(discord.ui.View):
 @bot.command(name="متجر", aliases=["اقتصاد"])
 async def shop_command(ctx):
   img_buf = make_card_with_text(
-      IMAGE_URLS["main_shop"],
+      None,
       "المتجر الملكي",
       "خزانة البلاط ومراسيمه",
       "اختر القسم للتنقل والشراء",
@@ -994,7 +1000,7 @@ async def balance_command(ctx, member: discord.Member = None):
   bal = get_balance(target.id)
 
   img_buf = make_card_with_text(
-      IMAGE_URLS["balance"],
+      None,
       "خزانة الرصيد",
       f"{bal} طولار",
       f"حفظت الخزانة الملكية رصيدك يا {target.display_name}",
