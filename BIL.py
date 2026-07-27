@@ -1229,7 +1229,7 @@ async def avatar_banner_error(ctx, error):
 async def games_list(ctx):
   embed = discord.Embed(
       title="قائمة الألعاب 🎮",
-      description=".سؤال\n.سجن",
+      description=".سؤال\n.سجن\n.حجر",
       color=discord.Color.blue(),
   )
   await ctx.send(embed=embed)
