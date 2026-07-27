@@ -21,7 +21,7 @@ app = Flask("")
 
 @app.route("/")
 def home():
-  return "B✰IL Bot is Onlline!"
+  return "B✰IL Bot is Online!"
 
 
 def run_web():
@@ -50,6 +50,25 @@ FILE_PATH = "user_balances.json"
 LEVEL_50_ROLE_ID = 1515396547473309712
 AVATAR_CHANNEL_ID = 1515396548392128671
 OWNER_ROLE_ID = 1515396547528102131
+
+# --- تحضير الخط العربي تلقائياً لعدم ظهور المربعات ---
+FONT_PATH = "arabic_font.ttf"
+
+
+def ensure_arabic_font():
+  if not os.path.exists(FONT_PATH):
+    font_url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Bold.ttf"
+    try:
+      r = requests.get(font_url)
+      if r.status_code == 200:
+        with open(FONT_PATH, "wb") as f:
+          f.write(r.content)
+        print("✅ تم تحميل الخط العربي بنجاح!")
+    except Exception as e:
+      print(f"❌ فشل تنزيل الخط العربي: {e}")
+
+
+ensure_arabic_font()
 
 
 # --- دالة جلب أحدث الأرصدة من GitHub عند التشغيل ---
@@ -180,29 +199,41 @@ IMAGE_URLS = {
 
 
 def make_card_with_text(bg_url, title_text, main_text, sub_text=""):
+  headers = {
+      "User-Agent": (
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      )
+  }
   try:
-    res = requests.get(bg_url)
-    img = Image.open(io.BytesIO(res.content)).convert("RGBA")
+    res = requests.get(bg_url, headers=headers, timeout=5)
+    if res.status_code == 200:
+      img = Image.open(io.BytesIO(res.content)).convert("RGBA")
+    else:
+      img = Image.new("RGBA", (800, 450), color=(30, 20, 15, 255))
   except Exception:
     img = Image.new("RGBA", (800, 450), color=(30, 20, 15, 255))
 
   draw = ImageDraw.Draw(img)
 
-  try:
-    font_large = ImageFont.truetype("arial.ttf", 40)
-    font_med = ImageFont.truetype("arial.ttf", 28)
-  except OSError:
+  if os.path.exists(FONT_PATH):
+    try:
+      font_large = ImageFont.truetype(FONT_PATH, 42)
+      font_med = ImageFont.truetype(FONT_PATH, 28)
+    except Exception:
+      font_large = ImageFont.load_default()
+      font_med = ImageFont.load_default()
+  else:
     font_large = ImageFont.load_default()
     font_med = ImageFont.load_default()
 
   if title_text:
-    draw.text((400, 70), title_text, fill=(255, 215, 0), anchor="mm")
+    draw.text((400, 70), title_text, font=font_large, fill=(255, 215, 0), anchor="mm")
 
   if main_text:
-    draw.text((400, 220), main_text, fill=(255, 255, 255), anchor="mm")
+    draw.text((400, 220), main_text, font=font_large, fill=(255, 255, 255), anchor="mm")
 
   if sub_text:
-    draw.text((400, 360), sub_text, fill=(200, 200, 200), anchor="mm")
+    draw.text((400, 360), sub_text, font=font_med, fill=(200, 200, 200), anchor="mm")
 
   buf = io.BytesIO()
   img.save(buf, format="PNG")
