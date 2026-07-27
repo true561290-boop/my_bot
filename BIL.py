@@ -21,7 +21,7 @@ app = Flask("")
 
 @app.route("/")
 def home():
-  return "B✰IL Bot is Online!"
+  return "B✰IL Bot is Onlline!"
 
 
 def run_web():
