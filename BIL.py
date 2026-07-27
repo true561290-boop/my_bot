@@ -886,6 +886,66 @@ RIDDLES = [
     {"q": "ما هو الشيء الذي تحمله ويحملك في نفس الوقت؟", "a": ["الحذاء"]},
 ]
 
+# قائمة رموز اللعبة الأولى (رمز)
+CODES_LIST = [
+    "A7X9K",
+    "B3M1P",
+    "R8T2W",
+    "X9L4Q",
+    "Z1V8Y",
+    "K5J2N",
+    "P4N9M",
+    "S7D3F",
+    "G2H8J",
+    "W9E1R",
+    "83910",
+    "72819",
+    "59183",
+    "B0O0P",
+    "99281",
+]
+
+
+# --- اللعبة الأولى: لعبة كتابة الرمز ---
+@bot.command(name="رمز", aliases=["الرمز", "code"])
+async def code_game(ctx):
+  code = random.choice(CODES_LIST)
+
+  embed = discord.Embed(
+      title="🔤 لعبة الرمز السريع",
+      description=(
+          f"يا {ctx.author.mention}، أعد كتابة الرمز التالي أسرع شيء كسباً لـ"
+          f" **40** طولار:\n\n# `{code}`"
+      ),
+      color=discord.Color.gold(),
+  )
+  embed.set_footer(text="⏱️ لديك 10 ثوانٍ بكتابة الرمز بالظبط!")
+
+  await ctx.send(embed=embed)
+
+  def check(m):
+    return m.author == ctx.author and m.channel == ctx.channel
+
+  try:
+    msg = await bot.wait_for("message", timeout=10.0, check=check)
+    if msg.content.strip() == code:
+      add_balance(ctx.author.id, 40)
+      await ctx.send(
+          f"⚡ **سرعة ممتازة!** إجابة صحيحة وتم إضافة **40** طولار إلى حسابك يا"
+          f" {ctx.author.mention}!",
+          allowed_mentions=discord.AllowedMentions(users=False),
+      )
+    else:
+      await ctx.send(
+          f"❌ **إجابة خاطئة!** الرمز الصحيح كان: `{code}`",
+          allowed_mentions=discord.AllowedMentions(users=False),
+      )
+  except asyncio.TimeoutError:
+    await ctx.send(
+        f"⏰ **انتهى الوقت!** لم تقم بكتابة الرمز `{code}` في الوقت المحدد.",
+        allowed_mentions=discord.AllowedMentions(users=False),
+    )
+
 
 # --- أمر المسابقة (الأسئلة) ---
 @bot.command(name="سؤال", aliases=["quiz", "اسئلة"])
