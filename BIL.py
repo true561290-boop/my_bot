@@ -40,7 +40,7 @@ keep_alive()
 # --- 2. إعدادات البوت والبيانات ---
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix=".", intents=intents)
 
 GITHUB_TOKEN = "ghp_2v2m8IXKyh0YQxZRrQnjbl08gmEH5C4E7P3b"
 REPO_OWNER = "true561290-boop"
@@ -896,11 +896,11 @@ async def quiz_game(ctx, rounds: int = 1):
     )
     return
 
-  for round_num in range(rounds):
+  for round_num in range(1, rounds + 1):
     q_data = random.choice(QUESTIONS)
 
     embed = discord.Embed(
-        title="❓ سؤال جديد!",
+        title=f"❓ الجولة {round_num}",
         description=(
             f"يا {ctx.author.mention}، أجب عن السؤال التالي كسباً لـ **40**"
             f" دولار:\n\n❓ **{q_data['q']}**"
@@ -931,6 +931,10 @@ async def quiz_game(ctx, rounds: int = 1):
       await ctx.send(
           f"⏰ **انتهى الوقت!** الإجابة الصحيحة كانت: **{q_data['a'][0]}**"
       )
+
+    # انتظار قصير ثانيتين بين الجولات إذا كان هناك أكثر من جولة
+    if round_num < rounds:
+      await asyncio.sleep(1)
 
 
 @bot.command(name="سجن")
