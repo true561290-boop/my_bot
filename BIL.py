@@ -979,6 +979,83 @@ async def jail_game(ctx, member: discord.Member = None):
     )
 
 
+# --- لعبة حجر ورقة مقص ضد البوت بالأزرار ---
+class RPSView(discord.ui.View):
+
+  def __init__(self, author):
+    super().__init__(timeout=30)
+    self.author = author
+
+  async def interaction_check(self, interaction: discord.Interaction) -> bool:
+    if interaction.user != self.author:
+      await interaction.response.send_message(
+          "❌ هذه اللعبة ليست لك! يمكنك بدء لعبتك الخاصة عبر كتابة `.حجر`",
+          ephemeral=True,
+      )
+      return False
+    return True
+
+  async def play_game(self, interaction: discord.Interaction, player_choice: str):
+    bot_choice = random.choice(["حجرة", "ورقة", "مقص"])
+
+    if player_choice == bot_choice:
+      result = "🤝 **تعادل!** لم يفز أحد."
+      color = discord.Color.gold()
+    elif (
+        (player_choice == "حجرة" and bot_choice == "مقص")
+        or (player_choice == "ورقة" and bot_choice == "حجرة")
+        or (player_choice == "مقص" and bot_choice == "ورقة")
+    ):
+      add_balance(self.author.id, 40)
+      result = f"🎉 **مبروك! فزت على البوت وحصلت على 40 طولار!**"
+      color = discord.Color.green()
+    else:
+      result = "🤖 **خسرت! فاز البوت عليك هذه المرة.**"
+      color = discord.Color.red()
+
+    embed = discord.Embed(title="🎮 لعبة حجرة ورقة مقص", color=color)
+    embed.add_field(name="اختيارك", value=player_choice, inline=True)
+    embed.add_field(name="اختيار البوت", value=bot_choice, inline=True)
+    embed.add_field(name="النتيجة", value=result, inline=False)
+
+    for item in self.children:
+      item.disabled = True
+
+    await interaction.response.edit_message(embed=embed, view=self)
+
+  @discord.ui.button(label="حجرة 🪨", style=discord.ButtonStyle.primary)
+  async def rock_button(
+      self, interaction: discord.Interaction, button: discord.ui.Button
+  ):
+    await self.play_game(interaction, "حجرة")
+
+  @discord.ui.button(label="ورقة 📄", style=discord.ButtonStyle.primary)
+  async def paper_button(
+      self, interaction: discord.Interaction, button: discord.ui.Button
+  ):
+    await self.play_game(interaction, "ورقة")
+
+  @discord.ui.button(label="مقص ✂️", style=discord.ButtonStyle.primary)
+  async def scissors_button(
+      self, interaction: discord.Interaction, button: discord.ui.Button
+  ):
+    await self.play_game(interaction, "مقص")
+
+
+@bot.command(name="حجر", aliases=["حجرة", "rps"])
+async def rps_game(ctx):
+  embed = discord.Embed(
+      title="🎮 لعبة حجرة ورقة مقص",
+      description=(
+          f"يا {ctx.author.mention}، اختر أحد الأزرار بالأسفل للعب ضد البوت!\nإذا"
+          " فزت ستكسب **40 طولار** 💵"
+      ),
+      color=discord.Color.blue(),
+  )
+  view = RPSView(ctx.author)
+  await ctx.send(embed=embed, view=view)
+
+
 @bot.command(name="طولاري")
 async def balance_command(ctx, member: discord.Member = None):
   target = member or ctx.author
@@ -1146,16 +1223,18 @@ async def avatar_banner_error(ctx, error):
   if isinstance(error, commands.BadArgument):
     await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت!", delete_after=2)
 
-@commands.command(name="العاب")
-    async def games_list(self, ctx):
-        embed = discord.Embed(
-            title="قائمة الألعاب 🎮",
-            description="n.سؤال\n.سجن",
-            color=discord.Color.blue(),
-        )
-        await ctx.send(embed=embed)
-        
-        
+
+# --- 6. أمر قائمة الألعاب الصحيح ---
+@bot.command(name="العاب")
+async def games_list(ctx):
+  embed = discord.Embed(
+      title="قائمة الألعاب 🎮",
+      description=".سؤال\n.سجن",
+      color=discord.Color.blue(),
+  )
+  await ctx.send(embed=embed)
+
+
 # --- 7. أحداث التشغيل ---
 @bot.event
 async def on_ready():
