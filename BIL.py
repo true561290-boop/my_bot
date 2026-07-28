@@ -200,22 +200,30 @@ SHOP_COLOR_ROLES = {
 def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
   width, height = 800, 550
 
-  # حاول تحميل صورة الخلفية الخاصة بك، وإن تعذر استخدم لون دافئ متناسق
-  try:
-    if os.path.exists("bg_paper.png"):
+  # 1. قراءة الصورة المحلية bg_paper.png فوراً
+  if os.path.exists("bg_paper.png"):
+    try:
       img = Image.open("bg_paper.png").convert("RGBA").resize((width, height))
-    else:
+    except Exception as e:
+      print(f"خطأ في قراءة الصورة المحلية: {e}")
+      img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
+  else:
+    # 2. إذا لم تكن موجودة محلياً، يجلب الصورة مباشرة من مستودع GitHub الخاص بك
+    try:
       res = requests.get(
-          "https://i.postimg.cc/85z11vXz/3786473a24657e8d008b0e326988c187.jpg"
+          "https://raw.githubusercontent.com/true561290-boop/my_bot/main/bg_paper.png"
       )
-      img = (
-          Image.open(io.BytesIO(res.content))
-          .convert("RGBA")
-          .resize((width, height))
-      )
-  except Exception as e:
-    print(f"لم يتم جلب الصورة، الاعتماد على لون احتياطي: {e}")
-    img = Image.new("RGBA", (width, height), color=(40, 25, 15, 255))
+      if res.status_code == 200:
+        img = (
+            Image.open(io.BytesIO(res.content))
+            .convert("RGBA")
+            .resize((width, height))
+        )
+      else:
+        img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
+    except Exception as e:
+      print(f"لم يتم جلب الصورة، الاعتماد على لون احتياطي: {e}")
+      img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
 
   draw = ImageDraw.Draw(img)
 
@@ -1306,7 +1314,7 @@ async def ban_member(
     await ctx.send(f"❌ حدث خطأ أثناء الحظر: {e}")
 
 
-@ban_member.error
+@ban_error
 async def ban_error(ctx, error):
   if isinstance(error, commands.MissingRole):
     await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
@@ -1374,7 +1382,7 @@ async def unmute_member(ctx, member: discord.Member = None):
     await ctx.send(f"❌ حدث خطأ: {e}")
 
 
-@unmute_member.error
+@unmute_error
 async def unmute_error(ctx, error):
   if isinstance(error, commands.MissingRole):
     await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
