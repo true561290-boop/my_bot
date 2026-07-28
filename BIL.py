@@ -1236,7 +1236,7 @@ async def games_list(ctx):
 # --- 7. أوامر الإدارة (باند، ميوت، فك ميوت) ---
 
 # --- 1) أمر الباند (الحظر) ---
-@bot.command(name="انقلع يالعبد", aliases=["حظر", "ban"])
+@bot.command(name="انقلع يالعبد", aliases=["حظر", "انقلع يالعبد"])
 @commands.has_role(OWNER_ROLE_ID)
 async def ban_member(ctx, member: discord.Member = None, *, reason: str = "لم يتم ذكر السبب"):
     if not member:
@@ -1299,7 +1299,7 @@ async def mute_error(ctx, error):
 
 
 # --- 3) أمر إزالة الميوت (Unmute) ---
-@bot.command(name="فك ميوت", aliases=["فك_الكتم", "unmute"])
+@bot.command(name="فك ميوت", aliases=["فك_الكتم", "فك ميوت"])
 @commands.has_role(OWNER_ROLE_ID)
 async def unmute_member(ctx, member: discord.Member = None):
     if not member:
