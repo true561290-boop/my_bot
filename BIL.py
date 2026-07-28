@@ -1086,7 +1086,6 @@ def in_channel(channel_id: int):
 
 
 @bot.command(name="اضافة")
-@in_channel(AVATAR_CHANNEL_ID)
 @commands.has_role(OWNER_ROLE_ID)
 async def add_money(ctx, member: discord.Member, amount: int):
   if amount <= 0:
@@ -1237,7 +1236,7 @@ async def games_list(ctx):
 # --- 7. أوامر الإدارة (باند، ميوت، فك ميوت) ---
 
 # --- 1) أمر الباند (الحظر) ---
-@bot.command(name="انقلع ايها العبد", aliases=["حظر", "ban"])
+@bot.command(name="انقلع يالعبد", aliases=["حظر", "ban"])
 @commands.has_role(OWNER_ROLE_ID)
 async def ban_member(ctx, member: discord.Member = None, *, reason: str = "لم يتم ذكر السبب"):
     if not member:
