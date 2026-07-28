@@ -393,7 +393,7 @@ class MainCategorySelect(discord.ui.Select):
         discord.SelectOption(
             label="ألوان الأسماء",
             value="cat_colors",
-            description="عرض قائمة الألوان السبعة",
+            description="عرض قائمة الألوان ",
         ),
     ]
     super().__init__(
@@ -408,7 +408,7 @@ class MainCategorySelect(discord.ui.Select):
       view = discord.ui.View()
       view.add_item(VIPSelect())
       view.add_item(BackToMainButton())
-      img_buf = make_card_with_text(None, "قسم الرتب", "رتب Perms المتاحة")
+      img_buf = make_card_with_text(None, "قسم الرتب", "الرتب  المتاحة")
       file = discord.File(fp=img_buf, filename="vip.png")
       await interaction.response.edit_message(attachments=[file], view=view)
 
