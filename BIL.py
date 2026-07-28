@@ -1687,7 +1687,7 @@ async def mute_member(
     await ctx.send(f"❌ حدث خطأ: {e}")
 
 
-@mute_error
+@mute_member.error
 async def mute_error(ctx, error):
   if isinstance(error, commands.MissingRole):
     await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
