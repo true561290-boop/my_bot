@@ -1234,6 +1234,91 @@ async def games_list(ctx):
   )
   await ctx.send(embed=embed)
 
+# --- 7. أوامر الإدارة (باند، ميوت، فك ميوت) ---
+
+# --- 1) أمر الباند (الحظر) ---
+@bot.command(name="انقلع ايها العبد", aliases=["حظر", "ban"])
+@commands.has_role(OWNER_ROLE_ID)
+async def ban_member(ctx, member: discord.Member = None, *, reason: str = "لم يتم ذكر السبب"):
+    if not member:
+        await ctx.send("⚠️ **يرجى منشن العضو المراد حظره!**\nمثال: `.بان @User السبب`", delete_after=3)
+        return
+
+    if member == ctx.author:
+        await ctx.send("❌ لا يمكنك حظر نفسك!")
+        return
+
+    if member.id == ctx.guild.owner_id:
+        await ctx.send("❌ لا يمكنك حظر صاحب السيرفر!")
+        return
+
+    try:
+        await member.ban(reason=f"بواسطة {ctx.author.name} - السبب: {reason}")
+        await ctx.send(f"🔨 تم حظر العضو **{member.mention}** بنجاح!\n📝 السبب: `{reason}`")
+    except discord.Forbidden:
+        await ctx.send("❌ لا أملك صلاحيات كافية لحظر هذا العضو! (تأكد من رتبة البوت أعلى من رتبة العضو).")
+    except Exception as e:
+        await ctx.send(f"❌ حدث خطأ أثناء الحظر: {e}")
+
+@ban_member.error
+async def ban_error(ctx, error):
+    if isinstance(error, commands.MissingRole):
+        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
+
+
+# --- 2) أمر الميوت مؤقت/دائم (Timeout) ---
+import datetime
+
+@bot.command(name="ميوت", aliases=["كتم", "mute"])
+@commands.has_role(OWNER_ROLE_ID)
+async def mute_member(ctx, member: discord.Member = None, minutes: int = 10, *, reason: str = "لم يتم ذكر السبب"):
+    if not member:
+        await ctx.send("⚠️ **يرجى منشن العضو المراد كتمه!**\nمثال: `.ميوت @User 15 السبب` (15 دقيقة)", delete_after=3)
+        return
+
+    if member == ctx.author:
+        await ctx.send("❌ لا يمكنك كتم نفسك!")
+        return
+
+    if minutes <= 0:
+        await ctx.send("❌ يرجى إدخال عدد دقائق صحيح أكثر من 0.")
+        return
+
+    try:
+        duration = datetime.timedelta(minutes=minutes)
+        await member.timeout(duration, reason=f"بواسطة {ctx.author.name} - السبب: {reason}")
+        await ctx.send(f"🔇 تم كتم العضو **{member.mention}** لمدة **{minutes}** دقيقة!\n📝 السبب: `{reason}`")
+    except discord.Forbidden:
+        await ctx.send("❌ لا أملك صلاحيات كافية لكتم هذا العضو!")
+    except Exception as e:
+        await ctx.send(f"❌ حدث خطأ: {e}")
+
+@mute_member.error
+async def mute_error(ctx, error):
+    if isinstance(error, commands.MissingRole):
+        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
+
+
+# --- 3) أمر إزالة الميوت (Unmute) ---
+@bot.command(name="فك ميوت", aliases=["فك_الكتم", "unmute"])
+@commands.has_role(OWNER_ROLE_ID)
+async def unmute_member(ctx, member: discord.Member = None):
+    if not member:
+        await ctx.send("⚠️ يرجى منشن العضو لفك الكتم عنه!", delete_after=3)
+        return
+
+    try:
+        await member.timeout(None)
+        await ctx.send(f"🔊 تم فك الكتم عن العضو **{member.mention}** بنجاح!")
+    except discord.Forbidden:
+        await ctx.send("❌ لا أملك صلاحيات كافية لفك الكتم عن هذا العضو!")
+    except Exception as e:
+        await ctx.send(f"❌ حدث خطأ: {e}")
+
+@unmute_member.error
+async def unmute_error(ctx, error):
+    if isinstance(error, commands.MissingRole):
+        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
 
 # --- 7. أحداث التشغيل ---
 @bot.event
