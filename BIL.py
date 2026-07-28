@@ -200,7 +200,6 @@ SHOP_COLOR_ROLES = {
 def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
   width, height = 800, 550
 
-  # 1. قراءة الصورة المحلية bg_paper.png فوراً
   if os.path.exists("bg_paper.png"):
     try:
       img = Image.open("bg_paper.png").convert("RGBA").resize((width, height))
@@ -208,7 +207,6 @@ def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
       print(f"خطأ في قراءة الصورة المحلية: {e}")
       img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
   else:
-    # 2. إذا لم تكن موجودة محلياً، يجلب الصورة مباشرة من مستودع GitHub الخاص بك
     try:
       res = requests.get(
           "https://raw.githubusercontent.com/true561290-boop/my_bot/main/bg_paper.png"
@@ -239,10 +237,9 @@ def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
     except Exception as e:
       print(f"Font error: {e}")
 
-  # ألوان كتابة بني داكن/أسود كلاسيكي يتناسب تماماً مع الورق القديم
-  TEXT_COLOR_TITLE = (80, 20, 10, 255)  # بني أحمر ملكي
-  TEXT_COLOR_MAIN = (30, 20, 10, 255)  # أسود حبري
-  TEXT_COLOR_SUB = (90, 60, 40, 255)  # بني دافئ
+  TEXT_COLOR_TITLE = (80, 20, 10, 255)
+  TEXT_COLOR_MAIN = (30, 20, 10, 255)
+  TEXT_COLOR_SUB = (90, 60, 40, 255)
 
   if title_text:
     draw.text(
@@ -1314,7 +1311,7 @@ async def ban_member(
     await ctx.send(f"❌ حدث خطأ أثناء الحظر: {e}")
 
 
-@ban_error
+@ban_member.error
 async def ban_error(ctx, error):
   if isinstance(error, commands.MissingRole):
     await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
@@ -1382,7 +1379,7 @@ async def unmute_member(ctx, member: discord.Member = None):
     await ctx.send(f"❌ حدث خطأ: {e}")
 
 
-@unmute_error
+@unmute_member.error
 async def unmute_error(ctx, error):
   if isinstance(error, commands.MissingRole):
     await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
