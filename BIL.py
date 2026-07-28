@@ -52,7 +52,12 @@ LEVEL_50_ROLE_ID = 1515396547473309712
 AVATAR_CHANNEL_ID = 1515396548392128671
 OWNER_ROLE_ID = 1515396547528102131
 
-# --- تحضير الخط العربي تلقائياً لعدم ظهور المربعات ---
+# رابط الصورة الخلفية الخشبية الكلاسيكية
+BACKGROUND_IMAGE_URL = (
+    "https://i.ibb.co/6R2N29S/vintage-paper-bg.png"  # رابط الصورة الخلفية
+)
+
+# --- تحضير الخط العربي تلقائياً ---
 FONT_PATH = "arabic_font.ttf"
 
 
@@ -156,7 +161,7 @@ def remove_balance(user_id, amount):
   return False
 
 
-# --- 3. المتجر التفاعلي ورسم الصور محلياً مطابقة للتصميم ---
+# --- 3. المتجر التفاعلي ورسم الصور باستخدام خلفية الورقة القديمة ---
 
 SHOP_VIP_ROLES = {
     "lvl_25": {
@@ -193,12 +198,26 @@ SHOP_COLOR_ROLES = {
 
 
 def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
-  width, height = 800, 450
-  img = Image.new("RGBA", (width, height), color=(14, 12, 22, 255))
-  draw = ImageDraw.Draw(img)
+  width, height = 800, 550
 
-  draw.rectangle([20, 20, width - 20, height - 20], outline=(230, 190, 70), width=3)
-  draw.rectangle([26, 26, width - 26, height - 26], outline=(100, 80, 30), width=1)
+  # حاول تحميل صورة الخلفية الخاصة بك، وإن تعذر استخدم لون دافئ متناسق
+  try:
+    if os.path.exists("bg_paper.png"):
+      img = Image.open("bg_paper.png").convert("RGBA").resize((width, height))
+    else:
+      res = requests.get(
+          "https://i.postimg.cc/85z11vXz/3786473a24657e8d008b0e326988c187.jpg"
+      )
+      img = (
+          Image.open(io.BytesIO(res.content))
+          .convert("RGBA")
+          .resize((width, height))
+      )
+  except Exception as e:
+    print(f"لم يتم جلب الصورة، الاعتماد على لون احتياطي: {e}")
+    img = Image.new("RGBA", (width, height), color=(40, 25, 15, 255))
+
+  draw = ImageDraw.Draw(img)
 
   font_large = ImageFont.load_default()
   font_med = ImageFont.load_default()
@@ -206,41 +225,46 @@ def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
 
   if os.path.exists(FONT_PATH):
     try:
-      font_large = ImageFont.truetype(FONT_PATH, 46)
+      font_large = ImageFont.truetype(FONT_PATH, 44)
       font_med = ImageFont.truetype(FONT_PATH, 34)
       font_sub = ImageFont.truetype(FONT_PATH, 22)
     except Exception as e:
       print(f"Font error: {e}")
 
+  # ألوان كتابة بني داكن/أسود كلاسيكي يتناسب تماماً مع الورق القديم
+  TEXT_COLOR_TITLE = (80, 20, 10, 255)  # بني أحمر ملكي
+  TEXT_COLOR_MAIN = (30, 20, 10, 255)  # أسود حبري
+  TEXT_COLOR_SUB = (90, 60, 40, 255)  # بني دافئ
+
   if title_text:
     draw.text(
-        (width // 2, 85),
+        (width // 2, 130),
         title_text,
         font=font_large,
-        fill=(245, 205, 75),
+        fill=TEXT_COLOR_TITLE,
         anchor="mm",
     )
     draw.line(
-        [(width // 2 - 130, 125), (width // 2 + 130, 125)],
-        fill=(180, 150, 60),
+        [(width // 2 - 130, 165), (width // 2 + 130, 165)],
+        fill=(120, 70, 40, 255),
         width=2,
     )
 
   if main_text:
     draw.text(
-        (width // 2, 220),
+        (width // 2, 260),
         main_text,
         font=font_med,
-        fill=(255, 255, 255),
+        fill=TEXT_COLOR_MAIN,
         anchor="mm",
     )
 
   if sub_text:
     draw.text(
-        (width // 2, 345),
+        (width // 2, 380),
         sub_text,
         font=font_sub,
-        fill=(200, 200, 210),
+        fill=TEXT_COLOR_SUB,
         anchor="mm",
     )
 
@@ -322,7 +346,6 @@ class ColorSelect(discord.ui.Select):
     remove_balance(user.id, item["price"])
     await user.add_roles(role)
 
-    # تعطيل القائمة والأزرار بعد الشراء مباشرة
     for child in self.view.children:
       child.disabled = True
     await interaction.message.edit(view=self.view)
@@ -382,7 +405,6 @@ class VIPSelect(discord.ui.Select):
     remove_balance(user.id, item["price"])
     await user.add_roles(role)
 
-    # تعطيل القائمة والأزرار بعد الشراء مباشرة
     for child in self.view.children:
       child.disabled = True
     await interaction.message.edit(view=self.view)
@@ -419,7 +441,7 @@ class MainCategorySelect(discord.ui.Select):
       view = discord.ui.View()
       view.add_item(VIPSelect())
       view.add_item(BackToMainButton())
-      img_buf = make_card_with_text(None, "قسم الرتب", "الرتب  المتاحة")
+      img_buf = make_card_with_text(None, "قسم الرتب", "الرتب المتاحة")
       file = discord.File(fp=img_buf, filename="vip.png")
       await interaction.response.edit_message(attachments=[file], view=view)
 
@@ -1233,7 +1255,7 @@ async def avatar_banner_error(ctx, error):
     await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت!", delete_after=2)
 
 
-# --- 6. أمر قائمة الألعاب الصحيح ---
+# --- 6. أمر قائمة الألعاب ---
 @bot.command(name="العاب")
 async def games_list(ctx):
   embed = discord.Embed(
@@ -1246,7 +1268,6 @@ async def games_list(ctx):
 
 # --- 7. أوامر الإدارة (باند، ميوت، فك ميوت) ---
 
-# --- 1) أمر الباند (الحظر) مع شمول كل صيغ الاسم والأسماء المستعارة ---
 @bot.command(
     name="انقلع_يالعبد",
     aliases=["انقلع يالعبد", "انقلع_بالعبد", "انقلع بالعبد", "حظر", "ban"],
@@ -1291,7 +1312,6 @@ async def ban_error(ctx, error):
     await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
 
 
-# --- 2) أمر الميوت مؤقت/دائم (Timeout) ---
 @bot.command(name="ميوت", aliases=["كتم", "mute"])
 @commands.has_role(OWNER_ROLE_ID)
 async def mute_member(
@@ -1338,7 +1358,6 @@ async def mute_error(ctx, error):
     await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
 
 
-# --- 3) أمر إزالة الميوت (Unmute) ---
 @bot.command(name="فك ميوت", aliases=["فك_الكتم", "unmute"])
 @commands.has_role(OWNER_ROLE_ID)
 async def unmute_member(ctx, member: discord.Member = None):
