@@ -1187,7 +1187,7 @@ class Connect4Button(discord.ui.Button):
 
       await interaction.response.edit_message(
           content=(
-              f"🎮لعبة توصيل الكرات 4\nدورك الآن:"
+              f"🎮 **لعبة توصيل الكرات 4** \nدورك الآن:"
               f" {view.player1.mention} (🔴)\n\n" + view.get_board_string()
           ),
           view=view,
@@ -1415,7 +1415,7 @@ async def connect4_game(ctx, opponent: discord.Member = None):
   else:
     view = Connect4View(player1=ctx.author)
     await ctx.send(
-        f"🎮 **بدأت لعبة توصيل الكرات 4 بين 
+        f"🎮 **بدأت لعبة توصيل الكرات 4** بين"
         f" {ctx.author.mention} (🔴) و البوت (🟡)!\nالجائزة: **60 طولار**"
         f" للفائز!\nدور: {ctx.author.mention}\n\n"
         + view.get_board_string(),
@@ -1595,7 +1595,7 @@ async def avatar_banner_error(ctx, error):
 async def games_list(ctx):
   embed = discord.Embed(
       title="قائمة الألعاب 🎮",
-      description=".سؤال\n.سجن\n.حجر\n.توصيل",
+      description=".سؤال\n.سجن\n.حجر\n.4",
       color=discord.Color.blue(),
   )
   await ctx.send(embed=embed)
@@ -1693,7 +1693,7 @@ async def mute_error(ctx, error):
     await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
 
 
-@bot.command(name="فك_ميوت", aliases=["فك_الكتم", "unmute"])
+@bot.command(name="فك ميوت", aliases=["فك_الكتم", "unmute"])
 @commands.has_role(OWNER_ROLE_ID)
 async def unmute_member(ctx, member: discord.Member = None):
   if not member:
