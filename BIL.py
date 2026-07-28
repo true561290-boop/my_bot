@@ -52,12 +52,8 @@ LEVEL_50_ROLE_ID = 1515396547473309712
 AVATAR_CHANNEL_ID = 1515396548392128671
 OWNER_ROLE_ID = 1515396547528102131
 
-# رابط الصورة الخلفية الخشبية الكلاسيكية
-BACKGROUND_IMAGE_URL = (
-    "https://i.ibb.co/6R2N29S/vintage-paper-bg.png"  # رابط الصورة الخلفية
-)
+BACKGROUND_IMAGE_URL = "https://i.ibb.co/6R2N29S/vintage-paper-bg.png"
 
-# --- تحضير الخط العربي تلقائياً ---
 FONT_PATH = "arabic_font.ttf"
 
 
@@ -77,7 +73,6 @@ def ensure_arabic_font():
 ensure_arabic_font()
 
 
-# --- دالة جلب أحدث الأرصدة من GitHub عند التشغيل ---
 def fetch_latest_balances_from_github():
   raw_url = f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/main/{FILE_PATH}"
   try:
@@ -584,7 +579,7 @@ QUESTIONS = [
     {"q": "ما هي عاصمة إسبانيا؟", "a": ["مدريد"]},
     {"q": "ما هو الحيوان الذي يُسمى 'سفينة الصحراء'؟", "a": ["الجمل", "جمل"]},
     {
-        "q": "ما هي المادة الأكثر صلابة في طبيعة الأرض؟",
+        "q": "ما هي المادة الأكثرصلابة في طبيعة الأرض؟",
         "a": ["الألماس", "الماس"],
     },
     {
@@ -919,7 +914,7 @@ RIDDLES = [
         "q": "ما هو الشيء الذي يسير بلا أقدام ولا يرجع للخلف أبداً؟",
         "a": ["الوقت", "العمر"],
     },
-    {"q": "إذا وضعتني في ماء حار أصبح صلباً؟", "a": ["البيض", "بيضة"]},
+    {"q": "إذاوضعتني في ماء حار أصبح صلباً؟", "a": ["البيض", "بيضة"]},
     {"q": "ما هو الشيء الذي يحك أذنه بأنفه؟", "a": ["الفيل"]},
     {"q": "ما هو الشيء الذي تحمله ويحملك في نفس الوقت؟", "a": ["الحذاء"]},
 ]
@@ -1091,6 +1086,341 @@ async def rps_game(ctx):
   )
   view = RPSView(ctx.author)
   await ctx.send(embed=embed, view=view)
+
+
+# --- لعبة توصيل الكرات 4 التفاعلية (Connect 4) ذكاء اصطناعي خارق ---
+class Connect4Button(discord.ui.Button):
+
+  def __init__(self, col: int):
+    super().__init__(
+        style=discord.ButtonStyle.primary,
+        label=str(col + 1),
+        custom_id=f"c4_col_{col}",
+    )
+    self.col = col
+
+  async def callback(self, interaction: discord.Interaction):
+    view: Connect4View = self.view
+
+    if interaction.user != view.current_player:
+      await interaction.response.send_message("❌ ليس دورك الآن!", ephemeral=True)
+      return
+
+    placed_row = view.drop_piece(self.col, view.current_emoji)
+    if placed_row == -1:
+      await interaction.response.send_message(
+          "⚠️ هذا العامود ممتلئ! اختر عاموداً آخر.", ephemeral=True
+      )
+      return
+
+    if view.check_winner(placed_row, self.col, view.current_emoji):
+      winner = view.current_player
+      add_balance(winner.id, 60)
+      for child in view.children:
+        child.disabled = True
+      await interaction.response.edit_message(
+          content=(
+              f"🎉 **مبروك {winner.mention}!** لقد فزت في لعبة **توصيل الكرات"
+              " 4** وحصلت على **60 طولار**! 💵\n\n"
+              + view.get_board_string()
+          ),
+          view=view,
+      )
+      view.stop()
+      return
+
+    if view.is_board_full():
+      for child in view.children:
+        child.disabled = True
+      await interaction.response.edit_message(
+          content=(
+              "🤝 **تعادل!** امتلأت اللوحة دون فائز.\n\n"
+              + view.get_board_string()
+          ),
+          view=view,
+      )
+      view.stop()
+      return
+
+    if not view.is_vs_bot:
+      view.current_player = (
+          view.player2
+          if view.current_player == view.player1
+          else view.player1
+      )
+      view.current_emoji = "🟡" if view.current_emoji == "🔴" else "🔴"
+      await interaction.response.edit_message(
+          content=(
+              f"🎮 **لعبة توصيل الكرات 4**\nدور: {view.current_player.mention}"
+              f" ({view.current_emoji})\nالجائزة: **60 طولار** للفائز!\n\n"
+              + view.get_board_string()
+          ),
+          view=view,
+      )
+    else:
+      bot_col, bot_row = view.bot_move()
+      if bot_row != -1 and view.check_winner(bot_row, bot_col, "🟡"):
+        for child in view.children:
+          child.disabled = True
+        await interaction.response.edit_message(
+            content=(
+                f"🤖 **للأسف، فاز البوت في توصيل الكرات 4!**\n\n"
+                + view.get_board_string()
+            ),
+            view=view,
+        )
+        view.stop()
+        return
+
+      if view.is_board_full():
+        for child in view.children:
+          child.disabled = True
+        await interaction.response.edit_message(
+            content=(
+                "🤝 **تعادل!** امتلأت اللوحة دون فائز.\n\n"
+                + view.get_board_string()
+            ),
+            view=view,
+        )
+        view.stop()
+        return
+
+      await interaction.response.edit_message(
+          content=(
+              f"🎮 **لعبة توصيل الكرات 4** (المستوى: **صعب جداً 🔥**)\nدورك الآن:"
+              f" {view.player1.mention} (🔴)\n\n" + view.get_board_string()
+          ),
+          view=view,
+      )
+
+
+class Connect4View(discord.ui.View):
+
+  def __init__(self, player1: discord.User, player2: discord.User = None):
+    super().__init__(timeout=120)
+    self.player1 = player1
+    self.player2 = player2
+    self.is_vs_bot = player2 is None
+    self.current_player = player1
+    self.current_emoji = "🔴"
+
+    self.rows = 6
+    self.cols = 7
+    self.board = [["⚪" for _ in range(self.cols)] for _ in range(self.rows)]
+
+    for col in range(self.cols):
+      self.add_item(Connect4Button(col))
+
+  def get_board_string(self) -> str:
+    board_str = ""
+    for r in range(self.rows):
+      board_str += "".join(self.board[r]) + "\n"
+    board_str += "1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣"
+    return board_str
+
+  def drop_piece(self, col: int, emoji: str) -> int:
+    for r in range(self.rows - 1, -1, -1):
+      if self.board[r][col] == "⚪":
+        self.board[r][col] = emoji
+        return r
+    return -1
+
+  def is_board_full(self) -> bool:
+    return all(self.board[0][c] != "⚪" for c in range(self.cols))
+
+  def check_winner(self, r: int, c: int, emoji: str) -> bool:
+    count = 0
+    for col in range(self.cols):
+      if self.board[r][col] == emoji:
+        count += 1
+        if count >= 4:
+          return True
+      else:
+        count = 0
+
+    count = 0
+    for row in range(self.rows):
+      if self.board[row][c] == emoji:
+        count += 1
+        if count >= 4:
+          return True
+      else:
+        count = 0
+
+    for row in range(self.rows - 3):
+      for col in range(self.cols - 3):
+        if (
+            self.board[row][col] == emoji
+            and self.board[row + 1][col + 1] == emoji
+            and self.board[row + 2][col + 2] == emoji
+            and self.board[row + 3][col + 3] == emoji
+        ):
+          return True
+
+    for row in range(3, self.rows):
+      for col in range(self.cols - 3):
+        if (
+            self.board[row][col] == emoji
+            and self.board[row - 1][col + 1] == emoji
+            and self.board[row - 2][col + 2] == emoji
+            and self.board[row - 3][col + 3] == emoji
+        ):
+          return True
+
+    return False
+
+  # --- تقييم وضعية اللوحة لصالح الذكاء الاصطناعي ---
+  def score_position(self, piece: str) -> int:
+    score = 0
+    opp_piece = "🔴" if piece == "🟡" else "🟡"
+
+    center_array = [self.board[r][self.cols // 2] for r in range(self.rows)]
+    center_count = center_array.count(piece)
+    score += center_count * 4
+
+    def evaluate_window(window, p):
+      win_score = 0
+      opp_p = "🔴" if p == "🟡" else "🟡"
+      if window.count(p) == 4:
+        win_score += 10000
+      elif window.count(p) == 3 and window.count("⚪") == 1:
+        win_score += 100
+      elif window.count(p) == 2 and window.count("⚪") == 2:
+        win_score += 10
+
+      if window.count(opp_p) == 3 and window.count("⚪") == 1:
+        win_score -= 120
+      return win_score
+
+    for r in range(self.rows):
+      row_array = self.board[r]
+      for c in range(self.cols - 3):
+        window = row_array[c : c + 4]
+        score += evaluate_window(window, piece)
+
+    for c in range(self.cols):
+      col_array = [self.board[r][c] for r in range(self.rows)]
+      for r in range(self.rows - 3):
+        window = col_array[r : r + 4]
+        score += evaluate_window(window, piece)
+
+    for r in range(self.rows - 3):
+      for c in range(self.cols - 3):
+        window = [self.board[r + i][c + i] for i in range(4)]
+        score += evaluate_window(window, piece)
+
+    for r in range(3, self.rows):
+      for c in range(self.cols - 3):
+        window = [self.board[r - i][c + i] for i in range(4)]
+        score += evaluate_window(window, piece)
+
+    return score
+
+  # --- خوارزمية Minimax للتفكير الشجري الصعب جداً ---
+  def minimax(
+      self, depth: int, alpha: int, beta: int, maximizingPlayer: bool
+  ) -> tuple:
+    valid_cols = [c for c in range(self.cols) if self.board[0][c] == "⚪"]
+    is_terminal = self.is_board_full()
+
+    if depth == 0 or is_terminal:
+      return None, self.score_position("🟡")
+
+    if maximizingPlayer:
+      value = -9999999
+      best_col = random.choice(valid_cols)
+      for col in valid_cols:
+        row = self.drop_piece(col, "🟡")
+        if self.check_winner(row, col, "🟡"):
+          self.board[row][col] = "⚪"
+          return col, 10000000
+        _, new_score = self.minimax(depth - 1, alpha, beta, False)
+        self.board[row][col] = "⚪"
+        if new_score > value:
+          value = new_score
+          best_col = col
+        alpha = max(alpha, value)
+        if alpha >= beta:
+          break
+      return best_col, value
+    else:
+      value = 9999999
+      best_col = random.choice(valid_cols)
+      for col in valid_cols:
+        row = self.drop_piece(col, "🔴")
+        if self.check_winner(row, col, "🔴"):
+          self.board[row][col] = "⚪"
+          return col, -10000000
+        _, new_score = self.minimax(depth - 1, alpha, beta, True)
+        self.board[row][col] = "⚪"
+        if new_score < value:
+          value = new_score
+          best_col = col
+        beta = min(beta, value)
+        if alpha >= beta:
+          break
+      return best_col, value
+
+  def bot_move(self) -> tuple:
+    valid_cols = [c for c in range(self.cols) if self.board[0][c] == "⚪"]
+    if not valid_cols:
+      return -1, -1
+
+    # 1. الفوز المباشر إذا أمكن
+    for col in valid_cols:
+      row = self.drop_piece(col, "🟡")
+      if self.check_winner(row, col, "🟡"):
+        return col, row
+      self.board[row][col] = "⚪"
+
+    # 2. حظر فوز اللاعب المباشر
+    for col in valid_cols:
+      row = self.drop_piece(col, "🔴")
+      if self.check_winner(row, col, "🔴"):
+        self.board[row][col] = "⚪"
+        bot_row = self.drop_piece(col, "🟡")
+        return col, bot_row
+      self.board[row][col] = "⚪"
+
+    # 3. استخدام خوارزمية Minimax بعمق 4 حركات للأمام
+    best_col, _ = self.minimax(4, -9999999, 9999999, True)
+    if best_col is None or best_col not in valid_cols:
+      best_col = random.choice(valid_cols)
+
+    row = self.drop_piece(best_col, "🟡")
+    return best_col, row
+
+
+@bot.command(name="4", aliases=["توصيل4", "connect4", "كرات4", "أربعة"])
+async def connect4_game(ctx, opponent: discord.Member = None):
+  if opponent and opponent.bot:
+    await ctx.send(
+        "❌ لا يمكنك تحدي بوت آخر! استخدم الأمر بدون منشن للعب ضد هذا البوت."
+    )
+    return
+
+  if opponent and opponent == ctx.author:
+    await ctx.send("❌ لا يمكنك تحدي نفسك!")
+    return
+
+  if opponent:
+    view = Connect4View(player1=ctx.author, player2=opponent)
+    await ctx.send(
+        f"🎮 **بدأت لعبة توصيل الكرات 4** بين {ctx.author.mention} (🔴) و"
+        f" {opponent.mention} (🟡)!\nالجائزة: **60 طولار** للفائز!\nدور:"
+        f" {ctx.author.mention}\n\n"
+        + view.get_board_string(),
+        view=view,
+    )
+  else:
+    view = Connect4View(player1=ctx.author)
+    await ctx.send(
+        f"🎮 **بدأت لعبة توصيل الكرات 4** (المستوى: **صعب جداً 🔥**) بين"
+        f" {ctx.author.mention} (🔴) و البوت (🟡)!\nالجائزة: **60 طولار**"
+        f" للفائز!\nدور: {ctx.author.mention}\n\n"
+        + view.get_board_string(),
+        view=view,
+    )
 
 
 @bot.command(name="طولاري")
@@ -1265,7 +1595,7 @@ async def avatar_banner_error(ctx, error):
 async def games_list(ctx):
   embed = discord.Embed(
       title="قائمة الألعاب 🎮",
-      description=".سؤال\n.سجن\n.حجر",
+      description=".سؤال\n.سجن\n.حجر\n.4",
       color=discord.Color.blue(),
   )
   await ctx.send(embed=embed)
@@ -1357,7 +1687,7 @@ async def mute_member(
     await ctx.send(f"❌ حدث خطأ: {e}")
 
 
-@mute_member.error
+@mute_error
 async def mute_error(ctx, error):
   if isinstance(error, commands.MissingRole):
     await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
