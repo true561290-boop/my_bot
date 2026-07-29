@@ -274,6 +274,22 @@ def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
   return buf
 
 
+class TimedSubView(discord.ui.View):
+
+  def __init__(self):
+    super().__init__(timeout=60)
+    self.message = None
+
+  async def on_timeout(self):
+    for item in self.children:
+      item.disabled = True
+    if self.message:
+      try:
+        await self.message.edit(view=self)
+      except Exception:
+        pass
+
+
 class BackToMainButton(discord.ui.Button):
 
   def __init__(self):
@@ -291,6 +307,7 @@ class BackToMainButton(discord.ui.Button):
     file = discord.File(fp=img_buf, filename="shop.png")
     view = MainShopView()
     await interaction.response.edit_message(attachments=[file], view=view)
+    view.message = interaction.message
 
 
 class ColorSelect(discord.ui.Select):
@@ -438,15 +455,16 @@ class MainCategorySelect(discord.ui.Select):
 
   async def callback(self, interaction: discord.Interaction):
     if self.values[0] == "cat_vip":
-      view = discord.ui.View()
+      view = TimedSubView()
       view.add_item(VIPSelect())
       view.add_item(BackToMainButton())
       img_buf = make_card_with_text(None, "قسم الرتب", "الرتب المتاحة")
       file = discord.File(fp=img_buf, filename="vip.png")
       await interaction.response.edit_message(attachments=[file], view=view)
+      view.message = interaction.message
 
     elif self.values[0] == "cat_colors":
-      view = discord.ui.View()
+      view = TimedSubView()
       view.add_item(ColorSelect())
       view.add_item(BackToMainButton())
       img_buf = make_card_with_text(
@@ -454,13 +472,24 @@ class MainCategorySelect(discord.ui.Select):
       )
       file = discord.File(fp=img_buf, filename="colors.png")
       await interaction.response.edit_message(attachments=[file], view=view)
+      view.message = interaction.message
 
 
 class MainShopView(discord.ui.View):
 
   def __init__(self):
-    super().__init__(timeout=None)
+    super().__init__(timeout=60)
     self.add_item(MainCategorySelect())
+    self.message = None
+
+  async def on_timeout(self):
+    for item in self.children:
+      item.disabled = True
+    if self.message:
+      try:
+        await self.message.edit(view=self)
+      except Exception:
+        pass
 
 
 @bot.command(name="متجر", aliases=["اقتصاد"])
@@ -473,7 +502,8 @@ async def shop_command(ctx):
   )
   file = discord.File(fp=img_buf, filename="shop.png")
   view = MainShopView()
-  await ctx.send(file=file, view=view)
+  msg = await ctx.send(file=file, view=view)
+  view.message = msg
 
 
 # --- 4. نظام منع الخط الكبير (#) بدون رتبة Level 50 ---
@@ -1091,11 +1121,12 @@ async def rps_game(ctx):
 # --- لعبة توصيل الكرات 4 التفاعلية (Connect 4) ذكاء اصطناعي خارق ---
 class Connect4Button(discord.ui.Button):
 
-  def __init__(self, col: int):
+  def __init__(self, col: int, row_idx: int):
     super().__init__(
         style=discord.ButtonStyle.primary,
         label=str(col + 1),
         custom_id=f"c4_col_{col}",
+        row=row_idx,
     )
     self.col = col
 
@@ -1197,19 +1228,36 @@ class Connect4Button(discord.ui.Button):
 class Connect4View(discord.ui.View):
 
   def __init__(self, player1: discord.User, player2: discord.User = None):
-    super().__init__(timeout=120)
+    super().__init__(timeout=60)
     self.player1 = player1
     self.player2 = player2
     self.is_vs_bot = player2 is None
     self.current_player = player1
     self.current_emoji = "🔴"
+    self.message = None
 
     self.rows = 6
     self.cols = 7
     self.board = [["⚪" for _ in range(self.cols)] for _ in range(self.rows)]
 
     for col in range(self.cols):
-      self.add_item(Connect4Button(col))
+      row_idx = 0 if col < 5 else 1
+      self.add_item(Connect4Button(col, row_idx))
+
+  async def on_timeout(self):
+    for child in self.children:
+      child.disabled = True
+    if self.message:
+      try:
+        await self.message.edit(
+            content=(
+                f"⏰ **انتهت اللعبة لعدم التفاعل خلال دقيقة واحدة!**\n\n"
+                + self.get_board_string()
+            ),
+            view=self,
+        )
+      except Exception:
+        pass
 
   def get_board_string(self) -> str:
     board_str = ""
@@ -1405,22 +1453,24 @@ async def connect4_game(ctx, opponent: discord.Member = None):
 
   if opponent:
     view = Connect4View(player1=ctx.author, player2=opponent)
-    await ctx.send(
+    msg = await ctx.send(
         f"🎮 **بدأت لعبة توصيل الكرات 4** بين {ctx.author.mention} (🔴) و"
         f" {opponent.mention} (🟡)!\nالجائزة: **60 طولار** للفائز!\nدور:"
         f" {ctx.author.mention}\n\n"
         + view.get_board_string(),
         view=view,
     )
+    view.message = msg
   else:
     view = Connect4View(player1=ctx.author)
-    await ctx.send(
+    msg = await ctx.send(
         f"🎮 **بدأت لعبة توصيل الكرات 4** بين"
         f" {ctx.author.mention} (🔴) و البوت (🟡)!\nالجائزة: **60 طولار**"
         f" للفائز!\nدور: {ctx.author.mention}\n\n"
         + view.get_board_string(),
         view=view,
     )
+    view.message = msg
 
 
 @bot.command(name="طولاري")
