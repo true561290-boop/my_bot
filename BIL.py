@@ -181,14 +181,15 @@ SHOP_VIP_ROLES = {
     },
 }
 
+# تم تعديل جميع أسعار الألوان إلى 500
 SHOP_COLOR_ROLES = {
-    "c_red": {"name": "أحمر", "price": 300, "id": 1515396547536355469},
-    "c_blue": {"name": "أزرق", "price": 300, "id": 1515396547528102135},
-    "c_green": {"name": "أخضر", "price": 300, "id": 1515396547528102136},
-    "c_purple": {"name": "بنفسجي", "price": 300, "id": 1515396547528102134},
-    "c_yellow": {"name": "أصفر", "price": 300, "id": 1515396547528102137},
-    "c_gray": {"name": "رمادي", "price": 300, "id": 1515487581138190376},
-    "c_skin": {"name": "Skin", "price": 300, "id": 1515480359553335441},
+    "c_red": {"name": "أحمر", "price": 500, "id": 1515396547536355469},
+    "c_blue": {"name": "أزرق", "price": 500, "id": 1515396547528102135},
+    "c_green": {"name": "أخضر", "price": 500, "id": 1515396547528102136},
+    "c_purple": {"name": "بنفسجي", "price": 500, "id": 1515396547528102134},
+    "c_yellow": {"name": "أصفر", "price": 500, "id": 1515396547528102137},
+    "c_gray": {"name": "رمادي", "price": 500, "id": 1515487581138190376},
+    "c_skin": {"name": "Skin", "price": 500, "id": 1515480359553335441},
 }
 
 
@@ -519,7 +520,8 @@ async def on_message(message):
         await message.delete()
         warning = await message.channel.send(
             f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك"
-            " لا تملك رتبة **Level 50**! يمكنك شراؤها من المتجر (`!متجر`)."
+            " لا تملك رتبة **Level 50**! يمكنك شراؤها من المتجر (`!متجر`).",
+            allowed_mentions=discord.AllowedMentions(users=False),
         )
         await asyncio.sleep(2)
         await warning.delete()
@@ -972,7 +974,9 @@ async def quiz_game(ctx, rounds: int = 1):
     )
     embed.set_footer(text="⏱️ لديك 10 ثوانٍ للإجابة على هذا السؤال!")
 
-    await ctx.send(embed=embed)
+    await ctx.send(
+        embed=embed, allowed_mentions=discord.AllowedMentions(users=False)
+    )
 
     def check(m):
       return m.author == ctx.author and m.channel == ctx.channel
@@ -1013,7 +1017,9 @@ async def jail_game(ctx, member: discord.Member = None):
       ),
       color=discord.Color.dark_red(),
   )
-  await ctx.send(embed=embed)
+  await ctx.send(
+      embed=embed, allowed_mentions=discord.AllowedMentions(users=False)
+  )
 
   def check(m):
     return m.author == member and m.channel == ctx.channel
@@ -1057,7 +1063,9 @@ class RPSView(discord.ui.View):
       return False
     return True
 
-  async def play_game(self, interaction: discord.Interaction, player_choice: str):
+  async def play_game(
+      self, interaction: discord.Interaction, player_choice: str
+  ):
     bot_choice = random.choice(["حجرة", "ورقة", "مقص"])
 
     if player_choice == bot_choice:
@@ -1115,7 +1123,11 @@ async def rps_game(ctx):
       color=discord.Color.blue(),
   )
   view = RPSView(ctx.author)
-  await ctx.send(embed=embed, view=view)
+  await ctx.send(
+      embed=embed,
+      view=view,
+      allowed_mentions=discord.AllowedMentions(users=False),
+  )
 
 
 # --- لعبة توصيل الكرات 4 التفاعلية (Connect 4) ذكاء اصطناعي خارق ---
@@ -1195,7 +1207,8 @@ class Connect4Button(discord.ui.Button):
           child.disabled = True
         await interaction.response.edit_message(
             content=(
-                f"🤖 **للأسف، فاز البوت في توصيل الكرات 4!**\n\n"
+                f"🤖 **للأسف، لعب البوت رقم {bot_col + 1} وفاز في توصيل الكرات"
+                " 4!**\n\n"
                 + view.get_board_string()
             ),
             view=view,
@@ -1216,10 +1229,12 @@ class Connect4Button(discord.ui.Button):
         view.stop()
         return
 
+      # التعديل الثاني: كتابة الرقم الذي لعبه البوت فوق الشات
       await interaction.response.edit_message(
           content=(
-              f"🎮 **لعبة توصيل الكرات 4** \nدورك الآن:"
-              f" {view.player1.mention} (🔴)\n\n" + view.get_board_string()
+              f"🎮 **لعبة توصيل الكرات 4** \nلعب البوت رقم {bot_col + 1} حان"
+              f" دورك: {view.player1.mention} (🔴)\n\n"
+              + view.get_board_string()
           ),
           view=view,
       )
@@ -1459,6 +1474,7 @@ async def connect4_game(ctx, opponent: discord.Member = None):
         f" {ctx.author.mention}\n\n"
         + view.get_board_string(),
         view=view,
+        allowed_mentions=discord.AllowedMentions(users=False),
     )
     view.message = msg
   else:
@@ -1469,6 +1485,7 @@ async def connect4_game(ctx, opponent: discord.Member = None):
         f" للفائز!\nدور: {ctx.author.mention}\n\n"
         + view.get_board_string(),
         view=view,
+        allowed_mentions=discord.AllowedMentions(users=False),
     )
     view.message = msg
 
