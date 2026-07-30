@@ -342,16 +342,15 @@ class ColorSelect(discord.ui.Select):
           ephemeral=True,
       )
       return
-
-# --- 4. نظام منع الخط الكبير (#) + الرد على السلام ---
-@bot.event
-async def on_message(message):
+# --- رد تلقائي منفصل على السلام ---
+@bot.listen('on_message')
+async def auto_reply_greeting(message):
     if message.author.bot:
         return
 
-    # تنظيف النص وإزالة النقطة والمسافات الزائدة من البداية
-    raw_content = message.content.strip()
-    clean_content = raw_content[1:].strip() if raw_content.startswith(".") else raw_content
+    # تنظيف النص من النقطة في البداية والمسافات
+    raw_text = message.content.strip()
+    clean_text = raw_text[1:].strip() if raw_text.startswith(".") else raw_text
 
     greetings = [
         "السلام عليكم",
@@ -360,32 +359,11 @@ async def on_message(message):
         "السلام عليكم ورحمة الله"
     ]
 
-    # 1. التحقق من السلام والرد عليه
-    if clean_content in greetings or raw_content in greetings:
+    if clean_text in greetings or raw_text in greetings:
         await message.channel.send(
             f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
             allowed_mentions=discord.AllowedMentions(users=False)
         )
-        return  # إيقاف التنفيذ فوراً حتى لا يحاول البوت البحث عن أمر باسم السلام!
-
-    # 2. نظام منع الخط الكبير (#)
-    if message.content.startswith("# "):
-        level_50_role = message.guild.get_role(LEVEL_50_ROLE_ID)
-        if level_50_role and level_50_role not in message.author.roles:
-            try:
-                await message.delete()
-                warning = await message.channel.send(
-                    f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك لا تملك رتبة **Level 50**! يمكنك شراؤها من المتجر (`!متجر`).",
-                    allowed_mentions=discord.AllowedMentions(users=False)
-                )
-                await asyncio.sleep(2)
-                await warning.delete()
-                return
-            except Exception as e:
-                print(f"خطأ أثناء حذف الرسالة: {e}")
-
-    # معالجة الأوامر العادية الأخرى
-    await bot.process_commands(message)
 
     if role in user.roles:
       await interaction.response.send_message(
