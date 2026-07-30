@@ -1229,6 +1229,7 @@ class Connect4Button(discord.ui.Button):
         view.stop()
         return
 
+      # التعديل الثاني: كتابة الرقم الذي لعبه البوت فوق الشات
       await interaction.response.edit_message(
           content=(
               f"🎮 **لعبة توصيل الكرات 4** \nلعب البوت رقم {bot_col + 1} حان"
@@ -1331,6 +1332,7 @@ class Connect4View(discord.ui.View):
 
     return False
 
+  # --- تقييم وضعية اللوحة لصالح الذكاء الاصطناعي ---
   def score_position(self, piece: str) -> int:
     score = 0
     opp_piece = "🔴" if piece == "🟡" else "🟡"
@@ -1377,6 +1379,7 @@ class Connect4View(discord.ui.View):
 
     return score
 
+  # --- خوارزمية Minimax للتفكير الشجري الصعب جداً ---
   def minimax(
       self, depth: int, alpha: int, beta: int, maximizingPlayer: bool
   ) -> tuple:
@@ -1426,12 +1429,14 @@ class Connect4View(discord.ui.View):
     if not valid_cols:
       return -1, -1
 
+    # 1. الفوز المباشر إذا أمكن
     for col in valid_cols:
       row = self.drop_piece(col, "🟡")
       if self.check_winner(row, col, "🟡"):
         return col, row
       self.board[row][col] = "⚪"
 
+    # 2. حظر فوز اللاعب المباشر
     for col in valid_cols:
       row = self.drop_piece(col, "🔴")
       if self.check_winner(row, col, "🔴"):
@@ -1440,6 +1445,7 @@ class Connect4View(discord.ui.View):
         return col, bot_row
       self.board[row][col] = "⚪"
 
+    # 3. استخدام خوارزمية Minimax بعمق 4 حركات للأمام
     best_col, _ = self.minimax(4, -9999999, 9999999, True)
     if best_col is None or best_col not in valid_cols:
       best_col = random.choice(valid_cols)
@@ -1611,6 +1617,44 @@ async def clear_messages_error(ctx, error):
     await ctx.send(
         "❌ البوت لا يملك صلاحية `Manage Messages` (إدارة الرسائل) لمسح الشات!"
     )
+
+
+@bot.command(name="افتار", aliases=["avatar", "افتاري"])
+@in_channel(1515396548392128671)
+async def show_avatar(ctx, member: discord.Member = None):
+  target = member or ctx.author
+  avatar_url = target.display_avatar.url
+
+  embed = discord.Embed(color=discord.Color.dark_theme())
+  embed.set_image(url=avatar_url)
+
+  await ctx.send(embed=embed)
+
+
+@bot.command(name="بنر", aliases=["banner", "بنري"])
+@in_channel(1515396548392128671)
+async def show_banner(ctx, member: discord.Member = None):
+  target = member or ctx.author
+
+  user = await bot.fetch_user(target.id)
+
+  if not user.banner:
+    await ctx.send("❌ هذا الحساب لا يملك بنر!", delete_after=2)
+    return
+
+  banner_url = user.banner.url
+
+  embed = discord.Embed(color=discord.Color.dark_theme())
+  embed.set_image(url=banner_url)
+
+  await ctx.send(embed=embed)
+
+
+@show_avatar.error
+@show_banner.error
+async def avatar_banner_error(ctx, error):
+  if isinstance(error, commands.BadArgument):
+    await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت!", delete_after=2)
 
 
 # --- 6. أمر قائمة الألعاب ---
