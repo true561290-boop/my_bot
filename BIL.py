@@ -343,6 +343,46 @@ class ColorSelect(discord.ui.Select):
       )
       return
 
+# --- دالة الاستماع للرسائل (السلام + منع الخط الكبير) ---
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+
+    msg_content = message.content.strip()
+    greetings = [
+        "السلام عليكم",
+        "السلام عليكم ورحمة الله وبركاته",
+        "سلام عليكم",
+        "السلام عليكم ورحمة الله"
+    ]
+
+    # 1. الرد على السلام (المنشن صامت)
+    if any(msg_content == g for g in greetings):
+        await message.channel.send(
+            f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
+            allowed_mentions=discord.AllowedMentions(users=False)
+        )
+
+    # 2. نظام منع الخط الكبير (#)
+    if message.content.startswith("# "):
+        level_50_role = message.guild.get_role(LEVEL_50_ROLE_ID)
+        if level_50_role and level_50_role not in message.author.roles:
+            try:
+                await message.delete()
+                warning = await message.channel.send(
+                    f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك لا تملك رتبة **Level 50**! يمكنك شراؤها من المتجر (`!متجر`).",
+                    allowed_mentions=discord.AllowedMentions(users=False)
+                )
+                await asyncio.sleep(2)
+                await warning.delete()
+                return
+            except Exception as e:
+                print(f"خطأ أثناء حذف الرسالة: {e}")
+
+    # السماح لتنفيذ باقي أوامر البوت
+    await bot.process_commands(message)
+
     if role in user.roles:
       await interaction.response.send_message(
           f"⚠️ أنت تملك رتبة **{role.name}** بالفعل!", ephemeral=True
@@ -1662,7 +1702,7 @@ async def avatar_banner_error(ctx, error):
 async def games_list(ctx):
   embed = discord.Embed(
       title="قائمة الألعاب 🎮",
-      description=".سؤال\n.سجن\n.حجر\n.4",
+      description=".سؤال\n.سجن\n.حجر\n.توصيل",
       color=discord.Color.blue(),
   )
   await ctx.send(embed=embed)
