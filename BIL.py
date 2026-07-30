@@ -343,13 +343,17 @@ class ColorSelect(discord.ui.Select):
       )
       return
 
-# --- دالة الاستماع للرسائل (السلام + منع الخط الكبير) ---
+# --- 4. نظام منع الخط الكبير (#) + الرد على السلام ---
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
+    # تنظيف النص وإزالة النقطة من البداية إن وجدت
     msg_content = message.content.strip()
+    if msg_content.startswith("."):
+        msg_content = msg_content[1:].strip()
+
     greetings = [
         "السلام عليكم",
         "السلام عليكم ورحمة الله وبركاته",
@@ -360,9 +364,10 @@ async def on_message(message):
     # 1. الرد على السلام (المنشن صامت)
     if any(msg_content == g for g in greetings):
         await message.channel.send(
-            f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
+            f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
             allowed_mentions=discord.AllowedMentions(users=False)
         )
+        return  # التوقف هنا حتى لا يحاول البوت البحث عن أمر باسم "السلام"
 
     # 2. نظام منع الخط الكبير (#)
     if message.content.startswith("# "):
