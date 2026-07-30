@@ -342,28 +342,60 @@ class ColorSelect(discord.ui.Select):
           ephemeral=True,
       )
       return
-# --- رد تلقائي منفصل على السلام ---
-@bot.listen('on_message')
-async def auto_reply_greeting(message):
+# --- 4. نظام الرد التلقائي + منع الخط الكبير (#) ---
+@bot.event
+async def on_message(message):
     if message.author.bot:
         return
 
-    # تنظيف النص من النقطة في البداية والمسافات
-    raw_text = message.content.strip()
-    clean_text = raw_text[1:].strip() if raw_text.startswith(".") else raw_text
+    # تنظيف النص وإزالة النقطة والمسافات الزائدة من البداية
+    raw_content = message.content.strip()
+    clean_content = raw_content[1:].strip() if raw_content.startswith(".") else raw_content
 
-    greetings = [
-        "السلام عليكم",
-        "السلام عليكم ورحمة الله وبركاته",
-        "سلام عليكم",
-        "السلام عليكم ورحمة الله"
-    ]
+    # -------------------------------------------------------------
+    # 1. قائمة الكلمات والردود (يمكنك إضافة أي كلمة ورد جديد هنا)
+    # -------------------------------------------------------------
+    auto_responses = {
+        "السلام عليكم": f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
+        "السلام عليكم ورحمة الله وبركاته": f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
+        "سلام عليكم": f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
+        "صباح الخير": f"صباح النور والسرور يا {message.author.mention}! ☀️",
+        "مساء الخير": f"مساء الورد والياسمين يا {message.author.mention}! 🌙",
+        "كيف حالك": f"أنا بخير والحمد لله! شكراً لسؤالك يا {message.author.mention} 🤖",
+        "من انت": "أنا بوت السيرفر المساعد، في خدمتك دائماً! 🚀"
+    }
 
-    if clean_text in greetings or raw_text in greetings:
+    # البحث عن الكلمة والرد عليها إذا كانت موجودة
+    user_msg = clean_content if clean_content in auto_responses else raw_content
+    if user_msg in auto_responses:
         await message.channel.send(
-            f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
+            auto_responses[user_msg],
             allowed_mentions=discord.AllowedMentions(users=False)
         )
+        return  # إيقاف التنفيذ حتى لا يبحث البوت عن أمر بنفس الاسم
+
+    # -------------------------------------------------------------
+    # 2. نظام منع الخط الكبير (#) بدون رتبة Level 50
+    # -------------------------------------------------------------
+    if message.content.startswith("# "):
+        level_50_role = message.guild.get_role(LEVEL_50_ROLE_ID)
+        if level_50_role and level_50_role not in message.author.roles:
+            try:
+                await message.delete()
+                warning = await message.channel.send(
+                    f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك لا تملك رتبة **Level 50**! يمكنك شراؤها من المتجر (`.متجر`).",
+                    allowed_mentions=discord.AllowedMentions(users=False)
+                )
+                await asyncio.sleep(2)
+                await warning.delete()
+                return
+            except Exception as e:
+                print(f"خطأ أثناء حذف الرسالة: {e}")
+
+    # -------------------------------------------------------------
+    # 3. معالجة باقي أوامر البوت
+    # -------------------------------------------------------------
+    await bot.process_commands(message)
 
     if role in user.roles:
       await interaction.response.send_message(
@@ -528,30 +560,6 @@ async def shop_command(ctx):
   msg = await ctx.send(file=file, view=view)
   view.message = msg
 
-
-# --- 4. نظام منع الخط الكبير (#) بدون رتبة Level 50 ---
-@bot.event
-async def on_message(message):
-  if message.author.bot:
-    return
-
-  if message.content.startswith("# "):
-    level_50_role = message.guild.get_role(LEVEL_50_ROLE_ID)
-    if level_50_role and level_50_role not in message.author.roles:
-      try:
-        await message.delete()
-        warning = await message.channel.send(
-            f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك"
-            " لا تملك رتبة **Level 50**! يمكنك شراؤها من المتجر (`!متجر`).",
-            allowed_mentions=discord.AllowedMentions(users=False),
-        )
-        await asyncio.sleep(2)
-        await warning.delete()
-        return
-      except Exception as e:
-        print(f"خطأ أثناء حذف الرسالة: {e}")
-
-  await bot.process_commands(message)
 
 
 # --- 5. نظام الألعاب والأسئلة ---
