@@ -1664,7 +1664,7 @@ async def ban_member(
     await ctx.send(f"❌ حدث خطأ أثناء الحظر: {e}")
 
 
-@ban_error
+@ban_member.error
 async def ban_error(ctx, error):
   if isinstance(error, commands.MissingRole):
     await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
