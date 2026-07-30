@@ -344,7 +344,37 @@ class ColorSelect(discord.ui.Select):
       )
       return
 
-import re  # تأكد من وجود import re في أعلى الملف، إذا لم يكن موجوداً أضفه في أول سطر بملفك
+    if role in user.roles:
+      await interaction.response.send_message(
+          f"⚠️ أنت تملك رتبة **{role.name}** بالفعل", ephemeral=True
+      )
+      return
+
+    if get_balance(user.id) < item["price"]:
+      await interaction.response.send_message(
+          f"❌ رصيدك غير كافٍ، تحتاج إلى **{item['price']}** طولار.",
+          ephemeral=True,
+      )
+      return
+
+    all_color_ids = [c["id"] for c in SHOP_COLOR_ROLES.values()]
+    roles_to_remove = [r for r in user.roles if r.id in all_color_ids]
+    if roles_to_remove:
+      await user.remove_roles(*roles_to_remove)
+
+    remove_balance(user.id, item["price"])
+    await user.add_roles(role)
+
+    for child in self.view.children:
+      child.disabled = True
+    await interaction.message.edit(view=self.view)
+
+    await interaction.response.send_message(
+        f" **تم الشراء بنجاح،** تم منحك رتبة **{role.name}** بمبلغ"
+        f" **{item['price']}** طولار.\n*(تم إغلاق المتجر)*",
+        ephemeral=True,
+    )
+
 
 # --- 4. نظام الرد التلقائي + تكبير الإيموجي/الستيكر + منع الخط الكبير (#) ---
 @bot.event
@@ -359,22 +389,16 @@ async def on_message(message):
         # 1. التكبير في حالة الستيكرات (Stickers)
         if message.stickers:
             sticker = message.stickers[0]
-            # إرسال رابط الصورة مباشرة بدون أي نص
             await message.channel.send(sticker.url)
             return
 
         # 2. التكبير في حالة الإيموجيات المخصصة (Custom Emojis)
-        # البحث عن صيغة الإيموجيات المخصصة مثل <:name:id> أو <a:name:id>
         emoji_match = re.search(r'<(a)?:(\w+):(\d+)>', message.content)
         if emoji_match:
-            is_animated = emoji_match.group(1)  # هل الإيموجي متحرك؟
+            is_animated = emoji_match.group(1)
             emoji_id = emoji_match.group(3)
-            
-            # تحديد امتداد الصورة (GIF للمتحرك و PNG للعادي)
             extension = "gif" if is_animated else "png"
             emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{extension}?size=1024"
-            
-            # إرسال رابط الصورة فقط
             await message.channel.send(emoji_url)
             return
 
@@ -390,6 +414,7 @@ async def on_message(message):
         "السلام عليكم ورحمة الله وبركاته": f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
         "سلام عليكم": f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
         "باك": f"ولكم باك {message.author.mention}"
+    }
 
     user_msg = clean_content if clean_content in auto_responses else raw_content
     if user_msg in auto_responses:
@@ -421,37 +446,6 @@ async def on_message(message):
     # د) معالجة باقي أوامر البوت
     # =============================================================
     await bot.process_commands(message)
-
-    if role in user.roles:
-      await interaction.response.send_message(
-          f"⚠️ أنت تملك رتبة **{role.name}** بالفعل", ephemeral=True
-      )
-      return
-
-    if get_balance(user.id) < item["price"]:
-      await interaction.response.send_message(
-          f"❌ رصيدك غير كافٍ، تحتاج إلى **{item['price']}** طولار.",
-          ephemeral=True,
-      )
-      return
-
-    all_color_ids = [c["id"] for c in SHOP_COLOR_ROLES.values()]
-    roles_to_remove = [r for r in user.roles if r.id in all_color_ids]
-    if roles_to_remove:
-      await user.remove_roles(*roles_to_remove)
-
-    remove_balance(user.id, item["price"])
-    await user.add_roles(role)
-
-    for child in self.view.children:
-      child.disabled = True
-    await interaction.message.edit(view=self.view)
-
-    await interaction.response.send_message(
-        f" **تم الشراء بنجاح،** تم منحك رتبة **{role.name}** بمبلغ"
-        f" **{item['price']}** طولار.\n*(تم إغلاق المتجر)*",
-        ephemeral=True,
-    )
 
 
 class VIPSelect(discord.ui.Select):
@@ -584,7 +578,6 @@ async def shop_command(ctx):
   view = MainShopView()
   msg = await ctx.send(file=file, view=view)
   view.message = msg
-
 
 
 # --- 5. نظام الألعاب والأسئلة ---
@@ -1284,7 +1277,6 @@ class Connect4Button(discord.ui.Button):
         view.stop()
         return
 
-      # التعديل الثاني: كتابة الرقم الذي لعبه البوت فوق الشات
       await interaction.response.edit_message(
           content=(
               f" **لعبة توصيل الكرات 4** \nلعب البوت رقم {bot_col + 1} حان"
@@ -1387,7 +1379,6 @@ class Connect4View(discord.ui.View):
 
     return False
 
-  # --- تقييم وضعية اللوحة لصالح الذكاء الاصطناعي ---
   def score_position(self, piece: str) -> int:
     score = 0
     opp_piece = "🔴" if piece == "🟡" else "🟡"
@@ -1434,7 +1425,6 @@ class Connect4View(discord.ui.View):
 
     return score
 
-  # --- خوارزمية Minimax للتفكير الشجري الصعب جداً ---
   def minimax(
       self, depth: int, alpha: int, beta: int, maximizingPlayer: bool
   ) -> tuple:
@@ -1484,14 +1474,12 @@ class Connect4View(discord.ui.View):
     if not valid_cols:
       return -1, -1
 
-    # 1. الفوز المباشر إذا أمكن
     for col in valid_cols:
       row = self.drop_piece(col, "🟡")
       if self.check_winner(row, col, "🟡"):
         return col, row
       self.board[row][col] = "⚪"
 
-    # 2. حظر فوز اللاعب المباشر
     for col in valid_cols:
       row = self.drop_piece(col, "🔴")
       if self.check_winner(row, col, "🔴"):
@@ -1500,7 +1488,6 @@ class Connect4View(discord.ui.View):
         return col, bot_row
       self.board[row][col] = "⚪"
 
-    # 3. استخدام خوارزمية Minimax بعمق 4 حركات للأمام
     best_col, _ = self.minimax(4, -9999999, 9999999, True)
     if best_col is None or best_col not in valid_cols:
       best_col = random.choice(valid_cols)
@@ -1602,40 +1589,34 @@ async def add_money_error(ctx, error):
   elif isinstance(error, commands.BadArgument):
     await ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.")
 
+
 # --- أمر تحويل الطولارات ---
 @bot.command(name="ت", aliases=["transfer", "pay"])
 async def transfer_money(ctx, member: discord.Member = None, amount: int = None):
-    # 1. التحقق من إدخال العضو والمبلغ
     if not member or amount is None:
         await ctx.send(" **طريقة الاستخدام الصحيحة:**\n`.تحويل @العضو المبلغ`\nمثال: `.تحويل @User 100`", delete_after=5)
         return
 
-    # 2. منع التحويل للبوتات
     if member.bot:
         await ctx.send("❌ لا يمكنك تحويل الطولارات للبوتات", delete_after=3)
         return
 
-    # 3. منع التحويل لنفسك
     if member == ctx.author:
         await ctx.send("❌ لا يمكنك تحويل الطولارات لنفسك", delete_after=3)
         return
 
-    # 4. التأكد من أن المبلغ أكبر من صفر
     if amount <= 0:
         await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من **0**", delete_after=3)
         return
 
-    # 5. التأكد من توفر الرصيد الكافي لدى المحوّل
     sender_balance = get_balance(ctx.author.id)
     if sender_balance < amount:
         await ctx.send(f"❌ رصيدك غير كاف رصيدك الحالي هو **{sender_balance}** طولار.", delete_after=5)
         return
 
-    # 6. إتمام عملية التحويل (خصم من المحوّل وإضافة للمستلم)
     remove_balance(ctx.author.id, amount)
     add_balance(member.id, amount)
 
-    # 7. إرسال رسالة التأكيد بمنشن صامت
     await ctx.send(
         f" **تم التحويل بنجاح**\n"
         f"قمـت بـتحـويـل **{amount}** طولار إلى {member.mention}.\n"
@@ -1647,6 +1628,7 @@ async def transfer_money(ctx, member: discord.Member = None, amount: int = None)
 async def transfer_money_error(ctx, error):
     if isinstance(error, commands.BadArgument):
         await ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.", delete_after=3)
+
 
 @bot.command(name="ايدي")
 async def get_id(
@@ -1767,12 +1749,12 @@ async def games_list(ctx):
   )
   await ctx.send(embed=embed)
 
-# --- 6. أمر قائمة الأوامر  ---
+# --- 6. أمر قائمة الأوامر ---
 @bot.command(name="اوامر")
-async def games_list(ctx):
+async def commands_list(ctx):
   embed = discord.Embed(
       title="قائمة الأوامر",
-      description="n.متجر: شراء الوان ورتب\n.طولاري: يظهر رصيد العضو\n.افتار او بنر: انشاء افتار العضو\n.ت@العضو: لتحويل الطولارات",
+      description=".متجر: شراء الوان ورتب\n.طولاري: يظهر رصيد العضو\n.افتار او بنر: انشاء افتار العضو\n.ت @العضو: لتحويل الطولارات",
       color=discord.Color.blue(),
   )
   await ctx.send(embed=embed)
@@ -1789,8 +1771,7 @@ async def ban_member(
 ):
   if not member:
     await ctx.send(
-        "⚠️ **يرجى منشن العضو المراد حظره**\nمثال: `.انقلع_ يالعبد @User"
-        " السبب`",
+        "⚠️ **يرجى منشن العضو المراد حظره**\nمثال: `.انقلع_يالعبد @User السبب`",
         delete_after=3,
     )
     return
