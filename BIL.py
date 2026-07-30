@@ -1,3 +1,4 @@
+import re
 import asyncio
 import base64
 import datetime
@@ -342,19 +343,48 @@ class ColorSelect(discord.ui.Select):
           ephemeral=True,
       )
       return
-# --- 4. نظام الرد التلقائي + منع الخط الكبير (#) ---
+
+import re  # تأكد من وجود import re في أعلى الملف، إذا لم يكن موجوداً أضفه في أول سطر بملفك
+
+# --- 4. نظام الرد التلقائي + تكبير الإيموجي/الستيكر + منع الخط الكبير (#) ---
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
+    # =============================================================
+    # أ) ميزة تكبير الإيموجي والستيكر في روم الأفاتار فقط
+    # =============================================================
+    if message.channel.id == AVATAR_CHANNEL_ID:
+        # 1. التكبير في حالة الستيكرات (Stickers)
+        if message.stickers:
+            sticker = message.stickers[0]
+            # إرسال رابط الصورة مباشرة بدون أي نص
+            await message.channel.send(sticker.url)
+            return
+
+        # 2. التكبير في حالة الإيموجيات المخصصة (Custom Emojis)
+        # البحث عن صيغة الإيموجيات المخصصة مثل <:name:id> أو <a:name:id>
+        emoji_match = re.search(r'<(a)?:(\w+):(\d+)>', message.content)
+        if emoji_match:
+            is_animated = emoji_match.group(1)  # هل الإيموجي متحرك؟
+            emoji_id = emoji_match.group(3)
+            
+            # تحديد امتداد الصورة (GIF للمتحرك و PNG للعادي)
+            extension = "gif" if is_animated else "png"
+            emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{extension}?size=1024"
+            
+            # إرسال رابط الصورة فقط
+            await message.channel.send(emoji_url)
+            return
+
     # تنظيف النص وإزالة النقطة والمسافات الزائدة من البداية
     raw_content = message.content.strip()
     clean_content = raw_content[1:].strip() if raw_content.startswith(".") else raw_content
 
-    # -------------------------------------------------------------
-    # 1. قائمة الكلمات والردود (يمكنك إضافة أي كلمة ورد جديد هنا)
-    # -------------------------------------------------------------
+    # =============================================================
+    # ب) قائمة الكلمات والردود التلقائية
+    # =============================================================
     auto_responses = {
         "السلام عليكم": f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
         "السلام عليكم ورحمة الله وبركاته": f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
@@ -365,18 +395,17 @@ async def on_message(message):
         "من انت": "أنا بوت السيرفر المساعد، في خدمتك دائماً! 🚀"
     }
 
-    # البحث عن الكلمة والرد عليها إذا كانت موجودة
     user_msg = clean_content if clean_content in auto_responses else raw_content
     if user_msg in auto_responses:
         await message.channel.send(
             auto_responses[user_msg],
             allowed_mentions=discord.AllowedMentions(users=False)
         )
-        return  # إيقاف التنفيذ حتى لا يبحث البوت عن أمر بنفس الاسم
+        return
 
-    # -------------------------------------------------------------
-    # 2. نظام منع الخط الكبير (#) بدون رتبة Level 50
-    # -------------------------------------------------------------
+    # =============================================================
+    # ج) نظام منع الخط الكبير (#) بدون رتبة Level 50
+    # =============================================================
     if message.content.startswith("# "):
         level_50_role = message.guild.get_role(LEVEL_50_ROLE_ID)
         if level_50_role and level_50_role not in message.author.roles:
@@ -392,9 +421,9 @@ async def on_message(message):
             except Exception as e:
                 print(f"خطأ أثناء حذف الرسالة: {e}")
 
-    # -------------------------------------------------------------
-    # 3. معالجة باقي أوامر البوت
-    # -------------------------------------------------------------
+    # =============================================================
+    # د) معالجة باقي أوامر البوت
+    # =============================================================
     await bot.process_commands(message)
 
     if role in user.roles:
