@@ -349,10 +349,9 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # تنظيف النص وإزالة النقطة من البداية إن وجدت
-    msg_content = message.content.strip()
-    if msg_content.startswith("."):
-        msg_content = msg_content[1:].strip()
+    # تنظيف النص وإزالة النقطة والمسافات الزائدة من البداية
+    raw_content = message.content.strip()
+    clean_content = raw_content[1:].strip() if raw_content.startswith(".") else raw_content
 
     greetings = [
         "السلام عليكم",
@@ -361,13 +360,13 @@ async def on_message(message):
         "السلام عليكم ورحمة الله"
     ]
 
-    # 1. الرد على السلام (المنشن صامت)
-    if any(msg_content == g for g in greetings):
+    # 1. التحقق من السلام والرد عليه
+    if clean_content in greetings or raw_content in greetings:
         await message.channel.send(
             f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
             allowed_mentions=discord.AllowedMentions(users=False)
         )
-        return  # التوقف هنا حتى لا يحاول البوت البحث عن أمر باسم "السلام"
+        return  # إيقاف التنفيذ فوراً حتى لا يحاول البوت البحث عن أمر باسم السلام!
 
     # 2. نظام منع الخط الكبير (#)
     if message.content.startswith("# "):
@@ -385,7 +384,7 @@ async def on_message(message):
             except Exception as e:
                 print(f"خطأ أثناء حذف الرسالة: {e}")
 
-    # السماح لتنفيذ باقي أوامر البوت
+    # معالجة الأوامر العادية الأخرى
     await bot.process_commands(message)
 
     if role in user.roles:
@@ -1564,7 +1563,7 @@ def in_channel(channel_id: int):
   return commands.check(predicate)
 
 
-@bot.command(name="اضافة")
+@bot.command(name="ض")
 @commands.has_role(OWNER_ROLE_ID)
 async def add_money(ctx, member: discord.Member, amount: int):
   if amount <= 0:
@@ -1592,6 +1591,51 @@ async def add_money_error(ctx, error):
   elif isinstance(error, commands.BadArgument):
     await ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.")
 
+# --- أمر تحويل الطولارات ---
+@bot.command(name="ت", aliases=["transfer", "pay"])
+async def transfer_money(ctx, member: discord.Member = None, amount: int = None):
+    # 1. التحقق من إدخال العضو والمبلغ
+    if not member or amount is None:
+        await ctx.send("⚠️ **طريقة الاستخدام الصحيحة:**\n`.تحويل @العضو المبلغ`\nمثال: `.تحويل @User 100`", delete_after=5)
+        return
+
+    # 2. منع التحويل للبوتات
+    if member.bot:
+        await ctx.send("❌ لا يمكنك تحويل الطولارات للبوتات!", delete_after=3)
+        return
+
+    # 3. منع التحويل لنفسك
+    if member == ctx.author:
+        await ctx.send("❌ لا يمكنك تحويل الطولارات لنفسك!", delete_after=3)
+        return
+
+    # 4. التأكد من أن المبلغ أكبر من صفر
+    if amount <= 0:
+        await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من **0**!", delete_after=3)
+        return
+
+    # 5. التأكد من توفر الرصيد الكافي لدى المحوّل
+    sender_balance = get_balance(ctx.author.id)
+    if sender_balance < amount:
+        await ctx.send(f"❌ رصيدك غير كافٍ! رصيدك الحالي هو **{sender_balance}** طولار.", delete_after=5)
+        return
+
+    # 6. إتمام عملية التحويل (خصم من المحوّل وإضافة للمستلم)
+    remove_balance(ctx.author.id, amount)
+    add_balance(member.id, amount)
+
+    # 7. إرسال رسالة التأكيد بمنشن صامت
+    await ctx.send(
+        f"💸 **تم التحويل بنجاح!**\n"
+        f"قمـت بـتحـويـل **{amount}** طولار إلى {member.mention}.\n"
+        f"💳 رصيدك المتبقي: **{get_balance(ctx.author.id)}** طولار.",
+        allowed_mentions=discord.AllowedMentions(users=False)
+    )
+
+@transfer_money.error
+async def transfer_money_error(ctx, error):
+    if isinstance(error, commands.BadArgument):
+        await ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.", delete_after=3)
 
 @bot.command(name="ايدي")
 async def get_id(
