@@ -386,14 +386,10 @@ async def on_message(message):
     # ب) قائمة الكلمات والردود التلقائية
     # =============================================================
     auto_responses = {
-        "السلام عليكم": f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
-        "السلام عليكم ورحمة الله وبركاته": f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
-        "سلام عليكم": f"وعليكم السلام ورحمة الله وبركاته، أهلاً بك يا {message.author.mention}! ❤️",
-        "صباح الخير": f"صباح النور والسرور يا {message.author.mention}! ☀️",
-        "مساء الخير": f"مساء الورد والياسمين يا {message.author.mention}! 🌙",
-        "كيف حالك": f"أنا بخير والحمد لله! شكراً لسؤالك يا {message.author.mention} 🤖",
-        "من انت": "أنا بوت السيرفر المساعد، في خدمتك دائماً! 🚀"
-    }
+        "السلام عليكم": f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
+        "السلام عليكم ورحمة الله وبركاته": f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
+        "سلام عليكم": f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
+        "باك": f"ولكم باك {message.author.mention}"
 
     user_msg = clean_content if clean_content in auto_responses else raw_content
     if user_msg in auto_responses:
@@ -412,7 +408,7 @@ async def on_message(message):
             try:
                 await message.delete()
                 warning = await message.channel.send(
-                    f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك لا تملك رتبة **Level 50**! يمكنك شراؤها من المتجر (`.متجر`).",
+                    f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك لا تملك رتبة **Level 50** يمكنك شراؤها من المتجر.",
                     allowed_mentions=discord.AllowedMentions(users=False)
                 )
                 await asyncio.sleep(2)
@@ -428,13 +424,13 @@ async def on_message(message):
 
     if role in user.roles:
       await interaction.response.send_message(
-          f"⚠️ أنت تملك رتبة **{role.name}** بالفعل!", ephemeral=True
+          f"⚠️ أنت تملك رتبة **{role.name}** بالفعل", ephemeral=True
       )
       return
 
     if get_balance(user.id) < item["price"]:
       await interaction.response.send_message(
-          f"❌ رصيدك غير كافٍ! تحتاج إلى **{item['price']}** طولار.",
+          f"❌ رصيدك غير كافٍ، تحتاج إلى **{item['price']}** طولار.",
           ephemeral=True,
       )
       return
@@ -452,7 +448,7 @@ async def on_message(message):
     await interaction.message.edit(view=self.view)
 
     await interaction.response.send_message(
-        f"🎨 **تم الشراء بنجاح!** تم منحك رتبة **{role.name}** بمبلغ"
+        f" **تم الشراء بنجاح،** تم منحك رتبة **{role.name}** بمبلغ"
         f" **{item['price']}** طولار.\n*(تم إغلاق المتجر)*",
         ephemeral=True,
     )
@@ -492,13 +488,13 @@ class VIPSelect(discord.ui.Select):
 
     if role in user.roles:
       await interaction.response.send_message(
-          f"⚠️ أنت تملك رتبة **{role.name}** بالفعل!", ephemeral=True
+          f"⚠️ أنت تملك رتبة **{role.name}** بالفعل", ephemeral=True
       )
       return
 
     if get_balance(user.id) < item["price"]:
       await interaction.response.send_message(
-          f"❌ رصيدك غير كافٍ! تحتاج إلى **{item['price']}** طولار.",
+          f"❌ رصيدك غير كاف، تحتاج إلى **{item['price']}** طولار.",
           ephemeral=True,
       )
       return
@@ -511,7 +507,7 @@ class VIPSelect(discord.ui.Select):
     await interaction.message.edit(view=self.view)
 
     await interaction.response.send_message(
-        f"👑 **تم الشراء بنجاح!** تم منحك رتبة **{role.name}** بمبلغ"
+        f" **تم الشراء بنجاح،** تم منحك رتبة **{role.name}** بمبلغ"
         f" **{item['price']}** طولار.\n*(تم إغلاق المتجر)*",
         ephemeral=True,
     )
@@ -1016,7 +1012,7 @@ RIDDLES = [
 async def quiz_game(ctx, rounds: int = 1):
   if rounds < 1 or rounds > 10:
     await ctx.send(
-        "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط!", delete_after=3
+        "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط", delete_after=3
     )
     return
 
@@ -1027,11 +1023,11 @@ async def quiz_game(ctx, rounds: int = 1):
         title=f"❓ الجولة {round_num}",
         description=(
             f"يا {ctx.author.mention}، أجب عن السؤال التالي كسباً لـ **40**"
-            f" دولار:\n\n❓ **{q_data['q']}**"
+            f" طولار:\n\n❓ **{q_data['q']}**"
         ),
         color=discord.Color.blue(),
     )
-    embed.set_footer(text="⏱️ لديك 10 ثوانٍ للإجابة على هذا السؤال!")
+    embed.set_footer(text="⏱️ لديك 10 ثوانٍ للإجابة على هذا السؤال")
 
     await ctx.send(
         embed=embed, allowed_mentions=discord.AllowedMentions(users=False)
@@ -1045,17 +1041,17 @@ async def quiz_game(ctx, rounds: int = 1):
       if msg.content.strip().lower() in [ans.lower() for ans in q_data["a"]]:
         add_balance(ctx.author.id, 40)
         await ctx.send(
-            f"🎉 **إجابة صحيحة!** تم إضافة 40 دولار إلى حسابك يا"
-            f" {ctx.author.mention}!",
+            f"🎉 **إجابة صحيحة،** تم إضافة 40 طولار إلى حسابك يا"
+            f" {ctx.author.mention}",
             allowed_mentions=discord.AllowedMentions(users=False),
         )
       else:
         await ctx.send(
-            f"❌ **إجابة خاطئة!** الإجابة الصحيحة هي: **{q_data['a'][0]}**"
+            f"❌ **إجابة خاطئة،** الإجابة الصحيحة هي: **{q_data['a'][0]}**"
         )
     except asyncio.TimeoutError:
       await ctx.send(
-          f"⏰ **انتهى الوقت!** الإجابة الصحيحة كانت: **{q_data['a'][0]}**"
+          f"⏰ **انتهى الوقت** الإجابة الصحيحة كانت: **{q_data['a'][0]}**"
       )
 
     if round_num < rounds:
@@ -1101,7 +1097,7 @@ async def jail_game(ctx, member: discord.Member = None):
   except asyncio.TimeoutError:
     await ctx.send(
         f"🔒 **انتهى الوقت!** {member.mention} لم يجب خلال 15 ثانية ويبقى"
-        " محبوساً!",
+        " محبوساً",
         allowed_mentions=discord.AllowedMentions(users=False),
     )
 
@@ -1116,7 +1112,7 @@ class RPSView(discord.ui.View):
   async def interaction_check(self, interaction: discord.Interaction) -> bool:
     if interaction.user != self.author:
       await interaction.response.send_message(
-          "❌ هذه اللعبة ليست لك! يمكنك بدء لعبتك الخاصة عبر كتابة `.حجر`",
+          "❌ هذه اللعبة ليست لك، يمكنك بدء لعبتك الخاصة عبر كتابة `.حجر`",
           ephemeral=True,
       )
       return False
@@ -1136,10 +1132,10 @@ class RPSView(discord.ui.View):
         or (player_choice == "مقص" and bot_choice == "ورقة")
     ):
       add_balance(self.author.id, 40)
-      result = "🎉 **مبروك! فزت على البوت وحصلت على 40 طولار!**"
+      result = "🎉 ** فزت على البوت وحصلت على 40 طولار**"
       color = discord.Color.green()
     else:
-      result = "🤖 **خسرت! فاز البوت عليك هذه المرة.**"
+      result = "**خسرت، فاز البوت عليك **"
       color = discord.Color.red()
 
     embed = discord.Embed(title="🎮 لعبة حجرة ورقة مقص", color=color)
@@ -1176,7 +1172,7 @@ async def rps_game(ctx):
   embed = discord.Embed(
       title="🎮 لعبة حجرة ورقة مقص",
       description=(
-          f"يا {ctx.author.mention}، اختر أحد الأزرار بالأسفل للعب ضد البوت!\nإذا"
+          f"يا {ctx.author.mention}، اختر أحد الأزرار بالأسفل للعب ضد البوت\nإذا"
           " فزت ستكسب **40 طولار** 💵"
       ),
       color=discord.Color.blue(),
@@ -1205,13 +1201,13 @@ class Connect4Button(discord.ui.Button):
     view: Connect4View = self.view
 
     if interaction.user != view.current_player:
-      await interaction.response.send_message("❌ ليس دورك الآن!", ephemeral=True)
+      await interaction.response.send_message("❌ ليس دورك الآن", ephemeral=True)
       return
 
     placed_row = view.drop_piece(self.col, view.current_emoji)
     if placed_row == -1:
       await interaction.response.send_message(
-          "⚠️ هذا العامود ممتلئ! اختر عاموداً آخر.", ephemeral=True
+          " هذا العامود ممتلئ، اختر عاموداً آخر.", ephemeral=True
       )
       return
 
@@ -1222,8 +1218,8 @@ class Connect4Button(discord.ui.Button):
         child.disabled = True
       await interaction.response.edit_message(
           content=(
-              f"🎉 **مبروك {winner.mention}!** لقد فزت في لعبة **توصيل الكرات"
-              " 4** وحصلت على **60 طولار**! 💵\n\n"
+              f"🎉 ** {winner.mention}** لقد فزت في لعبة **توصيل الكرات"
+              " 4** وحصلت على **60 طولار**💵\n\n"
               + view.get_board_string()
           ),
           view=view,
@@ -1236,7 +1232,7 @@ class Connect4Button(discord.ui.Button):
         child.disabled = True
       await interaction.response.edit_message(
           content=(
-              "🤝 **تعادل!** امتلأت اللوحة دون فائز.\n\n"
+              "🤝 **تعادل** امتلأت اللوحة دون فائز.\n\n"
               + view.get_board_string()
           ),
           view=view,
@@ -1253,8 +1249,8 @@ class Connect4Button(discord.ui.Button):
       view.current_emoji = "🟡" if view.current_emoji == "🔴" else "🔴"
       await interaction.response.edit_message(
           content=(
-              f"🎮 **لعبة توصيل الكرات 4**\nدور: {view.current_player.mention}"
-              f" ({view.current_emoji})\nالجائزة: **60 طولار** للفائز!\n\n"
+              f" **لعبة توصيل الكرات 4**\nدور: {view.current_player.mention}"
+              f" ({view.current_emoji})\nالجائزة: **60 طولار** للفائز\n\n"
               + view.get_board_string()
           ),
           view=view,
@@ -1266,8 +1262,8 @@ class Connect4Button(discord.ui.Button):
           child.disabled = True
         await interaction.response.edit_message(
             content=(
-                f"🤖 **للأسف، لعب البوت رقم {bot_col + 1} وفاز في توصيل الكرات"
-                " 4!**\n\n"
+                f"🤖 ** لعب البوت رقم {bot_col + 1} وفاز في توصيل الكرات"
+                " 4**\n\n"
                 + view.get_board_string()
             ),
             view=view,
@@ -1280,7 +1276,7 @@ class Connect4Button(discord.ui.Button):
           child.disabled = True
         await interaction.response.edit_message(
             content=(
-                "🤝 **تعادل!** امتلأت اللوحة دون فائز.\n\n"
+                " **تعادل** امتلأت اللوحة دون فائز.\n\n"
                 + view.get_board_string()
             ),
             view=view,
@@ -1291,7 +1287,7 @@ class Connect4Button(discord.ui.Button):
       # التعديل الثاني: كتابة الرقم الذي لعبه البوت فوق الشات
       await interaction.response.edit_message(
           content=(
-              f"🎮 **لعبة توصيل الكرات 4** \nلعب البوت رقم {bot_col + 1} حان"
+              f" **لعبة توصيل الكرات 4** \nلعب البوت رقم {bot_col + 1} حان"
               f" دورك: {view.player1.mention} (🔴)\n\n"
               + view.get_board_string()
           ),
@@ -1325,7 +1321,7 @@ class Connect4View(discord.ui.View):
       try:
         await self.message.edit(
             content=(
-                f"⏰ **انتهت اللعبة لعدم التفاعل خلال دقيقة واحدة!**\n\n"
+                f"⏰ **انتهت اللعبة لعدم التفاعل خلال دقيقة واحدة**\n\n"
                 + self.get_board_string()
             ),
             view=self,
@@ -1517,19 +1513,19 @@ class Connect4View(discord.ui.View):
 async def connect4_game(ctx, opponent: discord.Member = None):
   if opponent and opponent.bot:
     await ctx.send(
-        "❌ لا يمكنك تحدي بوت آخر! استخدم الأمر بدون منشن للعب ضد هذا البوت."
+        "❌ لا يمكنك تحدي بوت آخر، استخدم الأمر بدون منشن للعب ضد هذا البوت."
     )
     return
 
   if opponent and opponent == ctx.author:
-    await ctx.send("❌ لا يمكنك تحدي نفسك!")
+    await ctx.send("❌ لا يمكنك تحدي نفسك")
     return
 
   if opponent:
     view = Connect4View(player1=ctx.author, player2=opponent)
     msg = await ctx.send(
-        f"🎮 **بدأت لعبة توصيل الكرات 4** بين {ctx.author.mention} (🔴) و"
-        f" {opponent.mention} (🟡)!\nالجائزة: **60 طولار** للفائز!\nدور:"
+        f"**بدأت لعبة توصيل الكرات 4** بين {ctx.author.mention} (🔴) و"
+        f" {opponent.mention} (🟡)\nالجائزة: **60 طولار** للفائز\nدور:"
         f" {ctx.author.mention}\n\n"
         + view.get_board_string(),
         view=view,
@@ -1539,8 +1535,8 @@ async def connect4_game(ctx, opponent: discord.Member = None):
   else:
     view = Connect4View(player1=ctx.author)
     msg = await ctx.send(
-        f"🎮 **بدأت لعبة توصيل الكرات 4** بين"
-        f" {ctx.author.mention} (🔴) و البوت (🟡)!\nالجائزة: **60 طولار**"
+        f"**بدأت لعبة توصيل الكرات 4** بين"
+        f" {ctx.author.mention} (🔴) و البوت (🟡)\nالجائزة: **60 طولار**"
         f" للفائز!\nدور: {ctx.author.mention}\n\n"
         + view.get_board_string(),
         view=view,
@@ -1587,8 +1583,8 @@ async def add_money(ctx, member: discord.Member, amount: int):
 
   add_balance(member.id, amount)
   await ctx.send(
-      f"✅ تم إضافة **{amount}** طولار إلى حساب {member.mention} بنجاح!\n"
-      f"💳 رصيده الجديد: **{get_balance(member.id)}** طولار.",
+      f" تم إضافة **{amount}** طولار إلى حساب {member.mention} بنجاح\n"
+      f" رصيده الجديد: **{get_balance(member.id)}** طولار.",
       allowed_mentions=discord.AllowedMentions.none(),
   )
 
@@ -1596,12 +1592,12 @@ async def add_money(ctx, member: discord.Member, amount: int):
 @add_money.error
 async def add_money_error(ctx, error):
   if isinstance(error, commands.MissingRole):
-    await ctx.send("❌ هذا الأمر مخصص لصاحب رتبة الاونر فقط!")
+    await ctx.send("❌ هذا الأمر مخصص لصاحب رتبة الاونر فقط")
   elif isinstance(error, commands.MissingRequiredArgument):
     await ctx.send(
-        "⚠️ **طريقة الاستخدام الصحيحة:**\n"
-        "`!اضافة @العضو المبلغ`\n"
-        "مثال: `!اضافة @User 500`"
+        "**طريقة الاستخدام الصحيحة:**\n"
+        "`اضافة @العضو المبلغ`\n"
+        "مثال: `.اضافة @User 500`"
     )
   elif isinstance(error, commands.BadArgument):
     await ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.")
@@ -1611,28 +1607,28 @@ async def add_money_error(ctx, error):
 async def transfer_money(ctx, member: discord.Member = None, amount: int = None):
     # 1. التحقق من إدخال العضو والمبلغ
     if not member or amount is None:
-        await ctx.send("⚠️ **طريقة الاستخدام الصحيحة:**\n`.تحويل @العضو المبلغ`\nمثال: `.تحويل @User 100`", delete_after=5)
+        await ctx.send(" **طريقة الاستخدام الصحيحة:**\n`.تحويل @العضو المبلغ`\nمثال: `.تحويل @User 100`", delete_after=5)
         return
 
     # 2. منع التحويل للبوتات
     if member.bot:
-        await ctx.send("❌ لا يمكنك تحويل الطولارات للبوتات!", delete_after=3)
+        await ctx.send("❌ لا يمكنك تحويل الطولارات للبوتات", delete_after=3)
         return
 
     # 3. منع التحويل لنفسك
     if member == ctx.author:
-        await ctx.send("❌ لا يمكنك تحويل الطولارات لنفسك!", delete_after=3)
+        await ctx.send("❌ لا يمكنك تحويل الطولارات لنفسك", delete_after=3)
         return
 
     # 4. التأكد من أن المبلغ أكبر من صفر
     if amount <= 0:
-        await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من **0**!", delete_after=3)
+        await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من **0**", delete_after=3)
         return
 
     # 5. التأكد من توفر الرصيد الكافي لدى المحوّل
     sender_balance = get_balance(ctx.author.id)
     if sender_balance < amount:
-        await ctx.send(f"❌ رصيدك غير كافٍ! رصيدك الحالي هو **{sender_balance}** طولار.", delete_after=5)
+        await ctx.send(f"❌ رصيدك غير كاف رصيدك الحالي هو **{sender_balance}** طولار.", delete_after=5)
         return
 
     # 6. إتمام عملية التحويل (خصم من المحوّل وإضافة للمستلم)
@@ -1641,9 +1637,9 @@ async def transfer_money(ctx, member: discord.Member = None, amount: int = None)
 
     # 7. إرسال رسالة التأكيد بمنشن صامت
     await ctx.send(
-        f"💸 **تم التحويل بنجاح!**\n"
+        f" **تم التحويل بنجاح**\n"
         f"قمـت بـتحـويـل **{amount}** طولار إلى {member.mention}.\n"
-        f"💳 رصيدك المتبقي: **{get_balance(ctx.author.id)}** طولار.",
+        f" رصيدك المتبقي: **{get_balance(ctx.author.id)}** طولار.",
         allowed_mentions=discord.AllowedMentions(users=False)
     )
 
@@ -1697,29 +1693,29 @@ async def get_id(
 async def clear_messages(ctx, amount: int = None):
   if amount is None or amount <= 0:
     await ctx.send(
-        "⚠️ يرجى تحديد عدد الرسائل المراد مسحها.\nمثال: `!مسح 10`",
+        "⚠️ يرجى تحديد عدد الرسائل المراد مسحها.\nمثال: `.مسح 10`",
         delete_after=2,
     )
     return
 
   deleted = await ctx.channel.purge(limit=amount + 1)
   await ctx.send(
-      f"🧹 تم مسح **{len(deleted) - 1}** رسالة بنجاح!", delete_after=1
+      f" تم مسح **{len(deleted) - 1}** رسالة بنجاح", delete_after=1
   )
 
 
 @clear_messages.error
 async def clear_messages_error(ctx, error):
   if isinstance(error, commands.MissingRole):
-    await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=2)
+    await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=2)
   elif isinstance(error, commands.BadArgument):
     await ctx.send(
-        "❌ يرجى كتابة عدد الرسائل بالأرقام فقط (مثال: `!مسح 5`).",
+        "❌ يرجى كتابة عدد الرسائل بالأرقام فقط (مثال: `.مسح 5`).",
         delete_after=1,
     )
   elif isinstance(error, commands.BotMissingPermissions):
     await ctx.send(
-        "❌ البوت لا يملك صلاحية `Manage Messages` (إدارة الرسائل) لمسح الشات!"
+        "❌ البوت لا يملك صلاحية `Manage Messages` (إدارة الرسائل) لمسح الشات"
     )
 
 
@@ -1743,7 +1739,7 @@ async def show_banner(ctx, member: discord.Member = None):
   user = await bot.fetch_user(target.id)
 
   if not user.banner:
-    await ctx.send("❌ هذا الحساب لا يملك بنر!", delete_after=2)
+    await ctx.send("❌ هذا الحساب لا يملك بنر", delete_after=2)
     return
 
   banner_url = user.banner.url
@@ -1758,19 +1754,28 @@ async def show_banner(ctx, member: discord.Member = None):
 @show_banner.error
 async def avatar_banner_error(ctx, error):
   if isinstance(error, commands.BadArgument):
-    await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت!", delete_after=2)
+    await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت", delete_after=2)
 
 
 # --- 6. أمر قائمة الألعاب ---
 @bot.command(name="العاب")
 async def games_list(ctx):
   embed = discord.Embed(
-      title="قائمة الألعاب 🎮",
+      title="قائمة الألعاب ",
       description=".سؤال\n.سجن\n.حجر\n.توصيل",
       color=discord.Color.blue(),
   )
   await ctx.send(embed=embed)
 
+# --- 6. أمر قائمة الأوامر  ---
+@bot.command(name="اوامر")
+async def games_list(ctx):
+  embed = discord.Embed(
+      title="قائمة الأوامر",
+      description="n.متجر: شراء الوان ورتب\n.طولاري: يظهر رصيد العضو\n.افتار او بنر: انشاء افتار العضو\n.ت@العضو: لتحويل الطولارات",
+      color=discord.Color.blue(),
+  )
+  await ctx.send(embed=embed)
 
 # --- 7. أوامر الإدارة (باند، ميوت، فك ميوت) ---
 
@@ -1784,28 +1789,28 @@ async def ban_member(
 ):
   if not member:
     await ctx.send(
-        "⚠️ **يرجى منشن العضو المراد حظره!**\nمثال: `.انقلع يالعبد @User"
+        "⚠️ **يرجى منشن العضو المراد حظره**\nمثال: `.انقلع_ يالعبد @User"
         " السبب`",
         delete_after=3,
     )
     return
 
   if member == ctx.author:
-    await ctx.send("❌ لا يمكنك حظر نفسك!")
+    await ctx.send("❌ لا يمكنك حظر نفسك")
     return
 
   if member.id == ctx.guild.owner_id:
-    await ctx.send("❌ لا يمكنك حظر صاحب السيرفر!")
+    await ctx.send("❌ لا يمكنك حظر صاحب السيرفر")
     return
 
   try:
     await member.ban(reason=f"بواسطة {ctx.author.name} - السبب: {reason}")
     await ctx.send(
-        f"🔨 تم حظر العضو **{member.mention}** بنجاح!\n📝 السبب: `{reason}`"
+        f" تم حظر العضو **{member.mention}** بنجاح\n السبب: `{reason}`"
     )
   except discord.Forbidden:
     await ctx.send(
-        "❌ لا أملك صلاحيات كافية لحظر هذا العضو! (تأكد من رتبة البوت أعلى من"
+        "❌ لا أملك صلاحيات كافية لحظر هذا العضو (تأكد من رتبة البوت أعلى من"
         " رتبة العضو)."
     )
   except Exception as e:
@@ -1815,7 +1820,7 @@ async def ban_member(
 @ban_member.error
 async def ban_error(ctx, error):
   if isinstance(error, commands.MissingRole):
-    await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
+    await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
 
 @bot.command(name="ميوت", aliases=["كتم", "mute"])
@@ -1829,14 +1834,14 @@ async def mute_member(
 ):
   if not member:
     await ctx.send(
-        "⚠️ **يرجى منشن العضو المراد كتمه!**\nمثال: `.ميوت @User 15 السبب` (15"
+        "⚠️ **يرجى منشن العضو المراد كتمه**\nمثال: `.ميوت @User 15 السبب` (15"
         " دقيقة)",
         delete_after=3,
     )
     return
 
   if member == ctx.author:
-    await ctx.send("❌ لا يمكنك كتم نفسك!")
+    await ctx.send("❌ لا يمكنك كتم نفسك")
     return
 
   if minutes <= 0:
@@ -1849,11 +1854,11 @@ async def mute_member(
         duration, reason=f"بواسطة {ctx.author.name} - السبب: {reason}"
     )
     await ctx.send(
-        f"🔇 تم كتم العضو **{member.mention}** لمدة **{minutes}** دقيقة!\n📝"
+        f" تم كتم العضو **{member.mention}** لمدة **{minutes}** دقيقة\n"
         f" السبب: `{reason}`"
     )
   except discord.Forbidden:
-    await ctx.send("❌ لا أملك صلاحيات كافية لكتم هذا العضو!")
+    await ctx.send("❌ لا أملك صلاحيات كافية لكتم هذا العضو")
   except Exception as e:
     await ctx.send(f"❌ حدث خطأ: {e}")
 
@@ -1861,21 +1866,21 @@ async def mute_member(
 @mute_member.error
 async def mute_error(ctx, error):
   if isinstance(error, commands.MissingRole):
-    await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
+    await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
 
 @bot.command(name="فك_ميوت", aliases=["فك_الكتم", "unmute"])
 @commands.has_role(OWNER_ROLE_ID)
 async def unmute_member(ctx, member: discord.Member = None):
   if not member:
-    await ctx.send("⚠️ يرجى منشن العضو لفك الكتم عنه!", delete_after=3)
+    await ctx.send("⚠️ يرجى منشن العضو لفك الكتم عنه", delete_after=3)
     return
 
   try:
     await member.timeout(None)
-    await ctx.send(f"🔊 تم فك الكتم عن العضو **{member.mention}** بنجاح!")
+    await ctx.send(f" تم فك الكتم عن العضو **{member.mention}** بنجاح")
   except discord.Forbidden:
-    await ctx.send("❌ لا أملك صلاحيات كافية لفك الكتم عن هذا العضو!")
+    await ctx.send("❌ لا أملك صلاحيات كافية لفك الكتم عن هذا العضو")
   except Exception as e:
     await ctx.send(f"❌ حدث خطأ: {e}")
 
@@ -1883,7 +1888,7 @@ async def unmute_member(ctx, member: discord.Member = None):
 @unmute_member.error
 async def unmute_error(ctx, error):
   if isinstance(error, commands.MissingRole):
-    await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط!", delete_after=3)
+    await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
 
 # --- 8. أحداث التشغيل ---
