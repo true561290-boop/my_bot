@@ -594,6 +594,7 @@ class MainShopView(discord.ui.View):
 @bot.command(name="متجر", aliases=["اقتصاد"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def shop_command(ctx):
+    await ctx.message.delete()
   img_buf = make_card_with_text(
       None,
       "المتجر الملكي",
@@ -1030,6 +1031,7 @@ RIDDLES = [
 @bot.command(name="سؤال", aliases=["quiz", "اسئلة"])
 @in_channel(GAMES_CHANNEL_ID)
 async def quiz_game(ctx, rounds: int = 1):
+    await ctx.message.delete()
   if rounds < 1 or rounds > 10:
     await ctx.send(
         "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط", delete_after=3
@@ -1191,6 +1193,7 @@ class RPSView(discord.ui.View):
 @bot.command(name="حجر", aliases=["حجرة", "rps"])
 @in_channel(GAMES_CHANNEL_ID)
 async def rps_game(ctx):
+    await ctx.message.delete()
   embed = discord.Embed(
       title="🎮 لعبة حجرة ورقة مقص",
       description=(
@@ -1528,6 +1531,7 @@ class Connect4View(discord.ui.View):
 @bot.command(name="توصيل", aliases=["توصيل4", "connect4", "كرات4", "أربعة"])
 @in_channel(GAMES_CHANNEL_ID)
 async def connect4_game(ctx, opponent: discord.Member = None):
+    await ctx.message.delete()
   if opponent and opponent.bot:
     await ctx.send(
         "❌ لا يمكنك تحدي بوت آخر، استخدم الأمر بدون منشن للعب ضد هذا البوت."
@@ -1565,6 +1569,7 @@ async def connect4_game(ctx, opponent: discord.Member = None):
 @bot.command(name="طولاري")
 @in_channel(SHOPPING_CHANNEL_ID)
 async def balance_command(ctx, member: discord.Member = None):
+    await ctx.message.delete()
   target = member or ctx.author
   bal = get_balance(target.id)
 
@@ -1582,6 +1587,7 @@ async def balance_command(ctx, member: discord.Member = None):
 @commands.has_role(OWNER_ROLE_ID)
 @in_channel(SHOPPING_CHANNEL_ID)
 async def add_money(ctx, member: discord.Member, amount: int):
+     await ctx.message.delete()
   if amount <= 0:
     await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من 0.")
     return
@@ -1614,6 +1620,7 @@ async def add_money_error(ctx, error):
 async def transfer_money(
     ctx, member: discord.Member = None, amount: int = None
 ):
+    await ctx.message.delete()
   if not member or amount is None:
     await ctx.send(
         " **طريقة الاستخدام الصحيحة:**\n"
