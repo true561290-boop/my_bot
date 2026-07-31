@@ -52,6 +52,9 @@ FILE_PATH = "user_balances.json"
 LEVEL_50_ROLE_ID = 1515396547473309712
 AVATAR_CHANNEL_ID = 1515396548392128671
 OWNER_ROLE_ID = 1515396547528102131
+GAMES_CHANNEL_ID= 1515416733102379100
+THEFT_CHANNEL_ID= 1532648660997771335
+SHOPPING_CHANNEL_ID= 1532645480373420142
 
 BACKGROUND_IMAGE_URL = "https://i.ibb.co/6R2N29S/vintage-paper-bg.png"
 
@@ -385,7 +388,7 @@ async def on_message(message):
     # =============================================================
     # أ) ميزة تكبير الإيموجي والستيكر في روم الأفاتار فقط
     # =============================================================
-    if message.channel.id == AVATAR_CHANNEL_ID:
+    if message.channel.id == THEFT_CHANNEL_ID:
         # 1. التكبير في حالة الستيكرات (Stickers)
         if message.stickers:
             sticker = message.stickers[0]
@@ -567,6 +570,7 @@ class MainShopView(discord.ui.View):
 
 
 @bot.command(name="متجر", aliases=["اقتصاد"])
+@in_channel(SHOPPING_CHANNEL_ID)
 async def shop_command(ctx):
   img_buf = make_card_with_text(
       None,
@@ -1002,6 +1006,7 @@ RIDDLES = [
 
 # --- أمر المسابقة (الأسئلة) ---
 @bot.command(name="سؤال", aliases=["quiz", "اسئلة"])
+@in_channel(GAMES_CHANNEL_ID)
 async def quiz_game(ctx, rounds: int = 1):
   if rounds < 1 or rounds > 10:
     await ctx.send(
@@ -1052,6 +1057,7 @@ async def quiz_game(ctx, rounds: int = 1):
 
 
 @bot.command(name="سجن")
+@in_channel(GAMES_CHANNEL_ID)
 async def jail_game(ctx, member: discord.Member = None):
   if not member:
     member = ctx.author
@@ -1161,6 +1167,7 @@ class RPSView(discord.ui.View):
 
 
 @bot.command(name="حجر", aliases=["حجرة", "rps"])
+@in_channel(GAMES_CHANNEL_ID)
 async def rps_game(ctx):
   embed = discord.Embed(
       title="🎮 لعبة حجرة ورقة مقص",
@@ -1497,6 +1504,7 @@ class Connect4View(discord.ui.View):
 
 
 @bot.command(name="توصيل", aliases=["توصيل4", "connect4", "كرات4", "أربعة"])
+@in_channel(GAMES_CHANNEL_ID)
 async def connect4_game(ctx, opponent: discord.Member = None):
   if opponent and opponent.bot:
     await ctx.send(
@@ -1533,6 +1541,7 @@ async def connect4_game(ctx, opponent: discord.Member = None):
 
 
 @bot.command(name="طولاري")
+@in_channel(SHOPPING_CHANNEL_ID)
 async def balance_command(ctx, member: discord.Member = None):
   target = member or ctx.author
   bal = get_balance(target.id)
@@ -1563,6 +1572,7 @@ def in_channel(channel_id: int):
 
 @bot.command(name="ض")
 @commands.has_role(OWNER_ROLE_ID)
+@in_channel(SHOPPING_CHANNEL_ID)
 async def add_money(ctx, member: discord.Member, amount: int):
   if amount <= 0:
     await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من 0.")
@@ -1592,6 +1602,7 @@ async def add_money_error(ctx, error):
 
 # --- أمر تحويل الطولارات ---
 @bot.command(name="ت", aliases=["transfer", "pay"])
+@in_channel(SHOPPING_CHANNEL_ID)
 async def transfer_money(ctx, member: discord.Member = None, amount: int = None):
     if not member or amount is None:
         await ctx.send(" **طريقة الاستخدام الصحيحة:**\n`.تحويل @العضو المبلغ`\nمثال: `.تحويل @User 100`", delete_after=5)
