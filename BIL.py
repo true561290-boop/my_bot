@@ -598,7 +598,10 @@ class MainShopView(discord.ui.View):
 @bot.command(name="متجر", aliases=["اقتصاد"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def shop_command(ctx):
-    await ctx.message.delete()
+    try:
+        await ctx.message.delete()
+    except Exception:
+        pass
     img_buf = make_card_with_text(
         None,
         "المتجر الملكي",
@@ -1035,7 +1038,6 @@ RIDDLES = [
 @bot.command(name="سؤال", aliases=["quiz", "اسئلة"])
 @in_channel(GAMES_CHANNEL_ID)
 async def quiz_game(ctx, rounds: int = 1):
-    await ctx.message.delete()
     if rounds < 1 or rounds > 10:
         await ctx.send(
             "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط", delete_after=3
@@ -1088,7 +1090,6 @@ async def quiz_game(ctx, rounds: int = 1):
 @bot.command(name="لغز", aliases=["الغاز", "riddle"])
 @in_channel(GAMES_CHANNEL_ID)
 async def riddle_game(ctx, rounds: int = 1):
-    await ctx.message.delete()
     if rounds < 1 or rounds > 10:
         await ctx.send(
             "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط", delete_after=3
@@ -1208,7 +1209,6 @@ class RPSView(discord.ui.View):
 @bot.command(name="حجر", aliases=["حجرة", "rps"])
 @in_channel(GAMES_CHANNEL_ID)
 async def rps_game(ctx):
-    await ctx.message.delete()
     embed = discord.Embed(
         title="🎮 لعبة حجرة ورقة مقص",
         description=(
@@ -1546,7 +1546,6 @@ class Connect4View(discord.ui.View):
 @bot.command(name="توصيل", aliases=["توصيل4", "connect4", "كرات4", "أربعة"])
 @in_channel(GAMES_CHANNEL_ID)
 async def connect4_game(ctx, opponent: discord.Member = None):
-    await ctx.message.delete()
     if opponent and opponent.bot:
         await ctx.send(
             "❌ لا يمكنك تحدي بوت آخر، استخدم الأمر بدون منشن للعب ضد هذا البوت."
@@ -1584,7 +1583,10 @@ async def connect4_game(ctx, opponent: discord.Member = None):
 @bot.command(name="طولاري")
 @in_channel(SHOPPING_CHANNEL_ID)
 async def balance_command(ctx, member: discord.Member = None):
-    await ctx.message.delete()
+    try:
+        await ctx.message.delete()
+    except Exception:
+        pass
     target = member or ctx.author
     bal = get_balance(target.id)
 
@@ -1602,7 +1604,10 @@ async def balance_command(ctx, member: discord.Member = None):
 @commands.has_role(OWNER_ROLE_ID)
 @in_channel(SHOPPING_CHANNEL_ID)
 async def add_money(ctx, member: discord.Member, amount: int):
-    await ctx.message.delete()
+    try:
+        await ctx.message.delete()
+    except Exception:
+        pass
     if amount <= 0:
         await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من 0.")
         return
@@ -1635,7 +1640,10 @@ async def add_money_error(ctx, error):
 async def transfer_money(
     ctx, member: discord.Member = None, amount: int = None
 ):
-    await ctx.message.delete()
+    try:
+        await ctx.message.delete()
+    except Exception:
+        pass
     if not member or amount is None:
         await ctx.send(
             " **طريقة الاستخدام الصحيحة:**\n"
@@ -1754,8 +1762,12 @@ async def clear_messages_error(ctx, error):
 
 
 @bot.command(name="افتار", aliases=["avatar", "افتاري"])
-@in_channel(1515396548392128671)
+@in_channel(AVATAR_CHANNEL_ID)
 async def show_avatar(ctx, member: discord.Member = None):
+    try:
+        await ctx.message.delete()
+    except Exception:
+        pass
     target = member or ctx.author
     avatar_url = target.display_avatar.url
 
@@ -1766,8 +1778,12 @@ async def show_avatar(ctx, member: discord.Member = None):
 
 
 @bot.command(name="بنر", aliases=["banner", "بنري"])
-@in_channel(1515396548392128671)
+@in_channel(AVATAR_CHANNEL_ID)
 async def show_banner(ctx, member: discord.Member = None):
+    try:
+        await ctx.message.delete()
+    except Exception:
+        pass
     target = member or ctx.author
 
     user = await bot.fetch_user(target.id)
@@ -1902,7 +1918,7 @@ async def mute_member(
         await ctx.send(f"❌ حدث خطأ: {e}")
 
 
-@mute_error
+@mute_member.error
 async def mute_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
