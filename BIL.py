@@ -1761,7 +1761,7 @@ async def show_avatar(ctx, member: discord.Member = None):
 @in_channel(AVATAR_CHANNEL_ID)
 async def show_banner(ctx, member: discord.Member = None):
     target = member or ctx.author
-	user = await bot.fetch_user(target.id)
+    user = await bot.fetch_user(target.id)
 
     if not user.banner:
         await ctx.send("❌ هذا الحساب لا يملك بنر", delete_after=2)
