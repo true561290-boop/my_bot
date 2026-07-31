@@ -52,13 +52,26 @@ FILE_PATH = "user_balances.json"
 LEVEL_50_ROLE_ID = 1515396547473309712
 AVATAR_CHANNEL_ID = 1515396548392128671
 OWNER_ROLE_ID = 1515396547528102131
-GAMES_CHANNEL_ID= 1515416733102379100
-THEFT_CHANNEL_ID= 1532648660997771335
-SHOPPING_CHANNEL_ID= 1532645480373420142
+GAMES_CHANNEL_ID = 1515416733102379100
+THEFT_CHANNEL_ID = 1532648660997771335
+SHOPPING_CHANNEL_ID = 1532645480373420142
 
 BACKGROUND_IMAGE_URL = "https://i.ibb.co/6R2N29S/vintage-paper-bg.png"
 
 FONT_PATH = "arabic_font.ttf"
+
+
+def in_channel(channel_id: int):
+  async def predicate(ctx):
+    if ctx.channel.id != channel_id:
+      await ctx.send(
+          f"❌ هذا الأمر يعمل فقط في الروم المخصص: <#{channel_id}>",
+          delete_after=3,
+      )
+      return False
+    return True
+
+  return commands.check(predicate)
 
 
 def ensure_arabic_font():
@@ -382,73 +395,82 @@ class ColorSelect(discord.ui.Select):
 # --- 4. نظام الرد التلقائي + تكبير الإيموجي/الستيكر + منع الخط الكبير (#) ---
 @bot.event
 async def on_message(message):
-    if message.author.bot:
-        return
+  if message.author.bot:
+    return
 
-    # =============================================================
-    # أ) ميزة تكبير الإيموجي والستيكر في روم الأفاتار فقط
-    # =============================================================
-    if message.channel.id == THEFT_CHANNEL_ID:
-        # 1. التكبير في حالة الستيكرات (Stickers)
-        if message.stickers:
-            sticker = message.stickers[0]
-            await message.channel.send(sticker.url)
-            return
+  # =============================================================
+  # أ) ميزة تكبير الإيموجي والستيكر في روم الأفاتار فقط
+  # =============================================================
+  if message.channel.id == THEFT_CHANNEL_ID:
+    # 1. التكبير في حالة الستيكرات (Stickers)
+    if message.stickers:
+      sticker = message.stickers[0]
+      await message.channel.send(sticker.url)
+      return
 
-        # 2. التكبير في حالة الإيموجيات المخصصة (Custom Emojis)
-        emoji_match = re.search(r'<(a)?:(\w+):(\d+)>', message.content)
-        if emoji_match:
-            is_animated = emoji_match.group(1)
-            emoji_id = emoji_match.group(3)
-            extension = "gif" if is_animated else "png"
-            emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{extension}?size=1024"
-            await message.channel.send(emoji_url)
-            return
+    # 2. التكبير في حالة الإيموجيات المخصصة (Custom Emojis)
+    emoji_match = re.search(r"<(a)?:(\w+):(\d+)>", message.content)
+    if emoji_match:
+      is_animated = emoji_match.group(1)
+      emoji_id = emoji_match.group(3)
+      extension = "gif" if is_animated else "png"
+      emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{extension}?size=1024"
+      await message.channel.send(emoji_url)
+      return
 
-    # تنظيف النص وإزالة النقطة والمسافات الزائدة من البداية
-    raw_content = message.content.strip()
-    clean_content = raw_content[1:].strip() if raw_content.startswith(".") else raw_content
+  # تنظيف النص وإزالة النقطة والمسافات الزائدة من البداية
+  raw_content = message.content.strip()
+  clean_content = (
+      raw_content[1:].strip() if raw_content.startswith(".") else raw_content
+  )
 
-    # =============================================================
-    # ب) قائمة الكلمات والردود التلقائية
-    # =============================================================
-    auto_responses = {
-        "السلام عليكم": f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
-        "السلام عليكم ورحمة الله وبركاته": f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
-        "سلام عليكم": f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
-        "باك": f"ولكم باك {message.author.mention}"
-    }
+  # =============================================================
+  # ب) قائمة الكلمات والردود التلقائية
+  # =============================================================
+  auto_responses = {
+      "السلام عليكم": (
+          f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}"
+      ),
+      "السلام عليكم ورحمة الله وبركاته": (
+          f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}"
+      ),
+      "سلام عليكم": (
+          f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}"
+      ),
+      "باك": f"ولكم باك {message.author.mention}",
+  }
 
-    user_msg = clean_content if clean_content in auto_responses else raw_content
-    if user_msg in auto_responses:
-        await message.channel.send(
-            auto_responses[user_msg],
-            allowed_mentions=discord.AllowedMentions(users=False)
+  user_msg = clean_content if clean_content in auto_responses else raw_content
+  if user_msg in auto_responses:
+    await message.channel.send(
+        auto_responses[user_msg],
+        allowed_mentions=discord.AllowedMentions(users=False),
+    )
+    return
+
+  # =============================================================
+  # ج) نظام منع الخط الكبير (#) بدون رتبة Level 50
+  # =============================================================
+  if message.content.startswith("# "):
+    level_50_role = message.guild.get_role(LEVEL_50_ROLE_ID)
+    if level_50_role and level_50_role not in message.author.roles:
+      try:
+        await message.delete()
+        warning = await message.channel.send(
+            f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك"
+            " لا تملك رتبة **Level 50** يمكنك شراؤها من المتجر.",
+            allowed_mentions=discord.AllowedMentions(users=False),
         )
+        await asyncio.sleep(2)
+        await warning.delete()
         return
+      except Exception as e:
+        print(f"خطأ أثناء حذف الرسالة: {e}")
 
-    # =============================================================
-    # ج) نظام منع الخط الكبير (#) بدون رتبة Level 50
-    # =============================================================
-    if message.content.startswith("# "):
-        level_50_role = message.guild.get_role(LEVEL_50_ROLE_ID)
-        if level_50_role and level_50_role not in message.author.roles:
-            try:
-                await message.delete()
-                warning = await message.channel.send(
-                    f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك لا تملك رتبة **Level 50** يمكنك شراؤها من المتجر.",
-                    allowed_mentions=discord.AllowedMentions(users=False)
-                )
-                await asyncio.sleep(2)
-                await warning.delete()
-                return
-            except Exception as e:
-                print(f"خطأ أثناء حذف الرسالة: {e}")
-
-    # =============================================================
-    # د) معالجة باقي أوامر البوت
-    # =============================================================
-    await bot.process_commands(message)
+  # =============================================================
+  # د) معالجة باقي أوامر البوت
+  # =============================================================
+  await bot.process_commands(message)
 
 
 class VIPSelect(discord.ui.Select):
@@ -1530,9 +1552,9 @@ async def connect4_game(ctx, opponent: discord.Member = None):
   else:
     view = Connect4View(player1=ctx.author)
     msg = await ctx.send(
-        f"**بدأت لعبة توصيل الكرات 4** بين"
-        f" {ctx.author.mention} (🔴) و البوت (🟡)\nالجائزة: **60 طولار**"
-        f" للفائز!\nدور: {ctx.author.mention}\n\n"
+        f"**بدأت لعبة توصيل الكرات 4** بين {ctx.author.mention} (🔴) و"
+        " البوت (🟡)\nالجائزة: **60 طولار** للفائز!\nدور:"
+        f" {ctx.author.mention}\n\n"
         + view.get_board_string(),
         view=view,
         allowed_mentions=discord.AllowedMentions(users=False),
@@ -1554,20 +1576,6 @@ async def balance_command(ctx, member: discord.Member = None):
   )
   file = discord.File(fp=img_buf, filename="balance.png")
   await ctx.send(file=file)
-
-
-def in_channel(channel_id: int):
-
-  async def predicate(ctx):
-    if ctx.channel.id != channel_id:
-      await ctx.send(
-          f"❌ هذا الأمر يعمل فقط في الروم المخصص: <#{channel_id}>",
-          delete_after=3,
-      )
-      return False
-    return True
-
-  return commands.check(predicate)
 
 
 @bot.command(name="ض")
@@ -1603,42 +1611,55 @@ async def add_money_error(ctx, error):
 # --- أمر تحويل الطولارات ---
 @bot.command(name="ت", aliases=["transfer", "pay"])
 @in_channel(SHOPPING_CHANNEL_ID)
-async def transfer_money(ctx, member: discord.Member = None, amount: int = None):
-    if not member or amount is None:
-        await ctx.send(" **طريقة الاستخدام الصحيحة:**\n`.تحويل @العضو المبلغ`\nمثال: `.تحويل @User 100`", delete_after=5)
-        return
-
-    if member.bot:
-        await ctx.send("❌ لا يمكنك تحويل الطولارات للبوتات", delete_after=3)
-        return
-
-    if member == ctx.author:
-        await ctx.send("❌ لا يمكنك تحويل الطولارات لنفسك", delete_after=3)
-        return
-
-    if amount <= 0:
-        await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من **0**", delete_after=3)
-        return
-
-    sender_balance = get_balance(ctx.author.id)
-    if sender_balance < amount:
-        await ctx.send(f"❌ رصيدك غير كاف رصيدك الحالي هو **{sender_balance}** طولار.", delete_after=5)
-        return
-
-    remove_balance(ctx.author.id, amount)
-    add_balance(member.id, amount)
-
+async def transfer_money(
+    ctx, member: discord.Member = None, amount: int = None
+):
+  if not member or amount is None:
     await ctx.send(
-        f" **تم التحويل بنجاح**\n"
-        f"قمـت بـتحـويـل **{amount}** طولار إلى {member.mention}.\n"
-        f" رصيدك المتبقي: **{get_balance(ctx.author.id)}** طولار.",
-        allowed_mentions=discord.AllowedMentions(users=False)
+        " **طريقة الاستخدام الصحيحة:**\n"
+        "`.تحويل @العضو المبلغ`\n"
+        "مثال: `.تحويل @User 100`",
+        delete_after=5,
     )
+    return
+
+  if member.bot:
+    await ctx.send("❌ لا يمكنك تحويل الطولارات للبوتات", delete_after=3)
+    return
+
+  if member == ctx.author:
+    await ctx.send("❌ لا يمكنك تحويل الطولارات لنفسك", delete_after=3)
+    return
+
+  if amount <= 0:
+    await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من **0**", delete_after=3)
+    return
+
+  sender_balance = get_balance(ctx.author.id)
+  if sender_balance < amount:
+    await ctx.send(
+        f"❌ رصيدك غير كاف رصيدك الحالي هو **{sender_balance}** طولار.",
+        delete_after=5,
+    )
+    return
+
+  remove_balance(ctx.author.id, amount)
+  add_balance(member.id, amount)
+
+  await ctx.send(
+      " **تم التحويل بنجاح**\n"
+      f"قمـت بـتحـويـل **{amount}** طولار إلى {member.mention}.\n"
+      f" رصيدك المتبقي: **{get_balance(ctx.author.id)}** طولار.",
+      allowed_mentions=discord.AllowedMentions(users=False),
+  )
+
 
 @transfer_money.error
 async def transfer_money_error(ctx, error):
-    if isinstance(error, commands.BadArgument):
-        await ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.", delete_after=3)
+  if isinstance(error, commands.BadArgument):
+    await ctx.send(
+        "❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.", delete_after=3
+    )
 
 
 @bot.command(name="ايدي")
@@ -1692,9 +1713,7 @@ async def clear_messages(ctx, amount: int = None):
     return
 
   deleted = await ctx.channel.purge(limit=amount + 1)
-  await ctx.send(
-      f" تم مسح **{len(deleted) - 1}** رسالة بنجاح", delete_after=1
-  )
+  await ctx.send(f" تم مسح **{len(deleted) - 1}** رسالة بنجاح", delete_after=1)
 
 
 @clear_messages.error
@@ -1760,17 +1779,23 @@ async def games_list(ctx):
   )
   await ctx.send(embed=embed)
 
+
 # --- 6. أمر قائمة الأوامر ---
 @bot.command(name="اوامر")
 async def commands_list(ctx):
   embed = discord.Embed(
       title="قائمة الأوامر",
-      description=".متجر: شراء الوان ورتب\n.طولاري: يظهر رصيد العضو\n.افتار او بنر: انشاء افتار العضو\n.ت @العضو: لتحويل الطولارات",
+      description=(
+          ".متجر: شراء الوان ورتب\n.طولاري: يظهر رصيد العضو\n.افتار او بنر:"
+          " انشاء افتار العضو\n.ت @العضو: لتحويل الطولارات"
+      ),
       color=discord.Color.blue(),
   )
   await ctx.send(embed=embed)
 
+
 # --- 7. أوامر الإدارة (باند، ميوت، فك ميوت) ---
+
 
 @bot.command(
     name="انقلع_يالعبد",
