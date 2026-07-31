@@ -64,6 +64,10 @@ FONT_PATH = "arabic_font.ttf"
 def in_channel(channel_id: int):
     async def predicate(ctx):
         if ctx.channel.id != channel_id:
+            try:
+                await ctx.message.delete()
+            except Exception:
+                pass
             await ctx.send(
                 f"❌ هذا الأمر يعمل فقط في الروم المخصص: <#{channel_id}>",
                 delete_after=3,
@@ -1898,7 +1902,7 @@ async def mute_member(
         await ctx.send(f"❌ حدث خطأ: {e}")
 
 
-@mute_member.error
+@mute_error
 async def mute_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
