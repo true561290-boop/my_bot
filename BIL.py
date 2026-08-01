@@ -202,15 +202,15 @@ SHOP_VIP_ROLES = {
     },
 }
 
-# تم تعديل جميع أسعار الألوان إلى 500
+# تم تعديل جميع أسعار الألوان إلى 800
 SHOP_COLOR_ROLES = {
-    "c_red": {"name": "أحمر", "price": 500, "id": 1515396547536355469},
-    "c_blue": {"name": "أزرق", "price": 500, "id": 1515396547528102135},
-    "c_green": {"name": "أخضر", "price": 500, "id": 1515396547528102136},
-    "c_purple": {"name": "بنفسجي", "price": 500, "id": 1515396547528102134},
-    "c_yellow": {"name": "أصفر", "price": 500, "id": 1515396547528102137},
-    "c_gray": {"name": "رمادي", "price": 500, "id": 1515487581138190376},
-    "c_skin": {"name": "Skin", "price": 500, "id": 1515480359553335441},
+    "c_red": {"name": "أحمر", "price": 800, "id": 1515396547536355469},
+    "c_blue": {"name": "أزرق", "price": 800, "id": 1515396547528102135},
+    "c_green": {"name": "أخضر", "price": 800, "id": 1515396547528102136},
+    "c_purple": {"name": "بنفسجي", "price": 800, "id": 1515396547528102134},
+    "c_yellow": {"name": "أصفر", "price": 800, "id": 1515396547528102137},
+    "c_gray": {"name": "رمادي", "price": 800, "id": 1515487581138190376},
+    "c_skin": {"name": "Skin", "price": 800, "id": 1515480359553335441},
 }
 
 
@@ -1977,7 +1977,7 @@ async def unmute_member(ctx, member: discord.Member = None):
         await ctx.send(f"❌ حدث خطأ: {e}")
 
 
-@unmute_member.error
+@unmute_error
 async def unmute_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
