@@ -117,7 +117,7 @@ def load_balances():
         with open(FILE_PATH, "r", encoding="utf-8") as f:
             try:
                 return json.load(f)
-            except json.JSONDecodeError:
+            except json.DecodeError:
                 return {}
     return {}
 
@@ -1807,6 +1807,68 @@ async def commands_list(ctx):
     await ctx.send(embed=embed)
 
 
+# --- أمر المساعدة الشامل جديد ---
+@bot.command(name="مساعدة", aliases=["help", "المساعدة"])
+async def help_command(ctx):
+    embed = discord.Embed(
+        title="📜 دليل أوامر البوت الشامل",
+        description="إليك قائمة بجميع الأوامر والخصائص المتاحة في البوت:",
+        color=discord.Color.gold(),
+    )
+
+    embed.add_field(
+        name="🎮 الألعاب (روم الألعاب فقط)",
+        value=(
+            "• `.سؤال [عدد الجولات]` : مسابقة أسئلة عامة (1-10 جولات)\n"
+            "• `.لغز [عدد الجولات]` : التحدي بالألغاز (1-10 جولات)\n"
+            "• `.حجر` : لعبة حجرة ورقة مقص ضد البوت بالأزرار\n"
+            "• `.توصيل [@عضو]` : لعبة Connect 4 ضد البوت أو عضو آخر\n"
+            "• `.العاب` : عرض القائمة السريعة للألعاب"
+        ),
+        inline=False,
+    )
+
+    embed.add_field(
+        name="💰 الاقتصاد والمتجر (روم المتجر فقط)",
+        value=(
+            "• `.متجر` : فتح المتجر الملكي لشراء الرتب والأسماء الملونة\n"
+            "• `.طولاري [@عضو]` : عرض رصيد الطولارات الخاص بك أو بعضو آخر\n"
+            "• `.ت @العضو المبلغ` : تحويل طولارات إلى عضو آخر"
+        ),
+        inline=False,
+    )
+
+    embed.add_field(
+        name="🖼️ البروفايل والأفاتار (روم الأفاتار فقط)",
+        value=(
+            "• `.افتار [@عضو]` : عرض الصورة الشخصية\n"
+            "• `.بنر [@عضو]` : عرض الغلاف الخاص بالحساب\n"
+            "• *تكبير الإيموجيات المخصصة والستيكرات يشتغل تلقائياً عند إرسالها هنا.*"
+        ),
+        inline=False,
+    )
+
+    embed.add_field(
+        name="⚙️ العامة والإدارة",
+        value=(
+            "• `.ايدي [روم/رتبة/عضو]` : معرفة الـ ID بأي شيء\n"
+            "• `.اوامر` : قائمة الأوامر الأساسية السريعة\n"
+            "• `.ض @العضو المبلغ` : إضافة طولارات (لصاحب رتبة الاونر فقط)\n"
+            "• `.مسح [العدد]` : مسح الرسائل من الشات (لصاحب رتبة الاونر فقط)\n"
+            "• `.انقلع_يالعبد @العضو [السبب]` : حظر عضو (لصاحب رتبة الاونر فقط)\n"
+            "• `.ميوت @العضو [الدقائق] [السبب]` : كتم عضو (لصاحب رتبة الاونر فقط)\n"
+            "• `.فك_ميوت @العضو` : إزالة الكتم عن عضو (لصاحب رتبة الاونر فقط)"
+        ),
+        inline=False,
+    )
+
+    embed.set_footer(
+        text=f"طلب بواسطة {ctx.author.display_name}",
+        icon_url=ctx.author.display_avatar.url,
+    )
+    await ctx.send(embed=embed)
+
+
 # --- 7. أوامر الإدارة (باند، ميوت، فك ميوت) ---
 
 
@@ -1847,7 +1909,7 @@ async def ban_member(
         await ctx.send(f"❌ حدث خطأ أثناء الحظر: {e}")
 
 
-@ban_member.error
+@ban_error
 async def ban_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
