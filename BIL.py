@@ -43,6 +43,7 @@ keep_alive()
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix=".", intents=intents)
+bot.remove_command("help")  # إلغاء أمر المساعدة الافتراضي لمنع التكرار والخطأ
 
 GITHUB_TOKEN = "ghp_2v2m8IXKyh0YQxZRrQnjbl08gmEH5C4E7P3b"
 REPO_OWNER = "true561290-boop"
@@ -1909,8 +1910,8 @@ async def ban_member(
         await ctx.send(f"❌ حدث خطأ أثناء الحظر: {e}")
 
 
-@ban_error
-async def ban_error(ctx, error):
+@ban_member.error
+async def ban_member_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
@@ -1956,7 +1957,7 @@ async def mute_member(
 
 
 @mute_member.error
-async def mute_error(ctx, error):
+async def mute_member_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
@@ -1977,8 +1978,8 @@ async def unmute_member(ctx, member: discord.Member = None):
         await ctx.send(f"❌ حدث خطأ: {e}")
 
 
-@unmute_error
-async def unmute_error(ctx, error):
+@unmute_member.error
+async def unmute_member_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
