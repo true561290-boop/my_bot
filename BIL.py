@@ -1220,14 +1220,14 @@ class XOButton(discord.ui.Button):
         view: XOView = self.view
         if interaction.user != view.current_player:
             await interaction.response.send_message(
-                "❌ ليس دورك الآن!", ephemeral=True
+                "❌ ليس دورك الآن", ephemeral=True
             )
             return
 
         idx = self.y * 3 + self.x
         if view.board[idx] != " ":
             await interaction.response.send_message(
-                "❌ هذا المربع مشغول بالفعل!", ephemeral=True
+                "❌ هذا المربع مشغول بالفعل", ephemeral=True
             )
             return
 
@@ -1247,8 +1247,8 @@ class XOButton(discord.ui.Button):
             add_balance(view.current_player.id, 50)
             await interaction.response.edit_message(
                 content=(
-                    f"🎉 **فاز {view.current_player.mention} ({view.current_mark}) في لعبة إكس أو!**\n"
-                    f"💵 تم إضافة **50 طولار** لرصيده!"
+                    f"**فاز {view.current_player.mention} ({view.current_mark}) في لعبة إكس أو**\n"
+                    f"💵 تم إضافة **50 طولار** لرصيده"
                 ),
                 view=view,
             )
@@ -1259,7 +1259,7 @@ class XOButton(discord.ui.Button):
             for child in view.children:
                 child.disabled = True
             await interaction.response.edit_message(
-                content="🤝 **تعادل! انتهت اللعبة بدون فائز.**", view=view
+                content=" **تعادل، انتهت اللعبة بدون فائز.**", view=view
             )
             view.stop()
             return
@@ -1293,7 +1293,7 @@ class XOButton(discord.ui.Button):
                     for child in view.children:
                         child.disabled = True
                     await interaction.response.edit_message(
-                        content="🤖 **فاز البوت عليك في لعبة إكس أو! حظاً أوفر في المرة القادمة.**",
+                        content="🤖 **فاز البوت عليك في لعبة إكس أو.**",
                         view=view,
                     )
                     view.stop()
@@ -1303,7 +1303,7 @@ class XOButton(discord.ui.Button):
                     for child in view.children:
                         child.disabled = True
                     await interaction.response.edit_message(
-                        content="🤝 **تعادل! انتهت اللعبة بدون فائز.**", view=view
+                        content=" **تعادل، انتهت اللعبة بدون فائز.**", view=view
                     )
                     view.stop()
                     return
@@ -1311,7 +1311,7 @@ class XOButton(discord.ui.Button):
             await interaction.response.edit_message(
                 content=(
                     f"❌⭕ **لعبة إكس أو (XO)**\n"
-                    f"لعب البوت دوره! حان دورك يا {view.player1.mention} (❌)\n"
+                    f"لعب البوت دوره، حان دورك يا {view.player1.mention} (❌)\n"
                     f"الجائزة: **50 طولار** عند الفوز"
                 ),
                 view=view,
@@ -1390,7 +1390,7 @@ class XOView(discord.ui.View):
         return random.choice(empty_indices)
 
 
-@bot.command(name="إكس_أو", aliases=["اكس_او", "xo", "tictactoe"])
+@bot.command(name="اكس", aliases=["اكس_او", "xo", "tictactoe"])
 @in_channel(GAMES_CHANNEL_ID)
 async def xo_game(ctx, opponent: discord.Member = None):
     if opponent and opponent.bot:
@@ -1400,16 +1400,16 @@ async def xo_game(ctx, opponent: discord.Member = None):
         return
 
     if opponent and opponent == ctx.author:
-        await ctx.send("❌ لا يمكنك تحدي نفسك!")
+        await ctx.send("❌ لا يمكنك تحدي نفسك")
         return
 
     if opponent:
         view = XOView(player1=ctx.author, player2=opponent)
         msg = await ctx.send(
-            f"❌⭕ **بدأت لعبة إكس أو (XO)!**\n"
+            f"❌⭕ **بدأت لعبة إكس أو (XO)**\n"
             f"المنافسة بين {ctx.author.mention} (❌) و {opponent.mention} (⭕)\n"
             f"الدور الحالى: {ctx.author.mention}\n"
-            f"الجائزة: **50 طولار** للفائز!",
+            f"الجائزة: **50 طولار** للفائز",
             view=view,
             allowed_mentions=discord.AllowedMentions(users=False),
         )
@@ -1417,10 +1417,10 @@ async def xo_game(ctx, opponent: discord.Member = None):
     else:
         view = XOView(player1=ctx.author)
         msg = await ctx.send(
-            f"❌⭕ **بدأت لعبة إكس أو (XO) ضد البوت!**\n"
+            f"❌⭕ **بدأت لعبة إكس أو (XO) ضد البوت**\n"
             f"أنت تلعب بـ (❌) والبوت يلعب بـ (⭕)\n"
             f"الدور الحالى: {ctx.author.mention}\n"
-            f"الجائزة: **50 طولار** عند الفوز!",
+            f"الجائزة: **50 طولار** عند الفوز",
             view=view,
             allowed_mentions=discord.AllowedMentions(users=False),
         )
@@ -1993,7 +1993,7 @@ async def avatar_banner_error(ctx, error):
 async def games_list(ctx):
     embed = discord.Embed(
         title="قائمة الألعاب ",
-        description=".سؤال\n.لغز\n.حجر\n.إكس_أو\n.توصيل",
+        description=".سؤال\n.لغز\n.حجر\n.اكس\n.توصيل",
         color=discord.Color.blue(),
     )
     await ctx.send(embed=embed)
@@ -2028,7 +2028,7 @@ async def help_command(ctx):
             "• `.سؤال [عدد الجولات]` : مسابقة أسئلة عامة (1-10 جولات)\n"
             "• `.لغز [عدد الجولات]` : التحدي بالألغاز (1-10 جولات)\n"
             "• `.حجر` : لعبة حجرة ورقة مقص ضد البوت بالأزرار\n"
-            "• `.إكس_أو [@عضو]` : لعبة إكس أو (XO) التفاعلية ضد البوت أو عضو آخر\n"
+            "• `.اكس [@عضو]` : لعبة إكس أو (XO) التفاعلية ضد البوت أو عضو آخر\n"
             "• `.توصيل [@عضو]` : لعبة Connect 4 ضد البوت أو عضو آخر\n"
             "• `.العاب` : عرض القائمة السريعة للألعاب"
         ),
