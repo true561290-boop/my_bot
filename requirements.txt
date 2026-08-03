@@ -1,5 +1,7 @@
 discord.py
 Pillow
+easy-pil
 Flask
 requests
 aiohttp
+pytz

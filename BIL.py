@@ -42,6 +42,7 @@ keep_alive()
 # --- 2. إعدادات البوت والبيانات ---
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True  # تفعيل خاصية متابعة الأعضاء للترحيب
 bot = commands.Bot(command_prefix=".", intents=intents)
 bot.remove_command("help")  # إلغاء أمر المساعدة الافتراضي لمنع التكرار والخطأ
 
@@ -50,6 +51,7 @@ REPO_OWNER = "true561290-boop"
 REPO_NAME = "my_bot"
 FILE_PATH = "user_balances.json"
 
+WELCOME_CHANNEL_ID = 1515396548392128670  # آيدي روم الترحيب
 LEVEL_50_ROLE_ID = 1515396547473309712
 AVATAR_CHANNEL_ID = 1515396548392128671
 OWNER_ROLE_ID = 1515396547528102131
@@ -289,6 +291,83 @@ def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
             fill=TEXT_COLOR_SUB,
             anchor="mm",
         )
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+
+def make_welcome_card(user):
+    width, height = 800, 550
+
+    if os.path.exists("bg_paper.png"):
+        try:
+            img = Image.open("bg_paper.png").convert("RGBA").resize((width, height))
+        except Exception as e:
+            print(f"خطأ في قراءة الصورة المحلية: {e}")
+            img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
+    else:
+        try:
+            res = requests.get(
+                "https://raw.githubusercontent.com/true561290-boop/my_bot/main/bg_paper.png"
+            )
+            if res.status_code == 200:
+                img = (
+                    Image.open(io.BytesIO(res.content))
+                    .convert("RGBA")
+                    .resize((width, height))
+                )
+            else:
+                img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
+        except Exception as e:
+            print(f"لم يتم جلب الصورة، الاعتماد على لون احتياطي: {e}")
+            img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
+
+    try:
+        avatar_url = user.display_avatar.url
+        res = requests.get(avatar_url)
+        if res.status_code == 200:
+            avatar = Image.open(io.BytesIO(res.content)).convert("RGBA")
+            avatar = avatar.resize((150, 150))
+
+            mask = Image.new("L", (150, 150), 0)
+            draw_mask = ImageDraw.Draw(mask)
+            draw_mask.ellipse((0, 0, 150, 150), fill=255)
+
+            img.paste(avatar, (width // 2 - 75, 120), mask)
+    except Exception as e:
+        print(f"فشل جلب أفتار المستخدم: {e}")
+
+    draw = ImageDraw.Draw(img)
+
+    font_large = ImageFont.load_default()
+    font_sub = ImageFont.load_default()
+
+    if os.path.exists(FONT_PATH):
+        try:
+            font_large = ImageFont.truetype(FONT_PATH, 42)
+            font_sub = ImageFont.truetype(FONT_PATH, 24)
+        except Exception as e:
+            print(f"Font error: {e}")
+
+    TEXT_COLOR_TITLE = (80, 20, 10, 255)
+    TEXT_COLOR_SUB = (90, 60, 40, 255)
+
+    draw.text(
+        (width // 2, 320),
+        "مرحباً بك في السيرفر!",
+        font=font_large,
+        fill=TEXT_COLOR_TITLE,
+        anchor="mm",
+    )
+    draw.text(
+        (width // 2, 380),
+        f"{user.display_name}",
+        font=font_sub,
+        fill=TEXT_COLOR_SUB,
+        anchor="mm",
+    )
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -2238,7 +2317,19 @@ async def unmute_member_error(ctx, error):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
 
-# --- 12. أحداث التشغيل ---
+# --- 12. أحداث التشغيل والترحيب ---
+@bot.event
+async def on_member_join(member):
+    channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
+    if channel:
+        img_buf = make_welcome_card(member)
+        file = discord.File(fp=img_buf, filename="welcome.png")
+        await channel.send(
+            content=f"أهلاً وسهلاً بك يا {member.mention} في السيرفر! 🎉",
+            file=file
+        )
+
+
 @bot.event
 async def on_ready():
     print(f"✅ تم تسجيل الدخول باسم: {bot.user.name}")
