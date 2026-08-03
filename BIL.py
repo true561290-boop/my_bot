@@ -1988,6 +1988,53 @@ async def avatar_banner_error(ctx, error):
         await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت", delete_after=2)
 
 
+# --- أمر تغيير بروفايل البوت (افتار/بنر) للأدمن في روم الافتار ---
+@bot.command(name="تغيير")
+@commands.has_permissions(administrator=True)
+@in_channel(AVATAR_CHANNEL_ID)
+async def change_profile(ctx):
+    await ctx.send("أهلاً بك! ماذا تريد أن تغير؟ اكتب **افتار** أو **بنر**.")
+
+    def check_choice(m):
+        return m.author == ctx.author and m.channel == ctx.channel and m.content in ["افتار", "بنر"]
+
+    try:
+        choice_msg = await bot.wait_for("message", check=check_choice, timeout=30.0)
+        choice = choice_msg.content
+
+        await ctx.send(f"تم اختيار **{choice}**. الرجاء إرسال الصورة الآن كملف مرفق.")
+
+        def check_image(m):
+            return m.author == ctx.author and m.channel == ctx.channel and len(m.attachments) > 0
+
+        img_msg = await bot.wait_for("message", check=check_image, timeout=60.0)
+        image_url = img_msg.attachments[0].url
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(image_url) as resp:
+                if resp.status != 200:
+                    return await ctx.send("تعذر تحميل الصورة، حاول مرة أخرى.")
+                image_data = await resp.read()
+
+        if choice == "افتار":
+            await bot.user.edit(avatar=image_data)
+            await ctx.send("تم تغيير رمزية (افتار) البوت بنجاح! ✅")
+        elif choice == "بنر":
+            await bot.user.edit(banner=image_data)
+            await ctx.send("تم تغيير بنر البوت بنجاح! ✅")
+
+    except asyncio.TimeoutError:
+        await ctx.send("تأخرت في الرد، تم إلغاء العملية.")
+    except discord.HTTPException as e:
+        await ctx.send(f"حدث خطأ أثناء التحديث: {e}")
+
+
+@change_profile.error
+async def change_profile_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("عذراً، هذا الأمر مخصص للمسؤولين (Admins) فقط! ❌")
+
+
 # --- 9. أمر قائمة الألعاب ---
 @bot.command(name="العاب")
 async def games_list(ctx):
@@ -2036,7 +2083,7 @@ async def help_command(ctx):
     )
 
     embed.add_field(
-        name="💰 الاقتصاد والمتجر (روم المتجر فقط)",
+        name="💰 الاقتصاد ومتجر الرتب (روم المتجر فقط)",
         value=(
             "• `.متجر` : فتح المتجر الملكي لشراء الرتب والأسماء الملونة\n"
             "• `.طولاري [@عضو]` : عرض رصيد الطولارات الخاص بك أو بعضو آخر\n"
@@ -2050,6 +2097,7 @@ async def help_command(ctx):
         value=(
             "• `.افتار [@عضو]` : عرض الصورة الشخصية\n"
             "• `.بنر [@عضو]` : عرض الغلاف الخاص بالحساب\n"
+            "• `.تغيير` : تغيير افتار أو بنر البوت (للمسؤولين فقط)\n"
             "• *تكبير الإيموجيات المخصصة والستيكرات يشتغل تلقائياً عند إرسالها هنا.*"
         ),
         inline=False,
