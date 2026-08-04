@@ -8,20 +8,8 @@ REPO_OWNER = "true561290-boop"
 REPO_NAME = "my_bot"
 FILE_PATH = "user_balances.json"
 
-
-def fetch_latest_balances_from_github():
-    raw_url = f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/main/{FILE_PATH}"
-    try:
-        response = requests.get(raw_url)
-        if response.status_code == 200:
-            data = response.json()
-            with open(FILE_PATH, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
-            print("✅ تم جلب أحدث نسخة أرصدة من GitHub بنجاح!")
-        else:
-            print("⚠️ لم يتم العثور على الملف في GitHub أو هو فارغ حالياً.")
-    except Exception as e:
-        print(f"❌ خطأ أثناء جلب الأرصدة من GitHub: {e}")
+# متغير القاموس في الذاكرة
+user_balances = {}
 
 
 def load_balances():
@@ -34,11 +22,34 @@ def load_balances():
     return {}
 
 
+def fetch_latest_balances_from_github():
+    global user_balances
+    raw_url = (
+        f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/main/{FILE_PATH}"
+    )
+    try:
+        response = requests.get(raw_url)
+        if response.status_code == 200:
+            data = response.json()
+            with open(FILE_PATH, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+            print("✅ تم جلب أحدث نسخة أرصدة من GitHub بنجاح!")
+        else:
+            print("⚠️ لم يتم العثور على الملف في GitHub أو هو فارغ حالياً.")
+    except Exception as e:
+        print(f"❌ خطأ أثناء جلب الأرصدة من GitHub: {e}")
+
+    # إعادة تحديث المتغير في الذاكرة بالبيانات الجديدة المجلوبة
+    user_balances = load_balances()
+
+
 def save_balances_local_and_cloud(balances):
     with open(FILE_PATH, "w", encoding="utf-8") as f:
         json.dump(balances, f, ensure_ascii=False, indent=4)
 
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
+    url = (
+        f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
+    )
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
         "Accept": "application/vnd.github.v3+json",
@@ -66,8 +77,8 @@ def save_balances_local_and_cloud(balances):
         print(f"❌ فشل تحديث GitHub: {put_res.text}")
 
 
-# تحميل الأرصدة عند التشغيل
-user_balances = load_balances()
+# جلب أحدث البيانات فور تحميل الموديول
+fetch_latest_balances_from_github()
 
 
 def get_balance(user_id):
