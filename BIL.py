@@ -1989,7 +1989,7 @@ async def banner_error(ctx, error):
 @commands.has_permissions(administrator=True)
 @in_channel(AVATAR_CHANNEL_ID)
 async def change_profile(ctx):
-    await ctx.send("أهلاً بك! ماذا تريد أن تغير؟ اكتب **افتار** أو **بنر**.")
+    await ctx.send("ماذا تريد أن تغير؟ اكتب **افتار** أو **بنر**.")
 
     def check_choice(m):
         return m.author == ctx.author and m.channel == ctx.channel and m.content in ["افتار", "بنر"]
@@ -2014,7 +2014,7 @@ async def change_profile(ctx):
 
         if choice == "افتار":
             await bot.user.edit(avatar=image_data)
-            await ctx.send("تم تغيير رمزية (افتار) البوت بنجاح! ✅")
+            await ctx.send("تم تغيير رمزية (افتار) البوت بنجاح ✅")
         elif choice == "بنر":
             await bot.user.edit(banner=image_data)
             await ctx.send("تم تغيير بنر البوت بنجاح! ✅")
@@ -2028,7 +2028,7 @@ async def change_profile(ctx):
 @change_profile.error
 async def change_profile_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send("عذراً، هذا الأمر مخصص للمسؤولين (Admins) فقط! ❌")
+        await ctx.send("عذراً، هذا الأمر مخصص للمسؤولين  فقط ❌")
 
 
 # --- 9. قائمة الألعاب والأوامر ---
