@@ -2061,8 +2061,13 @@ async def show_banner(ctx, member: discord.Member = None):
 
 
 @show_avatar.error
+async def avatar_error(ctx, error):
+    if isinstance(error, commands.BadArgument):
+        await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت", delete_after=2)
+
+
 @show_banner.error
-async def avatar_banner_error(ctx, error):
+async def banner_error(ctx, error):
     if isinstance(error, commands.BadArgument):
         await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت", delete_after=2)
 
@@ -2205,10 +2210,9 @@ async def help_command(ctx):
 
 # --- 11. أوامر الإدارة (باند، ميوت، فك ميوت) ---
 
-
 @bot.command(
     name="انقلع_يالعبد",
-    aliases=["انقلع يالعبد", "انقلع_بالعبد", "انقلع بالعبد", "حظر", "ban"],
+    aliases=["حظر", "ban"],
 )
 @commands.has_role(OWNER_ROLE_ID)
 async def ban_member(
