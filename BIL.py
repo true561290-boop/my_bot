@@ -1,9 +1,7 @@
 import re
 import asyncio
-import base64
 import datetime
 import io
-import json
 import os
 import random
 from threading import Thread
@@ -11,11 +9,18 @@ import typing
 
 import aiohttp
 import discord
-from discord import app_commands
 from discord.ext import commands
 from flask import Flask
 from PIL import Image, ImageDraw, ImageFont
 import requests
+
+# استيراد نظام الأرصدة الموفصل
+from economy import (
+    add_balance,
+    fetch_latest_balances_from_github,
+    get_balance,
+    remove_balance,
+)
 
 # --- 1. خادم الويب للحفاظ على استمرار التشغيل 24/7 ---
 app = Flask("")
@@ -42,16 +47,11 @@ keep_alive()
 # --- 2. إعدادات البوت والبيانات ---
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True  # تفعيل خاصية متابعة الأعضاء للترحيب
+intents.members = True
 bot = commands.Bot(command_prefix=".", intents=intents)
-bot.remove_command("help")  # إلغاء أمر المساعدة الافتراضي لمنع التكرار والخطأ
+bot.remove_command("help")
 
-GITHUB_TOKEN = "ghp_2v2m8IXKyh0YQxZRrQnjbl08gmEH5C4E7P3b"
-REPO_OWNER = "true561290-boop"
-REPO_NAME = "my_bot"
-FILE_PATH = "user_balances.json"
-
-WELCOME_CHANNEL_ID = 1515396548392128670  # آيدي روم الترحيب
+WELCOME_CHANNEL_ID = 1515396548392128670
 LEVEL_50_ROLE_ID = 1515396547473309712
 AVATAR_CHANNEL_ID = 1515396548392128671
 OWNER_ROLE_ID = 1515396547528102131
@@ -60,7 +60,6 @@ THEFT_CHANNEL_ID = 1532648660997771335
 SHOPPING_CHANNEL_ID = 1532645480373420142
 
 BACKGROUND_IMAGE_URL = "https://i.ibb.co/6R2N29S/vintage-paper-bg.png"
-
 FONT_PATH = "arabic_font.ttf"
 
 
@@ -95,92 +94,9 @@ def ensure_arabic_font():
 
 
 ensure_arabic_font()
-
-
-def fetch_latest_balances_from_github():
-    raw_url = f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/main/{FILE_PATH}"
-    try:
-        response = requests.get(raw_url)
-        if response.status_code == 200:
-            data = response.json()
-            with open(FILE_PATH, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
-            print("✅ تم جلب أحدث نسخة أرصدة من GitHub بنجاح!")
-        else:
-            print("⚠️ لم يتم العثور على الملف في GitHub أو هو فارغ حالياً.")
-    except Exception as e:
-        print(f"❌ خطأ أثناء جلب الأرصدة من GitHub: {e}")
-
-
 fetch_latest_balances_from_github()
 
-
-def load_balances():
-    if os.path.exists(FILE_PATH):
-        with open(FILE_PATH, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.DecodeError:
-                return {}
-    return {}
-
-
-def save_balances_local_and_cloud(balances):
-    with open(FILE_PATH, "w", encoding="utf-8") as f:
-        json.dump(balances, f, ensure_ascii=False, indent=4)
-
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
-    headers = {
-        "Authorization": f"token {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github.v3+json",
-    }
-
-    get_res = requests.get(url, headers=headers)
-    sha = get_res.json().get("sha") if get_res.status_code == 200 else None
-
-    content_str = json.dumps(balances, ensure_ascii=False, indent=4)
-    encoded_content = base64.b64encode(content_str.encode("utf-8")).decode(
-        "utf-8"
-    )
-
-    data = {
-        "message": "🔄 تحديث أرصدة الأعضاء تلقائياً",
-        "content": encoded_content,
-    }
-    if sha:
-        data["sha"] = sha
-
-    put_res = requests.put(url, headers=headers, json=data)
-    if put_res.status_code in [200, 201]:
-        print("☁️ تم تحديث الأرصدة سحابياً على GitHub بنجاح!")
-    else:
-        print(f"❌ فشل تحديث GitHub: {put_res.text}")
-
-
-user_balances = load_balances()
-
-
-def get_balance(user_id):
-    return user_balances.get(str(user_id), 0)
-
-
-def add_balance(user_id, amount):
-    uid = str(user_id)
-    user_balances[uid] = user_balances.get(uid, 0) + amount
-    save_balances_local_and_cloud(user_balances)
-
-
-def remove_balance(user_id, amount):
-    uid = str(user_id)
-    current = user_balances.get(uid, 0)
-    if current >= amount:
-        user_balances[uid] = current - amount
-        save_balances_local_and_cloud(user_balances)
-        return True
-    return False
-
-
-# --- 3. المتجر التفاعلي ورسم الصور باستخدام خلفية الورقة القديمة ---
+# --- 3. المتجر التفاعلي ورسم الصور ---
 
 SHOP_VIP_ROLES = {
     "lvl_25": {
@@ -1094,7 +1010,6 @@ RIDDLES = [
 ]
 
 
-# --- أمر المسابقة (الأسئلة) ---
 @bot.command(name="سؤال", aliases=["quiz", "اسئلة"])
 @in_channel(GAMES_CHANNEL_ID)
 async def quiz_game(ctx, rounds: int = 1):
@@ -1146,7 +1061,6 @@ async def quiz_game(ctx, rounds: int = 1):
             await asyncio.sleep(1)
 
 
-# --- أمر لعبة لغز ---
 @bot.command(name="لغز", aliases=["الغاز", "riddle"])
 @in_channel(GAMES_CHANNEL_ID)
 async def riddle_game(ctx, rounds: int = 1):
@@ -1201,7 +1115,6 @@ async def riddle_game(ctx, rounds: int = 1):
             await asyncio.sleep(1)
 
 
-# --- لعبة حجر ورقة مقص ضد البوت بالأزرار ---
 class RPSView(discord.ui.View):
 
     def __init__(self, author):
@@ -1285,7 +1198,7 @@ async def rps_game(ctx):
     )
 
 
-# --- 6. لعبة إكس أو (Tic-Tac-Toe / XO) التفاعلية ---
+# --- 6. لعبة إكس أو التفاعلية ---
 class XOButton(discord.ui.Button):
 
     def __init__(self, x: int, y: int):
@@ -1506,7 +1419,7 @@ async def xo_game(ctx, opponent: discord.Member = None):
         view.message = msg
 
 
-# --- 7. لعبة توصيل الكرات 4 التفاعلية (Connect 4) ---
+# --- 7. لعبة توصيل الكرات 4 التفاعلية ---
 class Connect4Button(discord.ui.Button):
 
     def __init__(self, col: int, row_idx: int):
@@ -2072,7 +1985,6 @@ async def banner_error(ctx, error):
         await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت", delete_after=2)
 
 
-# --- أمر تغيير بروفايل البوت (افتار/بنر) للأدمن في روم الافتار ---
 @bot.command(name="تغيير")
 @commands.has_permissions(administrator=True)
 @in_channel(AVATAR_CHANNEL_ID)
@@ -2119,7 +2031,7 @@ async def change_profile_error(ctx, error):
         await ctx.send("عذراً، هذا الأمر مخصص للمسؤولين (Admins) فقط! ❌")
 
 
-# --- 9. أمر قائمة الألعاب ---
+# --- 9. قائمة الألعاب والأوامر ---
 @bot.command(name="العاب")
 async def games_list(ctx):
     embed = discord.Embed(
@@ -2130,7 +2042,6 @@ async def games_list(ctx):
     await ctx.send(embed=embed)
 
 
-# --- 10. أمر قائمة الأوامر ---
 @bot.command(name="اوامر")
 async def commands_list(ctx):
     embed = discord.Embed(
@@ -2144,7 +2055,6 @@ async def commands_list(ctx):
     await ctx.send(embed=embed)
 
 
-# --- أمر المساعدة الشامل جديد ---
 @bot.command(name="دليل", aliases=["help", "المساعدة"])
 async def help_command(ctx):
     embed = discord.Embed(
@@ -2208,12 +2118,9 @@ async def help_command(ctx):
     await ctx.send(embed=embed)
 
 
-# --- 11. أوامر الإدارة (باند، ميوت، فك ميوت) ---
+# --- 10. أوامر الإدارة ---
 
-@bot.command(
-    name="انقلع_يالعبد",
-    aliases=["حظر", "ban"],
-)
+@bot.command(name="انقلع_يالعبد", aliases=["حظر", "ban"])
 @commands.has_role(OWNER_ROLE_ID)
 async def ban_member(
     ctx, member: discord.Member = None, *, reason: str = "لم يتم ذكر السبب"
@@ -2321,7 +2228,7 @@ async def unmute_member_error(ctx, error):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
 
-# --- 12. أحداث التشغيل والترحيب ---
+# --- 11. أحداث التشغيل والترحيب ---
 @bot.event
 async def on_member_join(member):
     channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
