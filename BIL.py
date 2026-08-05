@@ -293,13 +293,15 @@ def make_welcome_card(user):
 
 
 def make_wheel_image(p1_name, p2_name, angle):
-    """دالة رسم صورة عجلة الرهان التفاعلية بكافة تفاصيلها ورسم مؤشر التوقف"""
-    size = 400
-    img = Image.new("RGBA", (size, size), color=(0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
 
+# --- دالة جديدة لتوليد العجلة كـ GIF متحرك وسلس ---
+def make_wheel_gif(p1_name, p2_name, target_angle):
+    """توليد ملف GIF يتضمن جميع إطارات دوران العجلة حتى التوقف عند الزاوية المستهدفة"""
+    size = 400
     center = size // 2
     radius = 160
+    num_slices = 8
+    slice_angle = 360 / num_slices
 
     colors = [
         (230, 57, 70),   # أحمر
@@ -311,86 +313,97 @@ def make_wheel_image(p1_name, p2_name, angle):
         (241, 250, 238), # أبيض
         (29, 53, 87),    # كحلي
     ]
-    num_slices = 8
-    slice_angle = 360 / num_slices
 
-    # رسم الخلفة الدائرية الخارجية
-    draw.ellipse(
-        [center - radius - 10, center - radius - 10, center + radius + 10, center + radius + 10],
-        fill=(50, 50, 50),
-        outline=(212, 175, 55),
-        width=6,
-    )
+    font = ImageFont.load_default()
+    if os.path.exists(FONT_PATH):
+        try:
+            font = ImageFont.truetype(FONT_PATH, 16)
+        except Exception:
+            pass
 
-    # رسم قطاعات العجلة
-    for i in range(num_slices):
-        start = angle + i * slice_angle
-        end = start + slice_angle
-        draw.pieslice(
-            [center - radius, center - radius, center + radius, center + radius],
-            start=start,
-            end=end,
-            fill=colors[i],
+    # حساب زوايا الحركة لإنشاء دوران سلس وتدريجي (تخفيف السرعة مع الاقتراب من النهاية)
+    total_spin = 360 * 3 + target_angle  # 3 دورات كاملة + زاوية التوقف
+    frames_count = 18  # عدد إطارات الحركة
+    
+    # توزيع الزوايا باستخدام منحنى تباطؤ (Easing-out)
+    angles = []
+    for i in range(frames_count):
+        progress = i / (frames_count - 1)
+        eased_progress = 1 - math.pow(1 - progress, 3) # معادلة التباطؤ
+        angles.append(eased_progress * total_spin)
+
+    images = []
+
+    for angle in angles:
+        img = Image.new("RGBA", (size, size), color=(0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # رسم الخلقة الدائرية الخارجية
+        draw.ellipse(
+            [center - radius - 10, center - radius - 10, center + radius + 10, center + radius + 10],
+            fill=(50, 50, 50),
+            outline=(212, 175, 55),
+            width=6,
+        )
+
+        # رسم قطاعات العجلة
+        for i in range(num_slices):
+            start = angle + i * slice_angle
+            end = start + slice_angle
+            draw.pieslice(
+                [center - radius, center - radius, center + radius, center + radius],
+                start=start,
+                end=end,
+                fill=colors[i],
+                outline=(255, 255, 255),
+                width=2,
+            )
+
+            mid_angle = math.radians(start + slice_angle / 2)
+            text_x = center + (radius * 0.65) * math.cos(mid_angle)
+            text_y = center + (radius * 0.65) * math.sin(mid_angle)
+
+            label = p1_name if i % 2 == 0 else p2_name
+            draw.text(
+                (text_x, text_y),
+                label[:8],
+                fill=(255, 255, 255) if colors[i] != (241, 250, 238) else (0, 0, 0),
+                font=font,
+                anchor="mm",
+            )
+
+        # رسم الدائرة الداخلية
+        draw.ellipse(
+            [center - 25, center - 25, center + 25, center + 25],
+            fill=(212, 175, 55),
             outline=(255, 255, 255),
-            width=2,
+            width=3,
         )
 
-        mid_angle = math.radians(start + slice_angle / 2)
-        text_x = center + (radius * 0.65) * math.cos(mid_angle)
-        text_y = center + (radius * 0.65) * math.sin(mid_angle)
+        # رسم مؤشر السهم
+        pointer_poly = [
+            (center, center - radius - 15),
+            (center - 15, center - radius - 35),
+            (center + 15, center - radius - 35),
+        ]
+        draw.polygon(pointer_poly, fill=(255, 215, 0), outline=(0, 0, 0), width=2)
 
-        font = ImageFont.load_default()
-        if os.path.exists(FONT_PATH):
-            try:
-                font = ImageFont.truetype(FONT_PATH, 16)
-            except Exception:
-                pass
-
-        label = p1_name if i % 2 == 0 else p2_name
-        draw.text(
-            (text_x, text_y),
-            label[:8],
-            fill=(255, 255, 255) if colors[i] != (241, 250, 238) else (0, 0, 0),
-            font=font,
-            anchor="mm",
-        )
-
-    # رسم الدائرة الداخلية المنتصفة
-    draw.ellipse(
-        [center - 25, center - 25, center + 25, center + 25],
-        fill=(212, 175, 55),
-        outline=(255, 255, 255),
-        width=3,
-    )
-
-    # رسم مؤشر السهم أعلى العجلة
-    pointer_poly = [
-        (center, center - radius - 15),
-        (center - 15, center - radius - 35),
-        (center + 15, center - radius - 35),
-    ]
-    draw.polygon(pointer_poly, fill=(255, 215, 0), outline=(0, 0, 0), width=2)
+        images.append(img)
 
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    # حفظ الإطارات كـ GIF متحرك بدون تكرار لا نهائي (loop=1 ليدور مرة واحدة فقط)
+    images[0].save(
+        buf,
+        format="GIF",
+        save_all=True,
+        append_images=images[1:],
+        duration=100,  # سرعة الإطار بالملي ثانية
+        loop=1,
+        transparency=0,
+        disposal=2
+    )
     buf.seek(0)
     return buf
-
-
-class TimedSubView(discord.ui.View):
-
-    def __init__(self):
-        super().__init__(timeout=60)
-        self.message = None
-
-    async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
-        if self.message:
-            try:
-                await self.message.edit(view=self)
-            except Exception:
-                pass
 
 
 class BackToMainButton(discord.ui.Button):
@@ -1959,8 +1972,7 @@ async def transfer_money_error(ctx, error):
             "❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.", delete_after=3
         )
 
-
-# --- 8.1 لعبة الرهان والعجلة التفاعلية المصورة ---
+# --- 8.1 لعبة الرهان والعجلة التفاعلية المعدلة ---
 @bot.command(name="رهان", aliases=["bet", "عجلة"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def bet_game(
@@ -2017,7 +2029,6 @@ async def bet_game(
     winner = random.choice([player1, player2])
 
     # تحديد زاوية التوقف النهائية بناءً على الفائز
-    # القطاعات 0, 2, 4, 6 لـ Player 1 والقطاعات 1, 3, 5, 7 لـ Player 2
     if winner == player1:
         target_sector = random.choice([0, 2, 4, 6])
     else:
@@ -2035,20 +2046,14 @@ async def bet_game(
         color=discord.Color.gold(),
     )
 
-    # إنشاء وتقديم الصورة الأولى
-    initial_buf = make_wheel_image(player1.display_name, player2.display_name, 0)
-    file = discord.File(fp=initial_buf, filename="wheel.png")
-    embed.set_image(url="attachment://wheel.png")
+    # إنشاء ملف GIF المتحرك وإرساله مرة واحدة
+    gif_buf = make_wheel_gif(player1.display_name, player2.display_name, final_angle)
+    file = discord.File(fp=gif_buf, filename="wheel.gif")
+    embed.set_image(url="attachment://wheel.gif")
     msg = await ctx.send(embed=embed, file=file)
 
-    # خطوات تحريك العجلة بالتتابع لتأكيد الدوران
-    spin_angles = [60, 150, 270, 420, 600, 750, 750 + final_angle]
-    for angle in spin_angles:
-        await asyncio.sleep(0.6)
-        buf = make_wheel_image(player1.display_name, player2.display_name, angle)
-        file = discord.File(fp=buf, filename="wheel.png")
-        embed.set_image(url="attachment://wheel.png")
-        await msg.edit(embed=embed, attachments=[file])
+    # الانتظار حتى انتهاء انيميشن الدوران الكامل في GIF
+    await asyncio.sleep(2.5)
 
     # احتساب الرصيد وصياغة النتيجة النهائية
     if winner == player1:
@@ -2082,6 +2087,7 @@ async def bet_game(
             )
         embed_color = discord.Color.red()
 
+    # تعديل النص ولون الـ Embed فقط دون تعديل الصورة المتحركة
     final_embed = discord.Embed(
         title="🎰 نتيجة الرهان النهائي",
         description=(
@@ -2091,10 +2097,8 @@ async def bet_game(
         ),
         color=embed_color,
     )
-    final_buf = make_wheel_image(player1.display_name, player2.display_name, final_angle)
-    final_file = discord.File(fp=final_buf, filename="wheel.png")
-    final_embed.set_image(url="attachment://wheel.png")
-    await msg.edit(embed=final_embed, attachments=[final_file])
+    final_embed.set_image(url="attachment://wheel.gif")
+    await msg.edit(embed=final_embed)
 
 
 @bet_game.error
