@@ -4,6 +4,7 @@ import datetime
 import io
 import os
 import random
+import math
 from threading import Thread
 import typing
 
@@ -284,6 +285,91 @@ def make_welcome_card(user):
         fill=TEXT_COLOR_SUB,
         anchor="mm",
     )
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+
+def make_wheel_image(p1_name, p2_name, angle):
+    """دالة رسم صورة عجلة الرهان التفاعلية بكافة تفاصيلها ورسم مؤشر التوقف"""
+    size = 400
+    img = Image.new("RGBA", (size, size), color=(0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    center = size // 2
+    radius = 160
+
+    colors = [
+        (230, 57, 70),   # أحمر
+        (69, 123, 157),  # أزرق
+        (241, 250, 238), # أبيض
+        (29, 53, 87),    # كحلي
+        (230, 57, 70),   # أحمر
+        (69, 123, 157),  # أزرق
+        (241, 250, 238), # أبيض
+        (29, 53, 87),    # كحلي
+    ]
+    num_slices = 8
+    slice_angle = 360 / num_slices
+
+    # رسم الخلفة الدائرية الخارجية
+    draw.ellipse(
+        [center - radius - 10, center - radius - 10, center + radius + 10, center + radius + 10],
+        fill=(50, 50, 50),
+        outline=(212, 175, 55),
+        width=6,
+    )
+
+    # رسم قطاعات العجلة
+    for i in range(num_slices):
+        start = angle + i * slice_angle
+        end = start + slice_angle
+        draw.pieslice(
+            [center - radius, center - radius, center + radius, center + radius],
+            start=start,
+            end=end,
+            fill=colors[i],
+            outline=(255, 255, 255),
+            width=2,
+        )
+
+        mid_angle = math.radians(start + slice_angle / 2)
+        text_x = center + (radius * 0.65) * math.cos(mid_angle)
+        text_y = center + (radius * 0.65) * math.sin(mid_angle)
+
+        font = ImageFont.load_default()
+        if os.path.exists(FONT_PATH):
+            try:
+                font = ImageFont.truetype(FONT_PATH, 16)
+            except Exception:
+                pass
+
+        label = p1_name if i % 2 == 0 else p2_name
+        draw.text(
+            (text_x, text_y),
+            label[:8],
+            fill=(255, 255, 255) if colors[i] != (241, 250, 238) else (0, 0, 0),
+            font=font,
+            anchor="mm",
+        )
+
+    # رسم الدائرة الداخلية المنتصفة
+    draw.ellipse(
+        [center - 25, center - 25, center + 25, center + 25],
+        fill=(212, 175, 55),
+        outline=(255, 255, 255),
+        width=3,
+    )
+
+    # رسم مؤشر السهم أعلى العجلة
+    pointer_poly = [
+        (center, center - radius - 15),
+        (center - 15, center - radius - 35),
+        (center + 15, center - radius - 35),
+    ]
+    draw.polygon(pointer_poly, fill=(255, 215, 0), outline=(0, 0, 0), width=2)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -1874,7 +1960,7 @@ async def transfer_money_error(ctx, error):
         )
 
 
-# --- 8.1 لعبة الرهان والعجلة التفاعلية ---
+# --- 8.1 لعبة الرهان والعجلة التفاعلية المصورة ---
 @bot.command(name="رهان", aliases=["bet", "عجلة"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def bet_game(
@@ -1928,41 +2014,43 @@ async def bet_game(
             )
             return
 
-    wheel_frames = [
-        f"🎡 **جاري تدوير العجلة...**\n▶️ **[{player1.display_name}]** ── [ {player2.display_name} ]",
-        f"🎡 **جاري تدوير العجلة...**\n▶️ [ {player1.display_name} ] ── **[{player2.display_name}]**",
-        f"🎡 **جاري تدوير العجلة...**\n▶️ **[{player1.display_name}]** ── [ {player2.display_name} ]",
-        f"🎡 **جاري تدوير العجلة...**\n▶️ [ {player1.display_name} ] ── **[{player2.display_name}]**",
-        f"🎡 **تتباطأ العجلة...**\n▶️ **[{player1.display_name}]** ── [ {player2.display_name} ]",
-        f"🎡 **تتباطأ العجلة...**\n▶️ [ {player1.display_name} ] ── **[{player2.display_name}]**",
-    ]
+    winner = random.choice([player1, player2])
+
+    # تحديد زاوية التوقف النهائية بناءً على الفائز
+    # القطاعات 0, 2, 4, 6 لـ Player 1 والقطاعات 1, 3, 5, 7 لـ Player 2
+    if winner == player1:
+        target_sector = random.choice([0, 2, 4, 6])
+    else:
+        target_sector = random.choice([1, 3, 5, 7])
+
+    final_angle = (270 - (target_sector * 45 + 22.5)) % 360
 
     embed = discord.Embed(
         title="🎰 لعبة الرهان والعجلة",
         description=(
-            f"⚔️ **الرهان قائم بين:**\n"
-            f"👤 {player1.mention}\n"
-            f"👤 {player2.mention}\n\n"
+            f"⚔️ **الرهان قائم بين:** {player1.mention} 🆚 {player2.mention}\n"
             f"💰 **المبلغ المراهن عليه:** `{amount}` طولار\n\n"
-            f"⏳ جاري بدء الدوران..."
+            f"🎡 **جاري تدوير العجلة...**"
         ),
         color=discord.Color.gold(),
     )
 
-    msg = await ctx.send(embed=embed)
-    await asyncio.sleep(1.5)
+    # إنشاء وتقديم الصورة الأولى
+    initial_buf = make_wheel_image(player1.display_name, player2.display_name, 0)
+    file = discord.File(fp=initial_buf, filename="wheel.png")
+    embed.set_image(url="attachment://wheel.png")
+    msg = await ctx.send(embed=embed, file=file)
 
-    for frame in wheel_frames:
-        embed.description = (
-            f"⚔️ **الرهان قائم بين:** {player1.mention} 🆚 {player2.mention}\n"
-            f"💰 **المبلغ:** `{amount}` طولار\n\n"
-            f"{frame}"
-        )
-        await msg.edit(embed=embed)
-        await asyncio.sleep(0.7)
+    # خطوات تحريك العجلة بالتتابع لتأكيد الدوران
+    spin_angles = [60, 150, 270, 420, 600, 750, 750 + final_angle]
+    for angle in spin_angles:
+        await asyncio.sleep(0.6)
+        buf = make_wheel_image(player1.display_name, player2.display_name, angle)
+        file = discord.File(fp=buf, filename="wheel.png")
+        embed.set_image(url="attachment://wheel.png")
+        await msg.edit(embed=embed, attachments=[file])
 
-    winner = random.choice([player1, player2])
-
+    # احتساب الرصيد وصياغة النتيجة النهائية
     if winner == player1:
         add_balance(player1.id, amount)
         if player2 != bot.user:
@@ -2003,7 +2091,10 @@ async def bet_game(
         ),
         color=embed_color,
     )
-    await msg.edit(embed=final_embed)
+    final_buf = make_wheel_image(player1.display_name, player2.display_name, final_angle)
+    final_file = discord.File(fp=final_buf, filename="wheel.png")
+    final_embed.set_image(url="attachment://wheel.png")
+    await msg.edit(embed=final_embed, attachments=[final_file])
 
 
 @bet_game.error
