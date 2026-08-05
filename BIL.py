@@ -292,8 +292,6 @@ def make_welcome_card(user):
     return buf
 
 
-def make_wheel_image(p1_name, p2_name, angle):
-
 # --- دالة جديدة لتوليد العجلة كـ GIF متحرك وسلس ---
 def make_wheel_gif(p1_name, p2_name, target_angle):
     """توليد ملف GIF يتضمن جميع إطارات دوران العجلة حتى التوقف عند الزاوية المستهدفة"""
@@ -404,6 +402,21 @@ def make_wheel_gif(p1_name, p2_name, target_angle):
     )
     buf.seek(0)
     return buf
+
+
+class TimedSubView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=60)
+        self.message = None
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
 
 
 class BackToMainButton(discord.ui.Button):
@@ -1721,7 +1734,6 @@ class Connect4View(discord.ui.View):
 
     def score_position(self, piece: str) -> int:
         score = 0
-        opp_piece = "🔴" if piece == "🟡" else "🟡"
 
         center_array = [self.board[r][self.cols // 2] for r in range(self.rows)]
         center_count = center_array.count(piece)
