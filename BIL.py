@@ -1874,6 +1874,147 @@ async def transfer_money_error(ctx, error):
         )
 
 
+# --- 8.1 لعبة الرهان والعجلة التفاعلية ---
+@bot.command(name="رهان", aliases=["bet", "عجلة"])
+@in_channel(SHOPPING_CHANNEL_ID)
+async def bet_game(
+    ctx,
+    arg1: typing.Union[discord.Member, int] = None,
+    arg2: int = None,
+):
+    opponent = None
+    amount = 0
+
+    if isinstance(arg1, discord.Member):
+        opponent = arg1
+        amount = arg2
+    elif isinstance(arg1, int):
+        amount = arg1
+
+    if not amount or amount <= 0:
+        await ctx.send(
+            "⚠️ **طريقة الاستخدام الصحيحة:**\n"
+            "• للرهان ضد البوت: `.رهان 1000`\n"
+            "• للرهان ضد عضو: `.رهان @العضو 1000`",
+            delete_after=5,
+        )
+        return
+
+    if opponent and opponent.bot and opponent != bot.user:
+        await ctx.send("❌ لا يمكنك الرهان ضد بوتات أخرى.", delete_after=3)
+        return
+
+    if opponent == ctx.author:
+        await ctx.send("❌ لا يمكنك الرهان ضد نفسك!", delete_after=3)
+        return
+
+    player1 = ctx.author
+    player2 = opponent if (opponent and opponent != bot.user) else bot.user
+
+    p1_balance = get_balance(player1.id)
+    if p1_balance < amount:
+        await ctx.send(
+            f"❌ رصيدك غير كافٍ للرهان! رصيدك الحالي: **{p1_balance}** طولار.",
+            delete_after=5,
+        )
+        return
+
+    if player2 != bot.user:
+        p2_balance = get_balance(player2.id)
+        if p2_balance < amount:
+            await ctx.send(
+                f"❌ العضو {player2.mention} لا يملك رصيداً كافياً للرهان! رصيده: **{p2_balance}** طولار.",
+                delete_after=5,
+            )
+            return
+
+    wheel_frames = [
+        f"🎡 **جاري تدوير العجلة...**\n▶️ **[{player1.display_name}]** ── [ {player2.display_name} ]",
+        f"🎡 **جاري تدوير العجلة...**\n▶️ [ {player1.display_name} ] ── **[{player2.display_name}]**",
+        f"🎡 **جاري تدوير العجلة...**\n▶️ **[{player1.display_name}]** ── [ {player2.display_name} ]",
+        f"🎡 **جاري تدوير العجلة...**\n▶️ [ {player1.display_name} ] ── **[{player2.display_name}]**",
+        f"🎡 **تتباطأ العجلة...**\n▶️ **[{player1.display_name}]** ── [ {player2.display_name} ]",
+        f"🎡 **تتباطأ العجلة...**\n▶️ [ {player1.display_name} ] ── **[{player2.display_name}]**",
+    ]
+
+    embed = discord.Embed(
+        title="🎰 لعبة الرهان والعجلة",
+        description=(
+            f"⚔️ **الرهان قائم بين:**\n"
+            f"👤 {player1.mention}\n"
+            f"👤 {player2.mention}\n\n"
+            f"💰 **المبلغ المراهن عليه:** `{amount}` طولار\n\n"
+            f"⏳ جاري بدء الدوران..."
+        ),
+        color=discord.Color.gold(),
+    )
+
+    msg = await ctx.send(embed=embed)
+    await asyncio.sleep(1.5)
+
+    for frame in wheel_frames:
+        embed.description = (
+            f"⚔️ **الرهان قائم بين:** {player1.mention} 🆚 {player2.mention}\n"
+            f"💰 **المبلغ:** `{amount}` طولار\n\n"
+            f"{frame}"
+        )
+        await msg.edit(embed=embed)
+        await asyncio.sleep(0.7)
+
+    winner = random.choice([player1, player2])
+
+    if winner == player1:
+        add_balance(player1.id, amount)
+        if player2 != bot.user:
+            remove_balance(player2.id, amount)
+            result_text = (
+                f"🎉 **مبروك {player1.mention}!** وقفت العجلة عند اسمك وفزت بالرهان!\n"
+                f"📈 تم إضافة **{amount}** طولار لرصيدك.\n"
+                f"📉 وتم سحب **{amount}** طولار من رصيد {player2.mention}."
+            )
+        else:
+            result_text = (
+                f"🎉 **مبروك {player1.mention}!** وقفت العجلة عند اسمك وفزت على البوت!\n"
+                f"📈 تم إضافة **{amount}** طولار إلى رصيدك."
+            )
+        embed_color = discord.Color.green()
+    else:
+        remove_balance(player1.id, amount)
+        if player2 != bot.user:
+            add_balance(player2.id, amount)
+            result_text = (
+                f"💀 **للأسف {player1.mention}،** وقفت العجلة عند اسم {player2.mention} وخسرت الرهان!\n"
+                f"📉 تم سحب **{amount}** طولار من رصيدك.\n"
+                f"📈 وتم إضافتها لرصيد {player2.mention}."
+            )
+        else:
+            result_text = (
+                f"🤖 **فاز البوت عليك!** وقفت العجلة عند اسم البوت.\n"
+                f"📉 تم سحب **{amount}** طولار من رصيدك."
+            )
+        embed_color = discord.Color.red()
+
+    final_embed = discord.Embed(
+        title="🎰 نتيجة الرهان النهائي",
+        description=(
+            f"🎯 **استقرت العجلة على:** `{winner.display_name}`\n\n"
+            f"{result_text}\n\n"
+            f"💰 رصيدك الحالي: **{get_balance(player1.id)}** طولار"
+        ),
+        color=embed_color,
+    )
+    await msg.edit(embed=final_embed)
+
+
+@bet_game.error
+async def bet_game_error(ctx, error):
+    if isinstance(error, commands.BadArgument):
+        await ctx.send(
+            "❌ يرجى إدخال مبلغ صحيح أو منشن العضو والمبلغ بشكل صحيح.",
+            delete_after=3,
+        )
+
+
 @bot.command(name="ايدي")
 async def get_id(
     ctx,
@@ -2048,7 +2189,7 @@ async def commands_list(ctx):
         title="قائمة الأوامر",
         description=(
             ".متجر: شراء الوان ورتب\n.طولاري: يظهر رصيد العضو\n.افتار او بنر:"
-            " انشاء افتار العضو\n.ت @العضو: لتحويل الطولارات"
+            " انشاء افتار العضو\n.ت @العضو: لتحويل الطولارات\n.رهان: لعبة العجلة والرهان"
         ),
         color=discord.Color.blue(),
     )
@@ -2081,7 +2222,9 @@ async def help_command(ctx):
         value=(
             "• `.متجر` : فتح المتجر الملكي لشراء الرتب والأسماء الملونة\n"
             "• `.طولاري [@عضو]` : عرض رصيد الطولارات الخاص بك أو بعضو آخر\n"
-            "• `.ت @العضو المبلغ` : تحويل طولارات إلى عضو آخر"
+            "• `.ت @العضو المبلغ` : تحويل طولارات إلى عضو آخر\n"
+            "• `.رهان [المبلغ]` : الرهان بالعجلة ضد البوت\n"
+            "• `.رهان @العضو [المبلغ]` : الرهان بالعجلة ضد عضو آخر"
         ),
         inline=False,
     )
