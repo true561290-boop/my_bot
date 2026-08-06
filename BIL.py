@@ -258,40 +258,49 @@ def make_welcome_card(user):
 # --- رسوميات لعبة الرهان الجديدة (تطابق التصميم) ---
 
 def make_challenge_card(p1, p2, amount):
-    """تصميم بطاقة التحدي الأولى"""
-    width, height = 800, 400
-    img = Image.new("RGBA", (width, height), (22, 27, 34, 255))
+    """بطاقة التحدي - متوافقة مع خلفية bet_challenge.jpg"""
+    bg_path = "bet_challenge.jpg"
+    if os.path.exists(bg_path):
+        img = Image.open(bg_path).convert("RGBA")
+    else:
+        img = get_base_bg(1000, 450)
+
+    W, H = img.size
     draw = ImageDraw.Draw(img)
 
-    font_title = ImageFont.load_default()
-    font_vs = ImageFont.load_default()
+    # إعداد الخطوط حسب الحجم المنسق
+    font_name = ImageFont.load_default()
+    font_amount = ImageFont.load_default()
 
     if os.path.exists(FONT_PATH):
         try:
-            font_title = ImageFont.truetype(FONT_PATH, 28)
-            font_vs = ImageFont.truetype(FONT_PATH, 36)
+            font_name = ImageFont.truetype(FONT_PATH, int(H * 0.055))
+            font_amount = ImageFont.truetype(FONT_PATH, int(H * 0.065))
         except Exception:
             pass
 
-    # صور الأفاتار
-    av1 = fetch_avatar(p1).resize((110, 110))
-    av2 = fetch_avatar(p2).resize((110, 110))
+    # مقاس الأفتار وضبطه داخل الدوائر الضوئية
+    avatar_size = int(H * 0.37)
+    av1 = fetch_avatar(p1).resize((avatar_size, avatar_size))
+    av2 = fetch_avatar(p2).resize((avatar_size, avatar_size))
 
-    mask = Image.new("L", (110, 110), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
+    # قناع دائري ناعم
+    mask = Image.new("L", (avatar_size, avatar_size), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, avatar_size, avatar_size), fill=255)
 
-    img.paste(av1, (130, 80), mask)
-    img.paste(av2, (560, 80), mask)
+    # إحداثيات الدائرة الزرقاء (اللاعب 1) والدائرة الحمراء (اللاعب 2)
+    p1_x, p1_y = int(W * 0.198 - avatar_size / 2), int(H * 0.495 - avatar_size / 2)
+    p2_x, p2_y = int(W * 0.800 - avatar_size / 2), int(H * 0.495 - avatar_size / 2)
 
-    draw.text((width // 2, 135), "VS", font=font_vs, fill=(230, 50, 50, 255), anchor="mm")
+    img.paste(av1, (p1_x, p1_y), mask)
+    img.paste(av2, (p2_x, p2_y), mask)
 
-    # أسماء اللاعبين
-    draw.text((185, 210), p1.display_name[:12], font=font_title, fill=(255, 255, 255), anchor="mm")
-    draw.text((615, 210), p2.display_name[:12], font=font_title, fill=(255, 255, 255), anchor="mm")
+    # أسماء المتحدين أسفل/أعلى الدوائر
+    draw.text((W * 0.198, H * 0.82), p1.display_name[:12], font=font_name, fill=(255, 255, 255, 255), anchor="mm")
+    draw.text((W * 0.800, H * 0.82), p2.display_name[:12], font=font_name, fill=(255, 255, 255, 255), anchor="mm")
 
-    # بطاقة المبلغ
-    draw.rectangle([(250, 280), (550, 340)], fill=(35, 43, 54), outline=(212, 175, 55), width=2)
-    draw.text((width // 2, 310), f"المبلغ: {amount} طولار", font=font_title, fill=(255, 215, 0), anchor="mm")
+    # مبلغ الرهان داخل المستطيل السفلي المحامي
+    draw.text((W * 0.498, H * 0.74), f"{amount:,} طولار", font=font_amount, fill=(255, 215, 0, 255), anchor="mm")
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -347,48 +356,63 @@ def make_wheel_frame(p1_name, p2_name, current_angle):
 
 
 def make_result_card(winner, loser, amount, total_pot):
-    """تصميم بطاقة النتيجة النهائية المعتمدة على الصور الرسمية"""
-    width, height = 800, 420
-    img = Image.new("RGBA", (width, height), (18, 22, 29, 255))
+    """بطاقة النتيجة - متوافقة مع خلفية bet_result.jpg"""
+    bg_path = "bet_result.jpg"
+    if os.path.exists(bg_path):
+        img = Image.open(bg_path).convert("RGBA")
+    else:
+        img = get_base_bg(1000, 450)
+
+    W, H = img.size
     draw = ImageDraw.Draw(img)
 
+    # إعداد الخطوط بمقاسات متناسبة مع خانات التصميم
     font_title = ImageFont.load_default()
     font_main = ImageFont.load_default()
+    font_sub = ImageFont.load_default()
 
     if os.path.exists(FONT_PATH):
         try:
-            font_title = ImageFont.truetype(FONT_PATH, 32)
-            font_main = ImageFont.truetype(FONT_PATH, 22)
+            font_title = ImageFont.truetype(FONT_PATH, int(H * 0.050))
+            font_main = ImageFont.truetype(FONT_PATH, int(H * 0.065))
+            font_sub = ImageFont.truetype(FONT_PATH, int(H * 0.042))
         except Exception:
             pass
 
-    # صور الفائز والخاسر
-    w_av = fetch_avatar(winner).resize((120, 120))
-    l_av = fetch_avatar(loser).resize((90, 90))
+    # 1. العنوان في الإطار الذهبي العلوي
+    draw.text((W * 0.484, H * 0.14), "نتيجة الرهان", font=font_title, fill=(255, 215, 0, 255), anchor="mm")
 
-    mask_w = Image.new("L", (120, 120), 0)
-    ImageDraw.Draw(mask_w).ellipse((0, 0, 120, 120), fill=255)
+    # 2. أفتار الخاسر (الدائرة اليسرى الحمراء)
+    loser_size = int(H * 0.35)
+    av_loser = fetch_avatar(loser).resize((loser_size, loser_size))
+    mask_l = Image.new("L", (loser_size, loser_size), 0)
+    ImageDraw.Draw(mask_l).ellipse((0, 0, loser_size, loser_size), fill=255)
+    
+    l_x, l_y = int(W * 0.185 - loser_size / 2), int(H * 0.490 - loser_size / 2)
+    img.paste(av_loser, (l_x, l_y), mask_l)
 
-    mask_l = Image.new("L", (90, 90), 0)
-    ImageDraw.Draw(mask_l).ellipse((0, 0, 90, 90), fill=255)
+    # 3. أفتار الفائز (الدائرة اليمنى الذهبية)
+    winner_size = int(H * 0.36)
+    av_winner = fetch_avatar(winner).resize((winner_size, winner_size))
+    mask_w = Image.new("L", (winner_size, winner_size), 0)
+    ImageDraw.Draw(mask_w).ellipse((0, 0, winner_size, winner_size), fill=255)
+    
+    w_x, w_y = int(W * 0.782 - winner_size / 2), int(H * 0.515 - winner_size / 2)
+    img.paste(av_winner, (w_x, w_y), mask_w)
 
-    img.paste(w_av, (140, 60), mask_w)
-    img.paste(l_av, (560, 75), mask_l)
+    # 4. بيانات الخاسر والفائز في الصناديق السفلية
+    draw.text((W * 0.185, H * 0.79), f"💔 {loser.display_name[:10]}", font=font_sub, fill=(220, 100, 100, 255), anchor="mm")
+    draw.text((W * 0.782, H * 0.79), f"👑 {winner.display_name[:10]}", font=font_sub, fill=(255, 215, 0, 255), anchor="mm")
 
-    # إطار الفائز الذهبي
-    draw.ellipse([(135, 55), (265, 185)], outline=(255, 215, 0), width=4)
-
-    # النصوص
-    draw.text((200, 205), f"👑 الفائز: {winner.display_name}", font=font_title, fill=(255, 215, 0), anchor="mm")
-    draw.text((605, 185), f"الخاسر: {loser.display_name}", font=font_main, fill=(180, 180, 180), anchor="mm")
-
-    # رصيد الحاضر لكل طرف
-    draw.text((200, 245), f"الرصيد: {get_balance(winner.id)} طولار", font=font_main, fill=(100, 255, 100), anchor="mm")
-    draw.text((605, 220), f"الرصيد: {get_balance(loser.id)} طولار", font=font_main, fill=(255, 100, 100), anchor="mm")
-
-    # بطاقة الإجمالي
-    draw.rectangle([(200, 310), (600, 380)], fill=(28, 35, 45), outline=(212, 175, 55), width=2)
-    draw.text((400, 345), f"المبلغ الإجمالي المكتسب: {total_pot} طولار", font=font_title, fill=(255, 215, 0), anchor="mm")
+    # 5. البيانات في الخانات الوسطى الثلاث
+    # الخانة الصغيرة العليا: تسمية الجائزة
+    draw.text((W * 0.484, H * 0.36), "الجائزة الكبرى", font=font_sub, fill=(200, 200, 200, 255), anchor="mm")
+    
+    # الخانة الكبيرة الوسطى: إجمالي الأرباح
+    draw.text((W * 0.484, H * 0.515), f"+{total_pot:,} طولار", font=font_main, fill=(255, 215, 0, 255), anchor="mm")
+    
+    # الخانة الصغيرة السفلى: قيمة الرهان الأصلي
+    draw.text((W * 0.484, H * 0.665), f"الرهان: {amount:,}", font=font_sub, fill=(180, 180, 180, 255), anchor="mm")
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
