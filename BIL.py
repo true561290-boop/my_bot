@@ -255,45 +255,42 @@ def make_welcome_card(user):
     return buf
 
 
-import io
-from PIL import Image, ImageDraw, ImageFont
-
 # دالة قص وتدوير الصورة الشخصية (Avatar)
 def get_circular_avatar(avatar_bytes: bytes, size: tuple) -> Image.Image:
     avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA").resize(size)
     mask = Image.new("L", size, 0)
     draw_mask = ImageDraw.Draw(mask)
     draw_mask.ellipse((0, 0) + size, fill=255)
-    
+
     output = Image.new("RGBA", size, (0, 0, 0, 0))
     output.paste(avatar, (0, 0), mask)
     return output
 
+
 # 1. كارت التحدي (VS) - bet_challenge_2.jpg
-async def generate_bet_challenge_card(p1_avatar_bytes: bytes, p2_avatar_bytes: bytes, bet_amount: int) -> io.BytesIO:
-    # فتح خلفية التحدي
-    bg = Image.open("bet_challenge_2.jpg").convert("RGBA")
-    
-    # معالجة افتارات المتحديين (حجم 190x190)
-    p1_avatar = get_circular_avatar(p1_avatar_bytes, (190, 190))  # الدائرة الزرقاء (اليسار)
-    p2_avatar = get_circular_avatar(p2_avatar_bytes, (190, 190))  # الدائرة الحمراء (اليمين)
-    
-    # تركيب صورة المتحدي الأول (اليسار)
+async def generate_bet_challenge_card(
+    p1_avatar_bytes: bytes, p2_avatar_bytes: bytes, bet_amount: int
+) -> io.BytesIO:
+    if os.path.exists("bet_challenge_2.jpg"):
+        bg = Image.open("bet_challenge_2.jpg").convert("RGBA")
+    else:
+        bg = Image.new("RGBA", (1000, 500), (20, 20, 35, 255))
+
+    p1_avatar = get_circular_avatar(p1_avatar_bytes, (190, 190))
+    p2_avatar = get_circular_avatar(p2_avatar_bytes, (190, 190))
+
     bg.paste(p1_avatar, (103, 121), p1_avatar)
-    
-    # تركيب صورة المتحدي الثاني (اليمين)
     bg.paste(p2_avatar, (707, 121), p2_avatar)
-    
-    # كتابة مبلغ الرهان في الإطار السكلي
+
     draw = ImageDraw.Draw(bg)
     try:
-        font = ImageFont.truetype("font.ttf", 26)
-    except:
+        font = ImageFont.truetype(FONT_PATH, 26)
+    except Exception:
         font = ImageFont.load_default()
-        
+
     text = f"مبلغ الرهان: {bet_amount:,} طولار"
     draw.text((500, 362), text, font=font, fill="#FFE082", anchor="mm")
-    
+
     buffer = io.BytesIO()
     bg.save(buffer, format="PNG")
     buffer.seek(0)
@@ -301,41 +298,140 @@ async def generate_bet_challenge_card(p1_avatar_bytes: bytes, p2_avatar_bytes: b
 
 
 # 2. كارت النتيجة والفائز - bet_result_2.jpg
-async def generate_bet_result_card(winner_avatar_bytes: bytes, loser_avatar_bytes: bytes, winner_name: str, loser_name: str, prize: int) -> io.BytesIO:
-    # فتح خلفية النتيجة
-    bg = Image.open("bet_result_2.jpg").convert("RGBA")
-    
-    # الفائز يوضع في الدائرة الذهبية (اليمين) بحجم (190x190)
+async def generate_bet_result_card(
+    winner_avatar_bytes: bytes,
+    loser_avatar_bytes: bytes,
+    winner_name: str,
+    loser_name: str,
+    prize: int,
+) -> io.BytesIO:
+    if os.path.exists("bet_result_2.jpg"):
+        bg = Image.open("bet_result_2.jpg").convert("RGBA")
+    else:
+        bg = Image.new("RGBA", (970, 500), (20, 20, 35, 255))
+
     winner_av = get_circular_avatar(winner_avatar_bytes, (190, 190))
     bg.paste(winner_av, (690, 159), winner_av)
-    
-    # الخاسر يوضع في الدائرة الحمراء (اليسار) بحجم (170x170)
+
     loser_av = get_circular_avatar(loser_avatar_bytes, (170, 170))
     bg.paste(loser_av, (113, 169), loser_av)
-    
+
     draw = ImageDraw.Draw(bg)
     try:
-        font_title = ImageFont.truetype("font.ttf", 30)
-        font_names = ImageFont.truetype("font.ttf", 22)
-        font_prize = ImageFont.truetype("font.ttf", 28)
-    except:
+        font_title = ImageFont.truetype(FONT_PATH, 30)
+        font_names = ImageFont.truetype(FONT_PATH, 22)
+        font_prize = ImageFont.truetype(FONT_PATH, 28)
+    except Exception:
         font_title = font_names = font_prize = ImageFont.load_default()
 
-    # 1. عنوان الكارت (أعلى الإطار)
     draw.text((485, 68), "نتيجة الرهان", font=font_title, fill="#F5D061", anchor="mm")
-    
-    # 2. أسماء اللاعبين تحت الدوائر
     draw.text((785, 390), winner_name[:14], font=font_names, fill="#FFFFFF", anchor="mm")
     draw.text((198, 390), loser_name[:14], font=font_names, fill="#B0BEC5", anchor="mm")
-    
-    # 3. تفاصيل الجائزة والنتيجة في الإطار الأوسط
+
     draw.text((485, 235), "الفائز بالمواجهة!", font=font_names, fill="#81C784", anchor="mm")
     draw.text((485, 275), f"+{prize:,} طولار", font=font_prize, fill="#FFD54F", anchor="mm")
-    
+
     buffer = io.BytesIO()
     bg.save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
+
+
+# رسم عجلة الرهان المتحركة
+def make_wheel_frame(p1_name: str, p2_name: str, angle: float) -> io.BytesIO:
+    width, height = 500, 500
+    img = Image.new("RGBA", (width, height), (30, 30, 35, 255))
+    draw = ImageDraw.Draw(img)
+    center = (width // 2, height // 2)
+    radius = 200
+
+    for i in range(8):
+        start_deg = angle + i * 45
+        end_deg = angle + (i + 1) * 45
+        color = (220, 50, 50, 255) if i % 2 == 0 else (50, 120, 220, 255)
+        draw.pieslice(
+            [center[0] - radius, center[1] - radius, center[0] + radius, center[1] + radius],
+            start_deg,
+            end_deg,
+            fill=color,
+            outline=(255, 255, 255, 255),
+            width=2,
+        )
+
+    # السهم
+    draw.polygon(
+        [
+            (center[0], center[1] - radius - 10),
+            (center[0] - 15, center[1] - radius - 30),
+            (center[0] + 15, center[1] - radius - 30),
+        ],
+        fill=(255, 215, 0, 255),
+    )
+
+    # الدائرة المركزية
+    draw.ellipse(
+        [center[0] - 35, center[1] - 35, center[0] + 35, center[1] + 35],
+        fill=(40, 40, 45, 255),
+        outline=(255, 255, 255, 255),
+        width=2,
+    )
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+
+class TimedSubView(discord.ui.View):
+    def __init__(self, timeout=60):
+        super().__init__(timeout=timeout)
+        self.message = None
+
+    async def on_timeout(self):
+        for child in self.children:
+            child.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
+
+
+class ChallengeView(discord.ui.View):
+    def __init__(self, challenger: discord.Member, opponent: discord.Member, amount: int):
+        super().__init__(timeout=60)
+        self.challenger = challenger
+        self.opponent = opponent
+        self.amount = amount
+        self.accepted = False
+
+    @discord.ui.button(label="قبول التحدي ⚔️", style=discord.ButtonStyle.success)
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.opponent:
+            await interaction.response.send_message("❌ هذا التحدي موجه لشخص آخر!", ephemeral=True)
+            return
+
+        if get_balance(self.opponent.id) < self.amount:
+            await interaction.response.send_message("❌ رصيدك غير كافٍ للقبول!", ephemeral=True)
+            return
+
+        self.accepted = True
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content=f"✅ قبل {self.opponent.mention} التحدي!", view=self)
+        self.stop()
+
+    @discord.ui.button(label="رفض ✖️", style=discord.ButtonStyle.danger)
+    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.opponent and interaction.user != self.challenger:
+            await interaction.response.send_message("❌ لا يمكنك إلغاء هذا التحدي!", ephemeral=True)
+            return
+
+        self.accepted = False
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="❌ تم إلغاء التحدي.", view=self)
+        self.stop()
 
 
 class BackToMainButton(discord.ui.Button):
@@ -1942,14 +2038,16 @@ async def bet_game(
 
     # التحدي المباشر ضد لاعب آخر (يحتاج موافقة عبر الأزرار)
     if player2 != bot.user:
-        card_buf = make_challenge_card(player1, player2, amount)
+        p1_bytes = await player1.display_avatar.read()
+        p2_bytes = await player2.display_avatar.read()
+        card_buf = await generate_bet_challenge_card(p1_bytes, p2_bytes, amount)
         file = discord.File(fp=card_buf, filename="challenge.png")
         view = ChallengeView(player1, player2, amount)
 
         msg = await ctx.send(
             content=f"⚔️ {player2.mention}، تحداك {player1.mention} في رهان بمبلغ **{amount}** طولار",
             file=file,
-            view=view
+            view=view,
         )
 
         await view.wait()
@@ -1999,12 +2097,16 @@ async def bet_game(
         await asyncio.sleep(0.4)
 
     # عرض النتيجة النهائية
-    res_buf = make_result_card(winner, loser, amount, total_pot)
+    win_bytes = await winner.display_avatar.read()
+    lose_bytes = await loser.display_avatar.read()
+    res_buf = await generate_bet_result_card(
+        win_bytes, lose_bytes, winner.display_name, loser.display_name, total_pot
+    )
     res_file = discord.File(fp=res_buf, filename="result.png")
 
     await spin_msg.edit(
         content=f"🎉 **انتهت اللعبة! فاز {winner.mention} بالرهان!**",
-        attachments=[res_file]
+        attachments=[res_file],
     )
 
 
@@ -2382,7 +2484,7 @@ async def on_member_join(member):
         file = discord.File(fp=img_buf, filename="welcome.png")
         await channel.send(
             content=f"أهلاً وسهلاً بك يا {member.mention} في السيرفر! 🎉",
-            file=file
+            file=file,
         )
 
 
