@@ -2478,9 +2478,10 @@ async def unmute_member_error(ctx, error):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
 
-# --- 11. تشغيل البوت ---
-TOKEN = os.environ.get("TOKEN")
-if TOKEN:
-    bot.run(TOKEN)
-else:
-    print("❌ لم يتم العثور على رمز TOKEN في متغيرات البيئة!")
+@bot.event
+async def on_ready():
+    print(f"✅ تم تسجيل الدخول باسم: {bot.user.name}")
+    fetch_latest_balances_from_github()
+
+
+bot.run(os.environ.get("DISCORD_TOKEN"))
