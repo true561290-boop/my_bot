@@ -1,56 +1,56 @@
-import re
 import asyncio
 import datetime
 import io
+import math
 import os
 import random
-import math
+import re
 from threading import Thread
 import typing
 
-import aiohttp
-import discord
-from discord.ext import commands
-from flask import Flask
-from PIL import Image, ImageDraw, ImageFont
-import requests
+aiohttp استيراد
+مستوردة من ديسكورد
+من discord.ext استيراد الأوامر
+من تطبيق الفلاسك Flask
+من PIL استيراد الصورة، ImageDraw، ImageFont
+استيراد الطلبات
 
 # استيراد نظام الأرصدة المنفصل
-from economy import (
-    add_balance,
-    fetch_latest_balances_from_github,
-    get_balance,
-    remove_balance,
+من الاقتصاد المستورد (
+    add_balance،
+    fetch_latest_balances_from_github،
+    احصل على التوازن،
+    remove_balance،
 )
 
 # --- 1. خادم الويب للحفاظ على استمرار التشغيل 24/7 ---
-app = Flask("")
+التطبيق = Flask("")
 
 
 @app.route("/")
-def home():
-    return "B✰IL Bot is Online!"
+معرف الصفحة الرئيسية ():
+    إرجاع "B✰IL البوت متصل بالإنترنت!"
 
 
-def run_web():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
+تنسيق run_web():
+    المنفذ = int(os.environ.get("PORT", 8080))
+    app.run(المضيف="0.0.0.0"، المنفذ=المنفذ)
 
 
-def keep_alive():
-    t = Thread(target=run_web)
-    t.daemon = True
-    t.start()
+معرف keep_alive():
+    t = Thread(الهدف=run_web)
+    t.daemon = صحيح
+    ت.البداية()
 
 
-keep_alive()
+الحفاظ على الحياة()
 
 # --- 2. إعدادات البوت والبيانات ---
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-bot = commands.Bot(command_prefix=".", intents=intents)
-bot.remove_command("help")
+النوايا = discord.Intents.default()
+intents.message_content = صحيح
+intents.members = صحيح
+البوت = الأوامر.البوت(محتوى الأوامر="."، النوايا=النوايا)
+bot.remove_command("المساعدة")
 
 WELCOME_CHANNEL_ID = 1515396548392128670
 LEVEL_50_ROLE_ID = 1515396547473309712
@@ -64,493 +64,493 @@ BACKGROUND_IMAGE_URL = "https://i.ibb.co/6R2N29S/vintage-paper-bg.png"
 FONT_PATH = "arabic_font.ttf"
 
 
-def in_channel(channel_id: int):
-    async def predicate(ctx):
-        if ctx.channel.id != channel_id:
-            try:
-                await ctx.message.delete()
-            except Exception:
-                pass
-            await ctx.send(
+تعريف in_channel(channel_id: int):
+    المحكوم عليه غير متزامن (ctx):
+        إذا كان ctx.channel.id != channel_id:
+            يحاول:
+                انتظر ctx.message.delete()
+            استثناء باستثناء:
+                يمر
+            أنتظر ctx.send(
                 f"❌ هذا الأمر يعمل فقط في الروم المخصص: <#{channel_id}>",
-                delete_after=3,
+                بعد الحذف=3،
             )
-            return False
-        return True
+            إرجاع خطأ
+        إرجاع صحيح
 
-    return commands.check(predicate)
+    إرجاع الأوامر.التحقق(المحكوم)
 
 
-def ensure_arabic_font():
-    if not os.path.exists(FONT_PATH):
+تحديد ensure_arabic_font():
+    إذا لم يكن os.path.exists(FONT_PATH):
         font_url = "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Bold.ttf"
-        try:
-            r = requests.get(font_url)
-            if r.status_code == 200:
-                with open(FONT_PATH, "wb") as f:
-                    f.write(r.content)
-                print("✅ تم تحميل الخط العربي بنجاح!")
-        except Exception as e:
-            print(f"❌ فشل تنزيل الخط العربي: {e}")
+        يحاول:
+            r = طلبات.احصل على(font_url)
+            إذا كانت r.status_code == 200:
+                مع فتح(FONT_PATH, "wb") كـ f:
+                    f.كتابة(محتوى r.)
+                اطبع("✅ تم تحميل الخط العربي بنجاح!")
+        استثناء باستثناء كـ e:
+            اطبع(f"❌ فشل تنزيل الخط العربي: {e}")
 
 
-ensure_arabic_font()
-fetch_latest_balances_from_github()
+ضمان وجود الخط العربي()
+جلب أحدث أرصدة من GitHub()
 
 # --- 3. المتجر التفاعلي ورسم الصور ---
 
 SHOP_VIP_ROLES = {
-    "lvl_25": {
-        "name": "Level 25 (إرسال صور)",
-        "price": 1000,
-        "id": 1515396547473309710,
+    "مستوى_25": {
+        "الاسم": "المستوى 25 (إرسال صور)",
+        "السعر": 1000,
+        "معرف": 1515396547473309710,
     },
-    "lvl_35": {
-        "name": "Level 35 (إرسال صور وستيكرات من سيرفر آخر)",
-        "price": 2000,
-        "id": 1515396547473309711,
+    "مستوى_35": {
+        "الاسم": "Level 35 (إرسال صور وستيكرات من سيرفر آخر)",
+        "السعر": 2000,
+        "معرف": 1515396547473309711,
     },
-    "lvl_50": {
-        "name": "Level 50 (كل ما سبق + ميزة الخط الكبير)",
-        "price": 3500,
-        "id": 1515396547473309712,
+    "مستوى_50": {
+        "الاسم": "Level 50 (كل ما سبق + ميزة الخط الكبير)",
+        "السعر": 3500,
+        "معرف": 1515396547473309712,
     },
-    "founder": {
-        "name": "⚡ الزنجي المؤسس",
-        "price": 5000,
-        "id": 1527739093163708548,
+    "المؤسس": {
+        "الاسم": "⚡ الزنجي المؤسس",
+        "السعر": 5000,
+        "معرف": 1527739093163708548,
     },
 }
 
 SHOP_COLOR_ROLES = {
-    "c_red": {"name": "أحمر", "price": 800, "id": 1515396547536355469},
-    "c_blue": {"name": "أزرق", "price": 800, "id": 1515396547528102135},
-    "c_green": {"name": "أخضر", "price": 800, "id": 1515396547528102136},
-    "c_purple": {"name": "بنفسجي", "price": 800, "id": 1515396547528102134},
-    "c_yellow": {"name": "أصفر", "price": 800, "id": 1515396547528102137},
-    "c_gray": {"name": "رمادي", "price": 800, "id": 1515487581138190376},
-    "c_skin": {"name": "Skin", "price": 800, "id": 1515480359553335441},
+    "ج_احمر": {"الاسم": "أحمر", "السعر": 800, "معرف": 1515396547536355469},
+    "c_blue": {"الاسم": "أزرق", "السعر": 800, "معرف": 1515396547528102135},
+    "c_green": {"الاسم": "أخضر", "السعر": 800, "معرف": 1515396547528102136},
+    "c_purple": {"الاسم": "بنفسجي", "السعر": 800, "معرف": 1515396547528102134},
+    "أصفر c": {"الاسم": "أصفر", "السعر": 800, "معرف": 1515396547528102137},
+    "رمادي": {"الاسم": "رمادي", "السعر": 800, "معرف": 1515487581138190376},
+    "الجلد c": {"الاسم": "الجلد", "السعر": 800, "معرف": 1515480359553335441},
 }
 
 
-def fetch_avatar(user):
-    try:
-        url = user.display_avatar.url
-        res = requests.get(url, timeout=5)
-        if res.status_code == 200:
-            avatar = Image.open(io.BytesIO(res.content)).convert("RGBA")
-            return avatar
-    except Exception as e:
-        print(f"Error fetching avatar: {e}")
-    return Image.new("RGBA", (100, 100), (100, 100, 100, 255))
+تحديد fetch_avatar(المستخدم):
+    يحاول:
+        رابط = user.display_avatar.url
+        المصادر = طلبات.احصل على(الرابط، مهلة الانتظار=5)
+        إذا كانت النتيجة status_code == 200:
+            الصورة الرمزية = الصورة.افتح(io.BytesIO(المصادر.المحتوى)).تحويل("RGBA")
+            إرجاع الصورة الرمزية
+    استثناء باستثناء كـ e:
+        اطبع(f"خطأ في جلب الصورة الرمزية: {e}")
+    إرجاع صورة.جديدة("RGBA", (100, 100), (100, 100, 100, 255))
 
 
-def get_base_bg(width=800, height=450):
-    if os.path.exists("bg_paper.png"):
-        try:
-            return Image.open("bg_paper.png").convert("RGBA").resize((width, height))
-        except Exception:
-            pass
-    return Image.new("RGBA", (width, height), (30, 25, 45, 255))
+تعريف get_base_bg(العرض=800، الارتفاع=450):
+    إذا كان os.path.exists("bg_paper.png"):
+        يحاول:
+            إرجاع صورة.افتح("bg_paper.png").تحويل("RGBA").تعديل الحجم((العرض، الارتفاع))
+        استثناء باستثناء:
+            يمر
+    إرجاع صورة.جديدة("RGBA", (العرض, الارتفاع), (30, 25, 45, 255))
 
 
-def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
-    width, height = 800, 550
-    img = get_base_bg(width, height)
-    draw = ImageDraw.Draw(img)
+تنسيق make_card_with_text(unused_url، عنوان_النص، main_text، فرعي_نص=""):
+    العرض، الارتفاع = 800، 550
+    الصورة = get_base_bg(العرض، الارتفاع)
+    رسم = رسم الصور.رسم(صورة)
 
-    font_large = ImageFont.load_default()
-    font_med = ImageFont.load_default()
-    font_sub = ImageFont.load_default()
+    خط_كبير = خط الصورة.تحميل الافتراضي()
+    خط_متوسط = خط الصورة.تحميل الافتراضي()
+    الخط الفرعي = خط الصورة.تحميل الافتراضي()
 
-    if os.path.exists(FONT_PATH):
-        try:
-            font_large = ImageFont.truetype(FONT_PATH, 44)
-            font_med = ImageFont.truetype(FONT_PATH, 34)
-            font_sub = ImageFont.truetype(FONT_PATH, 22)
-        except Exception as e:
-            print(f"Font error: {e}")
+    إذا كان os.path.exists(FONT_PATH):
+        يحاول:
+            خط_كبير = خط الصورة.خط حقيقي(FONT_PATH, 44)
+            خط_متوسط = خط الصورة.خط حقيقي(FONT_PATH, 34)
+            خط فرعي = خط الصورة.خط حقيقي(FONT_PATH, 22)
+        استثناء باستثناء كـ e:
+            اطبع(f"خطأ في الخط: {e}")
 
-    TEXT_COLOR_TITLE = (80, 20, 10, 255)
-    TEXT_COLOR_MAIN = (30, 20, 10, 255)
-    TEXT_COLOR_SUB = (90, 60, 40, 255)
+    COLOR_TITLE_TEXT = (80، 20، 10، 255)
+    COLOR_MAIN_TEXT = (30, 20, 10, 255)
+    TEXT_COLOR_SUB = (90، 60، 40، 255)
 
-    if title_text:
-        draw.text(
-            (width // 2, 130),
-            title_text,
-            font=font_large,
-            fill=TEXT_COLOR_TITLE,
-            anchor="mm",
+    إذا كان العنوان نصيًا:
+        ارسم نصوصًا(
+            (العرض // 2، 130)،
+            عنوان النص،
+            الخط=خط كبير،
+            تعبئة = TEXT_COLOR_TITLE،
+            مرساة = "مم",
         )
-        draw.line(
-            [(width // 2 - 130, 165), (width // 2 + 130, 165)],
-            fill=(120, 70, 40, 255),
-            width=2,
-        )
-
-    if main_text:
-        draw.text(
-            (width // 2, 260),
-            main_text,
-            font=font_med,
-            fill=TEXT_COLOR_MAIN,
-            anchor="mm",
+        ارسم خطًا(
+            [(العرض // 2 - 130، 165)، (العرض // 2 + 130، 165)]،
+            التعبئة = (120، 70، 40، 255)،
+            العرض = 2،
         )
 
-    if sub_text:
-        draw.text(
-            (width // 2, 380),
-            sub_text,
-            font=font_sub,
-            fill=TEXT_COLOR_SUB,
-            anchor="mm",
+    إذا كان نص رئيسي:
+        ارسم نصوصًا(
+            (العرض // 2، 260)،
+            المتن النصي،
+            الخط=خط متوسط،
+            التعبئة = TEXT_COLOR_MAIN،
+            مرساة = "مم",
         )
 
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
+    إذا كانت الفرعية نصية:
+        ارسم نصوصًا(
+            (العرض // 2، 380)،
+            نص فرعي،
+            الخط = الخط الفرعي،
+            تعبئة = TEXT_COLOR_SUB،
+            مرساة = "مم",
+        )
+
+    البوف = io.BytesIO()
+    الصورة.حفظ(الـ buf، الصيغة="PNG")
+    بوف.البحث(0)
+    إرجاع البوف
 
 
-def make_welcome_card(user):
-    width, height = 800, 550
-    img = get_base_bg(width, height)
+تحديد make_welcome_card(المستخدم):
+    العرض، الارتفاع = 800، 550
+    الصورة = get_base_bg(العرض، الارتفاع)
 
-    avatar = fetch_avatar(user).resize((150, 150))
-    mask = Image.new("L", (150, 150), 0)
-    draw_mask = ImageDraw.Draw(mask)
-    draw_mask.ellipse((0, 0, 150, 150), fill=255)
-    img.paste(avatar, (width // 2 - 75, 120), mask)
+    الصورة الرمزية = fetch_avatar(مستخدم).تعديل الحجم((150، 150))
+    قناع = صورة.جديد("L"، (150، 150)، 0)
+    قناع الرسم = رسم الصور.رسم(قناع)
+    قناع الرسم.شكل بيضاوي((0، 0، 150، 150)، تعبئة=255)
+    الصورة.لصق(الصورة الرمزية, (العرض // 2 - 75, 120), القناع)
 
-    draw = ImageDraw.Draw(img)
-    font_large = ImageFont.load_default()
-    font_sub = ImageFont.load_default()
+    رسم = رسم الصور.رسم(صورة)
+    خط_كبير = خط الصورة.تحميل الافتراضي()
+    الخط الفرعي = خط الصورة.تحميل الافتراضي()
 
-    if os.path.exists(FONT_PATH):
-        try:
-            font_large = ImageFont.truetype(FONT_PATH, 42)
-            font_sub = ImageFont.truetype(FONT_PATH, 24)
-        except Exception as e:
-            print(f"Font error: {e}")
+    إذا كان os.path.exists(FONT_PATH):
+        يحاول:
+            خط_كبير = خط الصورة.خط حقيقي(FONT_PATH, 42)
+            خط فرعي = خط الصورة.خط حقيقي(FONT_PATH, 24)
+        استثناء باستثناء كـ e:
+            اطبع(f"خطأ في الخط: {e}")
 
-    draw.text(
-        (width // 2, 320),
+    ارسم نصوصًا(
+        (العرض // 2، 320)،
         "مرحباً بك في السيرفر!",
-        font=font_large,
-        fill=(80, 20, 10, 255),
-        anchor="mm",
+        الخط=خط كبير،
+        التعبئة = (80، 20، 10، 255)،
+        مرساة = "مم",
     )
-    draw.text(
-        (width // 2, 380),
+    ارسم نصوصًا(
+        (العرض // 2، 380)،
         f"{user.display_name}",
-        font=font_sub,
-        fill=(90, 60, 40, 255),
-        anchor="mm",
+        الخط = الخط الفرعي،
+        التعبئة = (90، 60، 40، 255)،
+        مرساة = "مم",
     )
 
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
+    البوف = io.BytesIO()
+    الصورة.حفظ(الـ buf، الصيغة="PNG")
+    بوف.البحث(0)
+    إرجاع البوف
 
 
 # --- رسوميات لعبة الرهان الجديدة (تطابق التصميم) ---
 
-def make_challenge_card(p1, p2, amount):
+تحديد make_challenge_card(p1, p2, المبلغ):
     """تصميم بطاقة التحدي الأولى"""
-    width, height = 800, 400
-    img = Image.new("RGBA", (width, height), (22, 27, 34, 255))
-    draw = ImageDraw.Draw(img)
+    العرض، الارتفاع = 800، 400
+    الصورة = صورة.جديدة("RGBA"، (العرض، الارتفاع)، (22، 27، 34، 255))
+    رسم = رسم الصور.رسم(صورة)
 
-    font_title = ImageFont.load_default()
-    font_vs = ImageFont.load_default()
+    عنوان_الخط = خط الصورة.تحميل الافتراضي()
+    خط مقابل = خط الصورة.تحميل الافتراضي()
 
-    if os.path.exists(FONT_PATH):
-        try:
-            font_title = ImageFont.truetype(FONT_PATH, 28)
-            font_vs = ImageFont.truetype(FONT_PATH, 36)
-        except Exception:
-            pass
+    إذا كان os.path.exists(FONT_PATH):
+        يحاول:
+            عنوان_الخط = خط الصورة.خط حقيقي(FONT_PATH, 28)
+            خط مقابل = خط الصورة.خط حقيقي(FONT_PATH, 36)
+        استثناء باستثناء:
+            يمر
 
     # صور الأفاتار
     av1 = fetch_avatar(p1).resize((110, 110))
     av2 = fetch_avatar(p2).resize((110, 110))
 
-    mask = Image.new("L", (110, 110), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
+    قناع = صورة.جديد("L"، (110، 110)، 0)
+    رسم الصورة.رسم(القناع).شكل بيضاوي((0، 0، 110، 110)، تعبئة=255)
 
-    img.paste(av1, (130, 80), mask)
-    img.paste(av2, (560, 80), mask)
+    الصورة.لصق(av1, (130, 80), القناع)
+    الصورة.لصق(av2, (560, 80), القناع)
 
-    draw.text((width // 2, 135), "VS", font=font_vs, fill=(230, 50, 50, 255), anchor="mm")
+    ارسم نصوصًا((العرض // 2, 135), "VS", الخط=خط مقابل, التعبئة=(230, 50, 50, 255), Anchor="mm")
 
     # أسماء اللاعبين
-    draw.text((185, 210), p1.display_name[:12], font=font_title, fill=(255, 255, 255), anchor="mm")
-    draw.text((615, 210), p2.display_name[:12], font=font_title, fill=(255, 255, 255), anchor="mm")
+    ارسم نصوصًا((185, 210), p1.display_name[:12], الخط=عنوان الخط, التعبئة=(255, 255, 255), Anchor="mm")
+    ارسم نصوصًا((615, 210), p2.display_name[:12], الخط=عنوان الخط, التعبئة=(255, 255, 255), Anchor="mm")
 
     # بطاقة المبلغ
-    draw.rectangle([(250, 280), (550, 340)], fill=(35, 43, 54), outline=(212, 175, 55), width=2)
-    draw.text((width // 2, 310), f"المبلغ: {amount} طولار", font=font_title, fill=(255, 215, 0), anchor="mm")
+    ارسم مستطيلاً([(250, 280), (550, 340)], التعبئة=(35, 43, 54), الحدود الخارجيّة=(212, 175, 55), العرض=2)
+    ارسم نصوصًا((العرض // 2، 310)، f"المبلغ: {amount} طولار"، الخط=عنوان الخط، التعبئة=(255، 215، 0)، Anchor="mm")
 
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
+    البوف = io.BytesIO()
+    الصورة.حفظ(الـ buf، الصيغة="PNG")
+    بوف.البحث(0)
+    إرجاع البوف
 
 
-def make_wheel_frame(p1_name, p2_name, current_angle):
+تنسيق make_wheel_frame(p1_name, p2_name, current_angle):
     """رسم إطار منفرد للعجلة بدقة عالية لضمان انيميشن سلس بدون GIF"""
-    size = 400
-    center = size // 2
-    radius = 160
-    num_slices = 8
-    slice_angle = 360 / num_slices
+    الحجم = 400
+    المركز = الحجم // 2
+    نصف القطر = 160
+    عدد الشرائح = 8
+    زاوية الشريحة = 360 / عدد الشرائح
 
-    colors = [
+    الـ colors = [
         (230, 57, 70), (69, 123, 157), (241, 250, 238), (29, 53, 87),
         (230, 57, 70), (69, 123, 157), (241, 250, 238), (29, 53, 87)
     ]
 
-    font = ImageFont.load_default()
-    if os.path.exists(FONT_PATH):
-        try:
-            font = ImageFont.truetype(FONT_PATH, 16)
-        except Exception:
-            pass
+    الخط = خط الصورة.تحميل الافتراضي()
+    إذا كان os.path.exists(FONT_PATH):
+        يحاول:
+            الخط = خط الصورة.خط حقيقي(FONT_PATH, 16)
+        استثناء باستثناء:
+            يمر
 
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
+    الصورة = صورة.جديدة("RGBA", (الحجم, الحجم), (0, 0, 0, 0))
+    رسم = رسم الصور.رسم(صورة)
 
     # الحلقة الخارجية
-    draw.ellipse([center - radius - 8, center - radius - 8, center + radius + 8, center + radius + 8], fill=(30, 30, 30), outline=(212, 175, 55), width=5)
+    ارسم شكل بيضاوي([المركز - نصف القطر - 8، المركز - نصف القطر - 8، المركز + نصف القطر + 8، المركز + نصف القطر + 8]، تعبئة=(30، 30، 30)، الحدود الخارجية=(212، 175، 55)، العرض=5)
 
-    for i in range(num_slices):
-        start = current_angle + i * slice_angle
-        end = start + slice_angle
-        draw.pieslice([center - radius, center - radius, center + radius, center + radius], start=start, end=end, fill=colors[i], outline=(255, 255, 255), width=2)
+    لـ i في نطاق(عدد الشرائح):
+        البداية = الزاوية الحالية + i * زاوية الشريحة
+        النهاية = البداية + زاوية الشريحة
+        ارسم شريحة الفطيرة([المركز - نصف القطر، المركز - نصف القطر، المركز + نصف القطر، المركز + نصف القطر]، البداية=البداية، النهاية=النهاية، تعبئة=الألوان[i]، الحدود الخارجية=(255، 255، 255)، العرض=2)
 
-        mid_angle = math.radians(start + slice_angle / 2)
-        tx = center + (radius * 0.65) * math.cos(mid_angle)
-        ty = center + (radius * 0.65) * math.sin(mid_angle)
-        label = p1_name if i % 2 == 0 else p2_name
-        draw.text((tx, ty), label[:7], fill=(255, 255, 255) if colors[i] != (241, 250, 238) else (0, 0, 0), font=font, anchor="mm")
+        زاوية المنتصف = الرياضيات.الراديان(البداية + زاوية الشريحة / 2)
+        tx = المركز + (نصف القطر * 0.65) * الرياضيات.جيب التمام(زاوية المنتصف)
+        ty = المركز + (نصف القطر * 0.65) * الرياضيات.جيب الزاوية(زاوية المنتصف)
+        التسمية = اسم p1 إذا i % 2 == 0 وإلا اسم p2
+        ارسم نصوصًا((tx, ty), التسمية[:7], التعبئة=(255, 255, 255) إذا كان الألوان[i] != (241, 250, 238) وإلا (0, 0, 0), الخط=الخط, المرساة="mm")
 
     # المؤشر الذهبي
-    pointer_poly = [(center, center - radius - 12), (center - 12, center - radius - 30), (center + 12, center - radius - 30)]
-    draw.polygon(pointer_poly, fill=(255, 215, 0), outline=(0, 0, 0), width=2)
+    مضلع المؤشر = [(المركز، المركز - نصف القطر - 12)، (المركز - 12، المركز - نصف القطر - 30)، (المركز + 12، المركز - نصف القطر - 30)]
+    ارسم مضلعًا(مضلع المؤشر، التعبئة=(255، 215، 0)، الحدود الخارجية=(0، 0، 0)، العرض=2)
 
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
+    البوف = io.BytesIO()
+    الصورة.حفظ(الـ buf، الصيغة="PNG")
+    بوف.البحث(0)
+    إرجاع البوف
 
 
-def make_result_card(winner, loser, amount, total_pot):
+تحديد make_result_card(الفائز، الخاسر، المبلغ، إجمالي الوعاء):
     """تصميم بطاقة النتيجة النهائية المعتمدة على الصور الرسمية"""
-    width, height = 800, 420
-    img = Image.new("RGBA", (width, height), (18, 22, 29, 255))
-    draw = ImageDraw.Draw(img)
+    العرض، الارتفاع = 800، 420
+    الصورة = صورة.جديدة("RGBA"، (العرض، الارتفاع)، (18، 22، 29، 255))
+    رسم = رسم الصور.رسم(صورة)
 
-    font_title = ImageFont.load_default()
-    font_main = ImageFont.load_default()
+    عنوان_الخط = خط الصورة.تحميل الافتراضي()
+    الخط الرئيسي = خط الصورة.تحميل الافتراضي()
 
-    if os.path.exists(FONT_PATH):
-        try:
-            font_title = ImageFont.truetype(FONT_PATH, 32)
-            font_main = ImageFont.truetype(FONT_PATH, 22)
-        except Exception:
-            pass
+    إذا كان os.path.exists(FONT_PATH):
+        يحاول:
+            عنوان_الخط = خط الصورة.خط حقيقي(FONT_PATH, 32)
+            الخط الرئيسي = خط الصورة.خط حقيقي(FONT_PATH, 22)
+        استثناء باستثناء:
+            يمر
 
     # صور الفائز والخاسر
-    w_av = fetch_avatar(winner).resize((120, 120))
-    l_av = fetch_avatar(loser).resize((90, 90))
+    w_av = fetch_avatar(فائز).تعديل الحجم((120, 120))
+    l_av = fetch_avatar(خاسر).تعديل الحجم((90, 90))
 
-    mask_w = Image.new("L", (120, 120), 0)
-    ImageDraw.Draw(mask_w).ellipse((0, 0, 120, 120), fill=255)
+    قناع w = صورة.جديد("L"، (120، 120)، 0)
+    رسم الصور.رسم(قناع w).شكل بيضاوي((0، 0، 120، 120)، تعبئة=255)
 
-    mask_l = Image.new("L", (90, 90), 0)
-    ImageDraw.Draw(mask_l).ellipse((0, 0, 90, 90), fill=255)
+    قناع l = صورة.جديد("L"، (90، 90)، 0)
+    رسم الصور.رسم(قناع l).شكل بيضاوي((0، 0، 90، 90)، تعبئة=255)
 
-    img.paste(w_av, (140, 60), mask_w)
-    img.paste(l_av, (560, 75), mask_l)
+    الصورة.لصق(w_av, (140, 60), القناع w)
+    الصورة.لصق(l_av, (560, 75), القناع l)
 
     # إطار الفائز الذهبي
-    draw.ellipse([(135, 55), (265, 185)], outline=(255, 215, 0), width=4)
+    ارسم شكل بيضاوي([(135, 55), (265, 185)], الحدود الخارجيّة=(255, 215, 0), العرض=4)
 
     # النصوص
-    draw.text((200, 205), f"👑 الفائز: {winner.display_name}", font=font_title, fill=(255, 215, 0), anchor="mm")
-    draw.text((605, 185), f"الخاسر: {loser.display_name}", font=font_main, fill=(180, 180, 180), anchor="mm")
+    ارسم نصوصًا((200, 205), f"👑 الفائز: {winner.display_name}", الخط=عنوان الخط, التعبئة=(255, 215, 0), Anchor="mm")
+    ارسم نصوصًا((605, 185), f"الخاسر: {loser.display_name}", الخط=الخط الرئيسي, التعبئة=(180, 180, 180), Anchor="mm")
 
     # رصيد الحاضر لكل طرف
-    draw.text((200, 245), f"الرصيد: {get_balance(winner.id)} طولار", font=font_main, fill=(100, 255, 100), anchor="mm")
-    draw.text((605, 220), f"الرصيد: {get_balance(loser.id)} طولار", font=font_main, fill=(255, 100, 100), anchor="mm")
+    ارسم نصوصًا((200, 245), f"الرصيد: {get_balance(winner.id)} طولار", الخط=الخط الرئيسي, التعبئة=(100, 255, 100), Anchor="mm")
+    ارسم نصوصًا((605, 220), f"الرصيد: {get_balance(loser.id)} طولار", الخط=الخط الرئيسي, التعبئة=(255, 100, 100), Anchor="mm")
 
     # بطاقة الإجمالي
-    draw.rectangle([(200, 310), (600, 380)], fill=(28, 35, 45), outline=(212, 175, 55), width=2)
-    draw.text((400, 345), f"المبلغ الإجمالي المكتسب: {total_pot} طولار", font=font_title, fill=(255, 215, 0), anchor="mm")
+    ارسم مستطيلاً([(200, 310), (600, 380)], التعبئة=(28, 35, 45), الحدود الخارجيّة=(212, 175, 55), العرض=2)
+    ارسم نصوصًا((400, 345), f"المبلغ الإجمالي المكتسب: {total_pot} طولار", الخط=عنوان الخط, التعبئة=(255, 215, 0), Anchor="mm")
 
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
+    البوف = io.BytesIO()
+    الصورة.حفظ(الـ buf، الصيغة="PNG")
+    بوف.البحث(0)
+    إرجاع البوف
 
 
-class ChallengeView(discord.ui.View):
-    def __init__(self, p1, p2, amount):
-        super().__init__(timeout=30)
-        self.p1 = p1
-        self.p2 = p2
-        self.amount = amount
-        self.accepted = None
+فئة ChallengeView(discord.ui.View):
+    تعريف __init__(النفس، p1، p2، المبلغ):
+        السوبر().__init__(مهلة الانتظار=30)
+        خود.p1 = p1
+        خود.p2 = p2
+        خود.amount = المبلغ
+        خود.accepted = لا أحد
 
     @discord.ui.button(label="قبول التحدي", style=discord.ButtonStyle.success, emoji="✅")
-    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.p2:
-            await interaction.response.send_message("❌ هذا التحدي ليس موجهاً لك!", ephemeral=True)
-            return
-        self.accepted = True
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(view=self)
-        self.stop()
+    مستجيب غير متزامن (خود، تفاعل: discord.Interaction، أزرار: discord.ui.Button):
+        إذا كان تفاعل.مستخدم != خود.p2:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة("❌ هذا التحدي ليس موجهاً لك!", مؤقت=صحيح)
+            إرجاع
+        خود.accepted = صحيح
+        لـ الطفل في خود.الاطفال:
+            الطفل.تعطيل = صحيح
+        أنتظر تفاعل.الاستجابة.تعديل الرسالة(عرض=خود)
+        خود.ايقاف()
 
     @discord.ui.button(label="رفض التحدي", style=discord.ButtonStyle.danger, emoji="✖️")
-    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.p2:
-            await interaction.response.send_message("❌ هذا التحدي ليس موجهاً لك!", ephemeral=True)
-            return
-        self.accepted = False
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(content="❌ تم رفض الرهان.", view=self)
-        self.stop()
+    انحدار غير متزامن (خود، تفاعل: discord.Interaction، أزرار: discord.ui.Button):
+        إذا كان تفاعل.مستخدم != خود.p2:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة("❌ هذا التحدي ليس موجهاً لك!", مؤقت=صحيح)
+            إرجاع
+        خود.accepted = خطأ
+        لـ الطفل في خود.الاطفال:
+            الطفل.تعطيل = صحيح
+        أنتظر تفاعل.الاستجابة.تعديل الرسالة(المحتوى="❌ تم رفض الرهان.", عرض=خود)
+        خود.ايقاف()
 
 
-class TimedSubView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=60)
-        self.message = None
+فئة TimedSubView(discord.ui.View):
+    تعريف __init__(النفس):
+        السوبر().__init__(مهلة الانتظار=60)
+        خود.رسالة = لا أحد
 
-    async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
-        if self.message:
-            try:
-                await self.message.edit(view=self)
-            except Exception:
-                pass
+    مهلة وقت الانتظار غير متزامنة (خود):
+        لـ عنصر في خود.الاطفال:
+            العنصر.تعطيل = صحيح
+        إذا كانت خود.رسالة:
+            يحاول:
+                أنتظر خود.رسالة.تعديل(عرض=خود)
+            استثناء باستثناء:
+                يمر
 
 
-class BackToMainButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(
-            label="رجوع للمتجر", style=discord.ButtonStyle.secondary, emoji="🔙"
+فئة BackToMainButton(discord.ui.Button):
+    تعريف __init__(النفس):
+        السوبر().__init__(
+            الملصق="رجوع للمتجر", النمط=discord.ButtonStyle.secondary, التعبير="🔙"
         )
 
-    async def callback(self, interaction: discord.Interaction):
-        img_buf = make_card_with_text(
-            None,
+    استدعاء استجابة غير متزامنة (خود، تفاعل: discord.Interaction):
+        بوف الصورة = make_card_with_text(
+            لا أحد،
             "المتجر الملكي",
             "خزانة البلاط ومراسيمه",
             "اختر القسم للتنقل والشراء",
         )
-        file = discord.File(fp=img_buf, filename="shop.png")
-        view = MainShopView()
-        await interaction.response.edit_message(attachments=[file], view=view)
-        view.message = interaction.message
+        ملف = discord.File(fp=img_buf, اسم الملف="shop.png")
+        عرض = MainShopView()
+        أنتظر تفاعل.الاستجابة.تعديل الرسالة(المرفقات=[ملف]، عرض=عرض)
+        عرض.رسالة = تفاعل.رسالة
 
 
-class ColorSelect(discord.ui.Select):
-    def __init__(self):
-        options = [
+فئة ColorSelect(discord.ui.Select):
+    تعريف __init__(النفس):
+        الخيارات = [
             discord.SelectOption(
-                label=item["name"],
-                value=key,
-                description=f"السعر: {item['price']} طولار",
+                الملصق = عنصر["اسم"]،
+                القيمة=مفتاح،
+                الوصف = f"السعر: {item['price']} طولار",
             )
-            for key, item in SHOP_COLOR_ROLES.items()
+            لـ مفتاح، عنصر في SHOP_COLOR_ROLES.items()
         ]
-        super().__init__(
-            placeholder="اختر لوناً للشراء...",
-            min_values=1,
-            max_values=1,
-            options=options,
+        السوبر().__init__(
+            نص نائب="اختر لوناً للشراء...",
+            حد أدنى للقيمة=1,
+            حد أقصى للقيمة=1,
+            الخيارات = الخيارات,
         )
 
-    async def callback(self, interaction: discord.Interaction):
-        selected_key = self.values[0]
-        item = SHOP_COLOR_ROLES[selected_key]
-        user = interaction.user
-        guild = interaction.guild
-        role = guild.get_role(item["id"])
+    استدعاء استجابة غير متزامنة (خود، تفاعل: discord.Interaction):
+        المفتاح المحدد = خود.قيم[0]
+        العنصر = SHOP_COLOR_ROLES[selected_key]
+        المستخدم = تفاعل.المستخدم
+        السيرفر = تفاعل.السيرفر
+        الرتبة = السيرفر.احصل على رتبة(عنصر["معرف"])
 
-        if not role:
-            await interaction.response.send_message(
+        إذا لم تكن الرتبة:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة(
                 "❌ الرتبة غير موجودة في السيرفر، يرجى مراجعة الإدارة.",
-                ephemeral=True,
+                مؤقت=صحيح،
             )
-            return
+            إرجاع
 
-        if role in user.roles:
-            await interaction.response.send_message(
-                f"⚠️ أنت تملك رتبة **{role.name}** بالفعل", ephemeral=True
+        إذا كانت الرتبة في المستخدم.الرتب:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة(
+                f"⚠️ أنت تملك رتبة **{role.name}** بالفعل", مؤقت=صحيح
             )
-            return
+            إرجاع
 
-        if get_balance(user.id) < item["price"]:
-            await interaction.response.send_message(
+        إذا كان احصل على التوازن(مستخدم.معرف) < عنصر["سعر"]:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة(
                 f"❌ رصيدك غير كافٍ، تحتاج إلى **{item['price']}** طولار.",
-                ephemeral=True,
+                مؤقت=صحيح،
             )
-            return
+            إرجاع
 
-        all_color_ids = [c["id"] for c in SHOP_COLOR_ROLES.values()]
-        roles_to_remove = [r for r in user.roles if r.id in all_color_ids]
-        if roles_to_remove:
-            await user.remove_roles(*roles_to_remove)
+        كل معرفات الألوان = [c["id"] لـ c في SHOP_COLOR_ROLES.values()]
+        رتب للإزالة = [r لـ r في user.roles إذا كانت r.id في all_color_ids]
+        إذا كانت رتب للإزالة:
+            أنتظر مستخدم.حذف الرتب(*roles_to_remove)
 
-        remove_balance(user.id, item["price"])
-        await user.add_roles(role)
+        حذف التوازن(مستخدم.معرف، عنصر["سعر"])
+        أنتظر مستخدم.اضافة رتب(رتبة)
 
-        for child in self.view.children:
-            child.disabled = True
-        await interaction.message.edit(view=self.view)
+        لـ الطفل في خود.عرض.الأطفال:
+            الطفل.تعطيل = صحيح
+        أنتظر تفاعل.الرسالة.تعديل(عرض=خود.عرض)
 
-        await interaction.response.send_message(
+        أنتظر تفاعل.الاستجابة.ارسال رسالة(
             f" **تم الشراء بنجاح،** تم منحك رتبة **{role.name}** بمبلغ"
             f" **{item['price']}** طولار.\n*(تم إغلاق المتجر)*",
-            ephemeral=True,
+            مؤقت=صحيح،
         )
 
 
 # --- 4. نظام الرد التلقائي + تكبير الإيموجي/الستيكر + منع الخط الكبير (#) ---
 @bot.event
-async def on_message(message):
-    if message.author.bot:
-        return
+حدث رسالة غير متزامن (رسالة):
+    إذا كانت الرسالة.مؤلف.بوت:
+        إرجاع
 
-    if message.channel.id == THEFT_CHANNEL_ID:
-        if message.stickers:
-            sticker = message.stickers[0]
-            await message.channel.send(sticker.url)
-            return
+    إذا كانت الرسالة.القناة.معرف == THEFT_CHANNEL_ID:
+        إذا كانت الرسالة.ملصقات:
+            الملصق = رسالة.ملصقات[0]
+            أنتظر رسالة.القناة.ارسال(ملصق.رابط)
+            إرجاع
 
-        emoji_match = re.search(r"<(a)?:(\w+):(\d+)>", message.content)
-        if emoji_match:
-            is_animated = emoji_match.group(1)
-            emoji_id = emoji_match.group(3)
-            extension = "gif" if is_animated else "png"
-            emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{extension}?size=1024"
-            await message.channel.send(emoji_url)
-            return
+        تطابق التعبير = re.search(r"<(a)?:(\w+):(\d+)>", message.content)
+        إذا كان تطابق التعبير:
+            متحرك = تطابق التعبير.المجموعة(1)
+            معرف التعبير = تطابق التعبير.المجموعة(3)
+            الامتداد = "gif" إذا متحرك وإلا "png"
+            رابط التعبير = f"https://cdn.discordapp.com/emojis/{emoji_id}.{extension}?size=1024"
+            أنتظر رسالة.القناة.ارسال(رابط التعبير)
+            إرجاع
 
-    raw_content = message.content.strip()
-    clean_content = (
-        raw_content[1:].strip() if raw_content.startswith(".") else raw_content
+    المحتوى الخام = message.content.strip()
+    المحتوى النظيف = (
+        المحتوى الخام[1:].strip() إذا المحتوى الخام.يبدأ بـ(".") وإلا المحتوى الخام
     )
 
-    auto_responses = {
+    الردود التلقائية = {
         "السلام عليكم": (
             f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}"
         ),
@@ -563,166 +563,166 @@ async def on_message(message):
         "باك": f"ولكم باك {message.author.mention}",
     }
 
-    user_msg = clean_content if clean_content in auto_responses else raw_content
-    if user_msg in auto_responses:
-        await message.channel.send(
-            auto_responses[user_msg],
-            allowed_mentions=discord.AllowedMentions(users=False),
+    رسالة المستخدم = المحتوى النظيف إذا المحتوى النظيف في الردود التلقائية وإلا المحتوى الخام
+    إذا كانت رسالة المستخدم في الردود التلقائية:
+        أنتظر رسالة.القناة.ارسال(
+            الردود التلقائية[رسالة المستخدم],
+            الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
         )
-        return
+        إرجاع
 
-    if message.content.startswith("# "):
-        level_50_role = message.guild.get_role(LEVEL_50_ROLE_ID)
-        if level_50_role and level_50_role not in message.author.roles:
-            try:
-                await message.delete()
-                warning = await message.channel.send(
+    إذا كانت الرسالة.المحتوى.تبدأ بـ("# "):
+        رتبة المستوى 50 = message.guild.get_role(LEVEL_50_ROLE_ID)
+        إذا كانت رتبة المستوى 50 والرتبة ليست في message.author.roles:
+            يحاول:
+                أنتظر رسالة.حذف()
+                التحذير = أنتظر رسالة.القناة.ارسال(
                     f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك"
                     " لا تملك رتبة **Level 50** يمكنك شراؤها من المتجر.",
-                    allowed_mentions=discord.AllowedMentions(users=False),
+                    الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
                 )
-                await asyncio.sleep(2)
-                await warning.delete()
-                return
-            except Exception as e:
-                print(f"خطأ أثناء حذف الرسالة: {e}")
+                أنتظر asyncio.sleep(2)
+                أنتظر التحذير.حذف()
+                إرجاع
+            استثناء باستثناء كـ e:
+                اطبع(f"خطأ أثناء حذف الرسالة: {e}")
 
-    await bot.process_commands(message)
+    أنتظر البوت.معالجة الأوامر(رسالة)
 
 
-class VIPSelect(discord.ui.Select):
-    def __init__(self):
-        options = [
+فئة VIPSelect(discord.ui.Select):
+    تعريف __init__(النفس):
+        الخيارات = [
             discord.SelectOption(
-                label=item["name"],
-                value=key,
-                description=f"السعر: {item['price']} طولار",
+                الملصق = عنصر["اسم"]،
+                القيمة=مفتاح،
+                الوصف = f"السعر: {item['price']} طولار",
             )
-            for key, item in SHOP_VIP_ROLES.items()
+            لـ مفتاح، عنصر في SHOP_VIP_ROLES.items()
         ]
-        super().__init__(
-            placeholder="اختر رتبة للشراء...",
-            min_values=1,
-            max_values=1,
-            options=options,
+        السوبر().__init__(
+            نص نائب="اختر رتبة للشراء...",
+            حد أدنى للقيمة=1,
+            حد أقصى للقيمة=1,
+            الخيارات = الخيارات,
         )
 
-    async def callback(self, interaction: discord.Interaction):
-        selected_key = self.values[0]
-        item = SHOP_VIP_ROLES[selected_key]
-        user = interaction.user
-        guild = interaction.guild
-        role = guild.get_role(item["id"])
+    استدعاء استجابة غير متزامنة (خود، تفاعل: discord.Interaction):
+        المفتاح المحدد = خود.قيم[0]
+        العنصر = SHOP_VIP_ROLES[selected_key]
+        المستخدم = تفاعل.المستخدم
+        السيرفر = تفاعل.السيرفر
+        الرتبة = السيرفر.احصل على رتبة(عنصر["معرف"])
 
-        if not role:
-            await interaction.response.send_message(
+        إذا لم تكن الرتبة:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة(
                 "❌ الرتبة غير موجودة في السيرفر، يرجى مراجعة الإدارة.",
-                ephemeral=True,
+                مؤقت=صحيح،
             )
-            return
+            إرجاع
 
-        if role in user.roles:
-            await interaction.response.send_message(
-                f"⚠️ أنت تملك رتبة **{role.name}** بالفعل", ephemeral=True
+        إذا كانت الرتبة في المستخدم.الرتب:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة(
+                f"⚠️ أنت تملك رتبة **{role.name}** بالفعل", مؤقت=صحيح
             )
-            return
+            إرجاع
 
-        if get_balance(user.id) < item["price"]:
-            await interaction.response.send_message(
+        إذا كان احصل على التوازن(مستخدم.معرف) < عنصر["سعر"]:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة(
                 f"❌ رصيدك غير كاف، تحتاج إلى **{item['price']}** طولار.",
-                ephemeral=True,
+                مؤقت=صحيح،
             )
-            return
+            إرجاع
 
-        remove_balance(user.id, item["price"])
-        await user.add_roles(role)
+        حذف التوازن(مستخدم.معرف، عنصر["سعر"])
+        أنتظر مستخدم.اضافة رتب(رتبة)
 
-        for child in self.view.children:
-            child.disabled = True
-        await interaction.message.edit(view=self.view)
+        لـ الطفل في خود.عرض.الأطفال:
+            الطفل.تعطيل = صحيح
+        أنتظر تفاعل.الرسالة.تعديل(عرض=خود.عرض)
 
-        await interaction.response.send_message(
+        أنتظر تفاعل.الاستجابة.ارسال رسالة(
             f" **تم الشراء بنجاح،** تم منحك رتبة **{role.name}** بمبلغ"
             f" **{item['price']}** طولار.\n*(تم إغلاق المتجر)*",
-            ephemeral=True,
+            مؤقت=صحيح،
         )
 
 
-class MainCategorySelect(discord.ui.Select):
-    def __init__(self):
-        options = [
+فئة MainCategorySelect(discord.ui.Select):
+    تعريف __init__(النفس):
+        الخيارات = [
             discord.SelectOption(
-                label="الرتب", value="cat_vip", description="عرض الرتب والخصائص"
+                الملصق="الرتب", القيمة="cat_vip", الوصف="عرض الرتب والخصائص"
             ),
             discord.SelectOption(
-                label="ألوان الأسماء",
-                value="cat_colors",
-                description="عرض قائمة الألوان ",
+                الملصق="ألوان الأسماء",
+                القيمة="cat_colors",
+                الوصف="عرض قائمة الألوان ",
             ),
         ]
-        super().__init__(
-            placeholder="تصفح أقسام المتجر...",
-            min_values=1,
-            max_values=1,
-            options=options,
+        السوبر().__init__(
+            نص نائب="تصفح أقسام المتجر...",
+            حد أدنى للقيمة=1,
+            حد أقصى للقيمة=1,
+            الخيارات = الخيارات,
         )
 
-    async def callback(self, interaction: discord.Interaction):
-        if self.values[0] == "cat_vip":
-            view = TimedSubView()
-            view.add_item(VIPSelect())
-            view.add_item(BackToMainButton())
-            img_buf = make_card_with_text(None, "قسم الرتب", "الرتب المتاحة")
-            file = discord.File(fp=img_buf, filename="vip.png")
-            await interaction.response.edit_message(attachments=[file], view=view)
-            view.message = interaction.message
+    استدعاء استجابة غير متزامنة (خود، تفاعل: discord.Interaction):
+        إذا كانت خود.القيم[0] == "cat_vip":
+            العرض = TimedSubView()
+            العرض.اضافة عنصر(VIPSelect())
+            العرض.اضافة عنصر(BackToMainButton())
+            بوف الصورة = make_card_with_text(لا أحد, "قسم الرتب", "الرتب المتاحة")
+            ملف = discord.File(fp=img_buf, اسم الملف="vip.png")
+            أنتظر تفاعل.الاستجابة.تعديل الرسالة(المرفقات=[ملف]، عرض=عرض)
+            العرض.رسالة = تفاعل.رسالة
 
-        elif self.values[0] == "cat_colors":
-            view = TimedSubView()
-            view.add_item(ColorSelect())
-            view.add_item(BackToMainButton())
-            img_buf = make_card_with_text(
-                None, "لون ثابت", "اختر مرسومك من القائمة بالأسفل"
+        إلا إذا كانت خود.القيم[0] == "cat_colors":
+            العرض = TimedSubView()
+            العرض.اضافة عنصر(ColorSelect())
+            العرض.اضافة عنصر(BackToMainButton())
+            بوف الصورة = make_card_with_text(
+                لا أحد, "لون ثابت", "اختر مرسومك من القائمة بالأسفل"
             )
-            file = discord.File(fp=img_buf, filename="colors.png")
-            await interaction.response.edit_message(attachments=[file], view=view)
-            view.message = interaction.message
+            ملف = discord.File(fp=img_buf, اسم الملف="colors.png")
+            أنتظر تفاعل.الاستجابة.تعديل الرسالة(المرفقات=[ملف]، عرض=عرض)
+            العرض.رسالة = تفاعل.رسالة
 
 
-class MainShopView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=60)
-        self.add_item(MainCategorySelect())
-        self.message = None
+فئة MainShopView(discord.ui.View):
+    تعريف __init__(النفس):
+        السوبر().__init__(مهلة الانتظار=60)
+        خود.اضافة عنصر(MainCategorySelect())
+        خود.رسالة = لا أحد
 
-    async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
-        if self.message:
-            try:
-                await self.message.edit(view=self)
-            except Exception:
-                pass
+    مهلة وقت الانتظار غير متزامنة (خود):
+        لـ عنصر في خود.الاطفال:
+            العنصر.تعطيل = صحيح
+        إذا كانت خود.رسالة:
+            يحاول:
+                أنتظر خود.رسالة.تعديل(عرض=خود)
+            استثناء باستثناء:
+                يمر
 
 
 @bot.command(name="متجر", aliases=["اقتصاد"])
 @in_channel(SHOPPING_CHANNEL_ID)
-async def shop_command(ctx):
-    img_buf = make_card_with_text(
-        None,
+أمر متجر غير متزامن (ctx):
+    بوف الصورة = make_card_with_text(
+        لا أحد،
         "المتجر الملكي",
         "خزانة البلاط ومراسيمه",
         "اختر القسم للتنقل والشراء",
     )
-    file = discord.File(fp=img_buf, filename="shop.png")
-    view = MainShopView()
-    msg = await ctx.send(file=file, view=view)
-    view.message = msg
+    ملف = discord.File(fp=img_buf, اسم الملف="shop.png")
+    عرض = MainShopView()
+    الرسالة = أنتظر ctx.send(ملف=ملف، عرض=عرض)
+    عرض.رسالة = الرسالة
 
 
 # --- 5. نظام الألعاب والأسئلة ---
 
-QUESTIONS = [
+الأسئلة = [
     {"q": "ما هي عاصمة أستراليا؟", "a": ["كانبرا", "كانبيرا"]},
     {"q": "ما هي أصغر دولة في العالم من حيث المساحة؟", "a": ["الفاتيكان"]},
     {"q": "ما هو العنصر الكيميائي الذي رمزه 'Fe'؟", "a": ["الحديد", "حديد"]},
@@ -896,7 +896,7 @@ QUESTIONS = [
     {"q": "ما هي عاصمة قطر؟", "a": ["الدوحة"]},
 ]
 
-RIDDLES = [
+الالغاز = [
     {"q": "شيء كلما أخذت منه كبر، فما هو؟", "a": ["الحفرة", "حفرة"]},
     {
         "q": "يمشي بلا أرجل ويدخل الأذنين فقط، فما هو؟",
@@ -1142,330 +1142,330 @@ RIDDLES = [
 
 @bot.command(name="سؤال", aliases=["quiz", "اسئلة"])
 @in_channel(GAMES_CHANNEL_ID)
-async def quiz_game(ctx, rounds: int = 1):
-    if rounds < 1 or rounds > 10:
-        await ctx.send(
-            "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط", delete_after=3
+أمر مسابقة غير متزامن (ctx, الجولات: int = 1):
+    إذا كانت الجولات < 1 أو الجولات > 10:
+        أنتظر ctx.send(
+            "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط", بعد الحذف=3
         )
-        return
+        إرجاع
 
-    for round_num in range(1, rounds + 1):
-        q_data = random.choice(QUESTIONS)
+    لـ رقم الجولة في نطاق(1, الجولات + 1):
+        بيانات السؤال = العشوائي.اختيار(الأسئلة)
 
-        embed = discord.Embed(
-            title=f"❓ الجولة {round_num}",
-            description=(
+        تنسيق = discord.Embed(
+            عنوان=f"❓ الجولة {round_num}",
+            الوصف=(
                 f"يا {ctx.author.mention}، أجب عن السؤال التالي كسباً لـ **40**"
                 f" طولار:\n\n❓ **{q_data['q']}**"
             ),
-            color=discord.Color.blue(),
+            اللون = discord.Color.blue(),
         )
-        embed.set_footer(text="⏱️ لديك 10 ثوانٍ للإجابة على هذا السؤال")
+        تنسيق.تحديد التذييل(النص="⏱️ لديك 10 ثوانٍ للإجابة على هذا السؤال")
 
-        await ctx.send(
-            embed=embed, allowed_mentions=discord.AllowedMentions(users=False)
+        أنتظر ctx.send(
+            تنسيق = التنسيق، الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ)
         )
 
-        def check(m):
-            return m.author == ctx.author and m.channel == ctx.channel
+        التحقق التلقائي (m):
+            إرجاع m.author == ctx.author و m.channel == ctx.channel
 
-        try:
-            msg = await bot.wait_for("message", timeout=10.0, check=check)
-            if msg.content.strip().lower() in [ans.lower() for ans in q_data["a"]]:
-                add_balance(ctx.author.id, 40)
-                await ctx.send(
+        يحاول:
+            رسالة = أنتظر البوت.انتظار الرسالة(مهلة الانتظار=10.0, التحقق=التحقق)
+            إذا كانت الرسالة.المحتوى.تجريد().تحويل للصغير() في [الجواب.تحويل للصغير() لـ الجواب في q_data["a"]]:
+                اضافة التوازن(ctx.author.id, 40)
+                أنتظر ctx.send(
                     f"🎉 **إجابة صحيحة،** تم إضافة 40 طولار إلى حسابك يا"
                     f" {ctx.author.mention}",
-                    allowed_mentions=discord.AllowedMentions(users=False),
+                    الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
                 )
-            else:
-                await ctx.send(
+            إلا:
+                أنتظر ctx.send(
                     f"❌ **إجابة خاطئة،** الإجابة الصحيحة هي: **{q_data['a'][0]}**"
                 )
-        except asyncio.TimeoutError:
-            await ctx.send(
+        استثناء asyncio.TimeoutError:
+            أنتظر ctx.send(
                 f"⏰ **انتهى الوقت** الإجابة الصحيحة كانت: **{q_data['a'][0]}**"
             )
 
-        if round_num < rounds:
-            await asyncio.sleep(1)
+        إذا كانت رقم الجولة < الجولات:
+            أنتظر asyncio.sleep(1)
 
 
 @bot.command(name="لغز", aliases=["الغاز", "riddle"])
 @in_channel(GAMES_CHANNEL_ID)
-async def riddle_game(ctx, rounds: int = 1):
-    if rounds < 1 or rounds > 10:
-        await ctx.send(
-            "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط", delete_after=3
+أمر اللغز غير متزامن (ctx, الجولات: int = 1):
+    إذا كانت الجولات < 1 أو الجولات > 10:
+        أنتظر ctx.send(
+            "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط", بعد الحذف=3
         )
-        return
+        إرجاع
 
-    for round_num in range(1, rounds + 1):
-        riddle = random.choice(RIDDLES)
+    لـ رقم الجولة في نطاق(1, الجولات + 1):
+        اللغز = العشوائي.اختيار(الالغاز)
 
-        embed = discord.Embed(
-            title=f"🧩 الجولة {round_num}",
-            description=(
+        تنسيق = discord.Embed(
+            عنوان=f"🧩 الجولة {round_num}",
+            الوصف=(
                 f"يا {ctx.author.mention}، حل اللغز التالي كسباً لـ **40**"
                 f" طولار:\n\n🧩 **{riddle['q']}**"
             ),
-            color=discord.Color.gold(),
+            اللون = discord.Color.gold(),
         )
-        embed.set_footer(text="⏱️ لديك 15 ثانية للإجابة على هذا اللغز")
+        تنسيق.تحديد التذييل(النص="⏱️ لديك 15 ثانية للإجابة على هذا اللغز")
 
-        await ctx.send(
-            embed=embed, allowed_mentions=discord.AllowedMentions(users=False)
+        أنتظر ctx.send(
+            تنسيق = التنسيق، الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ)
         )
 
-        def check(m):
-            return m.author == ctx.author and m.channel == ctx.channel
+        التحقق التلقائي (m):
+            إرجاع m.author == ctx.author و m.channel == ctx.channel
 
-        try:
-            msg = await bot.wait_for("message", timeout=15.0, check=check)
-            if msg.content.strip().lower() in [ans.lower() for ans in riddle["a"]]:
-                add_balance(ctx.author.id, 40)
-                await ctx.send(
+        يحاول:
+            رسالة = أنتظر البوت.انتظار الرسالة(مهلة الانتظار=15.0, التحقق=التحقق)
+            إذا كانت الرسالة.المحتوى.تجريد().تحويل للصغير() في [الجواب.تحويل للصغير() لـ الجواب في riddle["a"]]:
+                اضافة التوازن(ctx.author.id, 40)
+                أنتظر ctx.send(
                     f"🎉 **إجابة صحيحة،** تم إضافة 40 طولار إلى حسابك يا"
                     f" {ctx.author.mention}",
-                    allowed_mentions=discord.AllowedMentions(users=False),
+                    الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
                 )
-            else:
-                await ctx.send(
+            إلا:
+                أنتظر ctx.send(
                     f"❌ **إجابة خاطئة** الإجابة الصحيحة كانت:"
                     f" **{riddle['a'][0]}**.",
-                    allowed_mentions=discord.AllowedMentions(users=False),
+                    الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
                 )
-        except asyncio.TimeoutError:
-            await ctx.send(
+        استثناء asyncio.TimeoutError:
+            أنتظر ctx.send(
                 f"⏰ **انتهى الوقت!** الإجابة الصحيحة كانت: **{riddle['a'][0]}**",
-                allowed_mentions=discord.AllowedMentions(users=False),
+                الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
             )
 
-        if round_num < rounds:
-            await asyncio.sleep(1)
+        إذا كانت رقم الجولة < الجولات:
+            أنتظر asyncio.sleep(1)
 
 
-class RPSView(discord.ui.View):
-    def __init__(self, author):
-        super().__init__(timeout=30)
-        self.author = author
+فئة RPSView(discord.ui.View):
+    تعريف __init__(النفس، المؤلف):
+        السوبر().__init__(مهلة الانتظار=30)
+        خود.مؤلف = المؤلف
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user != self.author:
-            await interaction.response.send_message(
+    التحقق التفاعلي غير المتزامن (خود، تفاعل: discord.Interaction) -> bool:
+        إذا كان تفاعل.المستخدم != خود.المؤلف:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة(
                 "❌ هذه اللعبة ليست لك، يمكنك بدء لعبتك الخاصة عبر كتابة `.حجر`",
-                ephemeral=True,
+                مؤقت=صحيح،
             )
-            return False
-        return True
+            إرجاع خطأ
+        إرجاع صحيح
 
-    async def play_game(
-        self, interaction: discord.Interaction, player_choice: str
+    بدء اللعبة غير متزامن (
+        خود، تفاعل: discord.Interaction، خيار اللاعب: str
     ):
-        bot_choice = random.choice(["حجرة", "ورقة", "مقص"])
+        خيار البوت = العشوائي.اختيار(["حجرة", "ورقة", "مقص"])
 
-        if player_choice == bot_choice:
-            result = "🤝 **تعادل!** لم يفز أحد."
-            color = discord.Color.gold()
-        elif (
-            (player_choice == "حجرة" and bot_choice == "مقص")
-            or (player_choice == "ورقة" and bot_choice == "حجرة")
-            or (player_choice == "مقص" and bot_choice == "ورقة")
+        إذا كان خيار اللاعب == خيار البوت:
+            النتيجة = "🤝 **تعادل!** لم يفز أحد."
+            اللون = discord.Color.gold()
+        إلا إذا كان (
+            (خيار اللاعب == "حجرة" وخيار البوت == "مقص")
+            أو (خيار اللاعب == "ورقة" وخيار البوت == "حجرة")
+            أو (خيار اللاعب == "مقص" وخيار البوت == "ورقة")
         ):
-            add_balance(self.author.id, 40)
-            result = "🎉 ** فزت على البوت وحصلت على 40 طولار**"
-            color = discord.Color.green()
-        else:
-            result = "**خسرت، فاز البوت عليك **"
-            color = discord.Color.red()
+            اضافة التوازن(خود.مؤلف.معرف, 40)
+            النتيجة = "🎉 ** فزت على البوت وحصلت على 40 طولار**"
+            اللون = discord.Color.green()
+        إلا:
+            النتيجة = "**خسرت، فاز البوت عليك **"
+            اللون = discord.Color.red()
 
-        embed = discord.Embed(title="🎮 لعبة حجرة ورقة مقص", color=color)
-        embed.add_field(name="اختيارك", value=player_choice, inline=True)
-        embed.add_field(name="اختيار البوت", value=bot_choice, inline=True)
-        embed.add_field(name="النتيجة", value=result, inline=False)
+        تنسيق = discord.Embed(عنوان="🎮 لعبة حجرة ورقة مقص", اللون=اللون)
+        تنسيق.اضافة حقل(الاسم="اختيارك", القيمة=خيار اللاعب, التضمين=صحيح)
+        تنسيق.اضافة حقل(الاسم="اختيار البوت", القيمة=خيار البوت, التضمين=صحيح)
+        تنسيق.اضافة حقل(الاسم="النتيجة", القيمة=النتيجة, التضمين=خطأ)
 
-        for item in self.children:
-            item.disabled = True
+        لـ عنصر في خود.الاطفال:
+            العنصر.تعطيل = صحيح
 
-        await interaction.response.edit_message(embed=embed, view=self)
+        أنتظر تفاعل.الاستجابة.تعديل الرسالة(تنسيق=تنسيق، عرض=خود)
 
     @discord.ui.button(label="حجرة 🪨", style=discord.ButtonStyle.primary)
-    async def rock_button(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+    زر حجرة غير متزامن (
+        خود، تفاعل: discord.Interaction، أزرار: discord.ui.Button
     ):
-        await self.play_game(interaction, "حجرة")
+        أنتظر خود.بدء اللعبة(تفاعل، "حجرة")
 
     @discord.ui.button(label="ورقة 📄", style=discord.ButtonStyle.primary)
-    async def paper_button(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+    زر ورقة غير متزامن (
+        خود، تفاعل: discord.Interaction، أزرار: discord.ui.Button
     ):
-        await self.play_game(interaction, "ورقة")
+        أنتظر خود.بدء اللعبة(تفاعل، "ورقة")
 
     @discord.ui.button(label="مقص ✂️", style=discord.ButtonStyle.primary)
-    async def scissors_button(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+    زر مقص غير متزامن (
+        خود، تفاعل: discord.Interaction، أزرار: discord.ui.Button
     ):
-        await self.play_game(interaction, "مقص")
+        أنتظر خود.بدء اللعبة(تفاعل، "مقص")
 
 
 @bot.command(name="حجر", aliases=["حجرة", "rps"])
 @in_channel(GAMES_CHANNEL_ID)
-async def rps_game(ctx):
-    embed = discord.Embed(
-        title="🎮 لعبة حجرة ورقة مقص",
-        description=(
+أمر حجر ورقة مقص غير متزامن (ctx):
+    تنسيق = discord.Embed(
+        عنوان="🎮 لعبة حجرة ورقة مقص",
+        الوصف=(
             f"يا {ctx.author.mention}، اختر أحد الأزرار بالأسفل للعب ضد البوت\nإذا"
             " فزت ستكسب **40 طولار** 💵"
         ),
-        color=discord.Color.blue(),
+        اللون = discord.Color.blue(),
     )
-    view = RPSView(ctx.author)
-    await ctx.send(
-        embed=embed,
-        view=view,
-        allowed_mentions=discord.AllowedMentions(users=False),
+    عرض = RPSView(ctx.author)
+    أنتظر ctx.send(
+        تنسيق = التنسيق،
+        عرض = العرض،
+        الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
     )
 
 
 # --- 6. لعبة إكس أو التفاعلية ---
-class XOButton(discord.ui.Button):
-    def __init__(self, x: int, y: int):
-        super().__init__(
-            style=discord.ButtonStyle.secondary, label="‎", row=y
+فئة XOButton(discord.ui.Button):
+    تعريف __init__(خود، x: int، y: int):
+        السوبر().__init__(
+            النمط = discord.ButtonStyle.secondary، الملصق = "‎"، الصف = y
         )
-        self.x = x
-        self.y = y
+        خود.x = x
+        خود.y = y
 
-    async def callback(self, interaction: discord.Interaction):
-        view: XOView = self.view
-        if interaction.user != view.current_player:
-            await interaction.response.send_message(
-                "❌ ليس دورك الآن", ephemeral=True
+    استدعاء استجابة غير متزامنة (خود، تفاعل: discord.Interaction):
+        عرض: XOView = خود.عرض
+        إذا كان تفاعل.المستخدم != عرض.اللاعب الحالي:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة(
+                "❌ ليس دورك الآن", مؤقت=صحيح
             )
-            return
+            إرجاع
 
-        idx = self.y * 3 + self.x
-        if view.board[idx] != " ":
-            await interaction.response.send_message(
-                "❌ هذا المربع مشغول بالفعل", ephemeral=True
+        المؤشر = خود.y * 3 + خود.x
+        إذا كان عرض.اللوحة[مؤشر] != " ":
+            أنتظر تفاعل.الاستجابة.ارسال رسالة(
+                "❌ هذا المربع مشغول بالفعل", مؤقت=صحيح
             )
-            return
+            إرجاع
 
-        view.board[idx] = view.current_mark
-        self.label = view.current_mark
-        self.style = (
+        عرض.اللوحة[مؤشر] = عرض.العلامة الحالية
+        خود.الملصق = عرض.العلامة الحالية
+        خود.النمط = (
             discord.ButtonStyle.danger
-            if view.current_mark == "❌"
-            else discord.ButtonStyle.success
+            إذا كان عرض.العلامة الحالية == "❌"
+            إلا discord.ButtonStyle.success
         )
-        self.disabled = True
+        خود.تعطيل = صحيح
 
-        winner = view.check_winner()
-        if winner:
-            for child in view.children:
-                child.disabled = True
-            add_balance(view.current_player.id, 50)
-            await interaction.response.edit_message(
-                content=(
+        الفائز = عرض.التحقق من الفائز()
+        إذا كان الفائز:
+            لـ الطفل في عرض.الأطفال:
+                الطفل.تعطيل = صحيح
+            اضافة التوازن(عرض.اللاعب الحالي.معرف، 50)
+            أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                المحتوى=(
                     f"**فاز {view.current_player.mention} ({view.current_mark}) في لعبة إكس أو**\n"
                     f"💵 تم إضافة **50 طولار** لرصيده"
-                ),
-                view=view,
+                )،
+                عرض = العرض،
             )
-            view.stop()
-            return
+            عرض.ايقاف()
+            إرجاع
 
-        if " " not in view.board:
-            for child in view.children:
-                child.disabled = True
-            await interaction.response.edit_message(
-                content=" **تعادل، انتهت اللعبة بدون فائز.**", view=view
+        إذا كانت " " ليست في عرض.اللوحة:
+            لـ الطفل في عرض.الأطفال:
+                الطفل.تعطيل = صحيح
+            أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                المحتوى=" **تعادل، انتهت اللعبة بدون فائز.**", عرض=عرض
             )
-            view.stop()
-            return
+            عرض.ايقاف()
+            إرجاع
 
-        if not view.is_vs_bot:
-            view.current_player = (
-                view.player2
-                if view.current_player == view.player1
-                else view.player1
+        إذا لم تكن ضد البوت:
+            عرض.اللاعب الحالي = (
+                عرض.اللاعب 2
+                إذا كان عرض.اللاعب الحالي == عرض.اللاعب 1
+                إلا عرض.اللاعب 1
             )
-            view.current_mark = "⭕" if view.current_mark == "❌" else "❌"
-            await interaction.response.edit_message(
-                content=(
+            عرض.العلامة الحالية = "⭕" إذا كانت عرض.العلامة الحالية == "❌" وإلا "❌"
+            أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                المحتوى=(
                     f"❌⭕ **لعبة إكس أو (XO)**\n"
                     f"الدور الحالى: {view.current_player.mention} ({view.current_mark})\n"
                     f"الجائزة: **50 طولار** للفائز"
-                ),
-                view=view,
+                )،
+                عرض = العرض،
             )
-        else:
-            bot_idx = view.bot_move()
-            if bot_idx != -1:
-                view.board[bot_idx] = "⭕"
-                btn = view.children[bot_idx]
-                btn.label = "⭕"
-                btn.style = discord.ButtonStyle.success
-                btn.disabled = True
+        إلا:
+            مؤشر تحرك البوت = عرض.حركة البوت()
+            إذا كان مؤشر تحرك البوت != -1:
+                عرض.اللوحة[مؤشر تحرك البوت] = "⭕"
+                زر = عرض.الأطفال[مؤشر تحرك البوت]
+                الزر.الملصق = "⭕"
+                الزر.النمط = discord.ButtonStyle.success
+                الزر.تعطيل = صحيح
 
-                bot_winner = view.check_winner()
-                if bot_winner:
-                    for child in view.children:
-                        child.disabled = True
-                    await interaction.response.edit_message(
-                        content="🤖 **فاز البوت عليك في لعبة إكس أو.**",
-                        view=view,
+                فائز البوت = عرض.التحقق من الفائز()
+                إذا كان فائز البوت:
+                    لـ الطفل في عرض.الأطفال:
+                        الطفل.تعطيل = صحيح
+                    أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                        المحتوى="🤖 **فاز البوت عليك في لعبة إكس أو.**",
+                        عرض = العرض،
                     )
-                    view.stop()
-                    return
+                    عرض.ايقاف()
+                    إرجاع
 
-                if " " not in view.board:
-                    for child in view.children:
-                        child.disabled = True
-                    await interaction.response.edit_message(
-                        content=" **تعادل، انتهت اللعبة بدون فائز.**", view=view
+                إذا كانت " " ليست في عرض.اللوحة:
+                    لـ الطفل في عرض.الأطفال:
+                        الطفل.تعطيل = صحيح
+                    أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                        المحتوى=" **تعادل، انتهت اللعبة بدون فائز.**", عرض=عرض
                     )
-                    view.stop()
-                    return
+                    عرض.ايقاف()
+                    إرجاع
 
-            await interaction.response.edit_message(
-                content=(
+            أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                المحتوى=(
                     f"❌⭕ **لعبة إكس أو (XO)**\n"
                     f"لعب البوت دوره، حان دورك يا {view.player1.mention} (❌)\n"
                     f"الجائزة: **50 طولار** عند الفوز"
-                ),
-                view=view,
+                )،
+                عرض = العرض،
             )
 
 
-class XOView(discord.ui.View):
-    def __init__(self, player1: discord.User, player2: discord.User = None):
-        super().__init__(timeout=60)
-        self.player1 = player1
-        self.player2 = player2
-        self.is_vs_bot = player2 is None
-        self.current_player = player1
-        self.current_mark = "❌"
-        self.board = [" "] * 9
-        self.message = None
+فئة XOView(discord.ui.View):
+    تعريف __init__(خود، اللاعب 1: discord.User، اللاعب 2: discord.User = لا أحد):
+        السوبر().__init__(مهلة الانتظار=60)
+        خود.player1 = اللاعب 1
+        خود.player2 = اللاعب 2
+        خود.is_vs_bot = اللاعب 2 لا يوجد
+        خود.current_player = اللاعب 1
+        خود.current_mark = "❌"
+        خود.board = [" "] * 9
+        خود.message = لا أحد
 
-        for y in range(3):
-            for x in range(3):
-                self.add_item(XOButton(x, y))
+        لـ y في نطاق(3):
+            لـ x في نطاق(3):
+                خود.اضافة عنصر(XOButton(x, y))
 
-    async def on_timeout(self):
-        for child in self.children:
-            child.disabled = True
-        if self.message:
-            try:
-                await self.message.edit(
-                    content="⏰ **انتهت اللعبة لعدم التفاعل.**", view=self
+    مهلة وقت الانتظار غير متزامنة (خود):
+        لـ الطفل في خود.الأطفال:
+            الطفل.تعطيل = صحيح
+        إذا كانت خود.رسالة:
+            يحاول:
+                أنتظر خود.رسالة.تعديل(
+                    المحتوى="⏰ **انتهت اللعبة لعدم التفاعل.**", عرض=خود
                 )
-            except Exception:
-                pass
+            استثناء باستثناء:
+                يمر
 
-    def check_winner(self):
-        lines = [
+    تحديد check_winner(خود):
+        الخطوط = [
             [0, 1, 2],
             [3, 4, 5],
             [6, 7, 8],
@@ -1475,844 +1475,844 @@ class XOView(discord.ui.View):
             [0, 4, 8],
             [2, 4, 6],
         ]
-        for line in lines:
-            if (
-                self.board[line[0]]
-                == self.board[line[1]]
-                == self.board[line[2]]
+        لـ خط في الخطوط:
+            إذا كانت (
+                خود.اللوحة[خط[0]]
+                == خود.اللوحة[خط[1]]
+                == خود.اللوحة[خط[2]]
                 != " "
             ):
-                return self.board[line[0]]
-        return None
+                إرجاع خود.اللوحة[خط[0]]
+        إرجاع لا أحد
 
-    def bot_move(self):
-        empty_indices = [i for i, val in enumerate(self.board) if val == " "]
-        if not empty_indices:
-            return -1
+    تحديد bot_move(خود):
+        مؤشرات فارغة = [i لـ i, val في التعداد(خود.اللوحة) إذا كانت قيمة val == " "]
+        إذا لم تكن مؤشرات فارغة:
+            إرجاع -1
 
-        for i in empty_indices:
-            self.board[i] = "⭕"
-            if self.check_winner() == "⭕":
-                return i
-            self.board[i] = " "
+        لـ i في مؤشرات فارغة:
+            خود.اللوحة[i] = "⭕"
+            إذا كانت خود.التحقق من الفائز() == "⭕":
+                إرجاع i
+            خود.اللوحة[i] = " "
 
-        for i in empty_indices:
-            self.board[i] = "❌"
-            if self.check_winner() == "❌":
-                self.board[i] = " "
-                return i
-            self.board[i] = " "
+        لـ i في مؤشرات فارغة:
+            خود.اللوحة[i] = "❌"
+            إذا كانت خود.التحقق من الفائز() == "❌":
+                خود.اللوحة[i] = " "
+                إرجاع i
+            خود.اللوحة[i] = " "
 
-        if 4 in empty_indices:
-            return 4
+        إذا كان 4 في مؤشرات فارغة:
+            إرجاع 4
 
-        return random.choice(empty_indices)
+        إرجاع العشوائي.اختيار(مؤشرات فارغة)
 
 
 @bot.command(name="اكس", aliases=["اكس_او", "xo", "tictactoe"])
 @in_channel(GAMES_CHANNEL_ID)
-async def xo_game(ctx, opponent: discord.Member = None):
-    if opponent and opponent.bot:
-        await ctx.send(
+أمر اكس أو غير متزامن (ctx, المنافس: discord.Member = لا أحد):
+    إذا كان المنافس والمنافس.بوت:
+        أنتظر ctx.send(
             "❌ لا يمكنك تحدي بوت آخر، استخدم الأمر بدون منشن للعب ضد البوت الحالي."
         )
-        return
+        إرجاع
 
-    if opponent and opponent == ctx.author:
-        await ctx.send("❌ لا يمكنك تحدي نفسك")
-        return
+    إذا كان المنافس والمنافس == ctx.author:
+        أنتظر ctx.send("❌ لا يمكنك تحدي نفسك")
+        إرجاع
 
-    if opponent:
-        view = XOView(player1=ctx.author, player2=opponent)
-        msg = await ctx.send(
+    إذا كان المنافس:
+        عرض = XOView(اللاعب 1=ctx.author, اللاعب 2=المنافس)
+        الرسالة = أنتظر ctx.send(
             f"❌⭕ **بدأت لعبة إكس أو (XO)**\n"
             f"المنافسة بين {ctx.author.mention} (❌) و {opponent.mention} (⭕)\n"
             f"الدور الحالى: {ctx.author.mention}\n"
             f"الجائزة: **50 طولار** للفائز",
-            view=view,
-            allowed_mentions=discord.AllowedMentions(users=False),
+            عرض = العرض،
+            الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
         )
-        view.message = msg
-    else:
-        view = XOView(player1=ctx.author)
-        msg = await ctx.send(
+        عرض.رسالة = الرسالة
+    إلا:
+        عرض = XOView(اللاعب 1=ctx.author)
+        الرسالة = أنتظر ctx.send(
             f"❌⭕ **بدأت لعبة إكس أو (XO) ضد البوت**\n"
             f"أنت تلعب بـ (❌) والبوت يلعب بـ (⭕)\n"
             f"الدور الحالى: {ctx.author.mention}\n"
             f"الجائزة: **50 طولار** عند الفوز",
-            view=view,
-            allowed_mentions=discord.AllowedMentions(users=False),
+            عرض = العرض،
+            الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
         )
-        view.message = msg
+        عرض.رسالة = الرسالة
 
 
 # --- 7. لعبة توصيل الكرات 4 التفاعلية ---
-class Connect4Button(discord.ui.Button):
-    def __init__(self, col: int, row_idx: int):
-        super().__init__(
-            style=discord.ButtonStyle.primary,
-            label=str(col + 1),
-            custom_id=f"c4_col_{col}",
-            row=row_idx,
+فئة Connect4Button(discord.ui.Button):
+    تعريف __init__(خود، العمود: int، مؤشر الصف: int):
+        السوبر().__init__(
+            النمط=discord.ButtonStyle.primary،
+            الملصق=نص(العمود + 1)،
+            معرف مخصص=f"c4_col_{col}",
+            الصف = مؤشر الصف،
         )
-        self.col = col
+        خود.col = العمود
 
-    async def callback(self, interaction: discord.Interaction):
-        view: Connect4View = self.view
+    استدعاء استجابة غير متزامنة (خود، تفاعل: discord.Interaction):
+        عرض: Connect4View = خود.عرض
 
-        if interaction.user != view.current_player:
-            await interaction.response.send_message("❌ ليس دورك الآن", ephemeral=True)
-            return
+        إذا كان تفاعل.المستخدم != عرض.اللاعب الحالي:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة("❌ ليس دورك الآن", مؤقت=صحيح)
+            إرجاع
 
-        placed_row = view.drop_piece(self.col, view.current_emoji)
-        if placed_row == -1:
-            await interaction.response.send_message(
-                " هذا العامود ممتلئ، اختر عاموداً آخر.", ephemeral=True
+        الصف المضاف = عرض.إسقاط قطعة(خود.العمود، عرض.رمز التعبير الحالي)
+        إذا كان الصف المضاف == -1:
+            أنتظر تفاعل.الاستجابة.ارسال رسالة(
+                " هذا العامود ممتلئ، اختر عاموداً آخر.", مؤقت=صحيح
             )
-            return
+            إرجاع
 
-        if view.check_winner(placed_row, self.col, view.current_emoji):
-            winner = view.current_player
-            add_balance(winner.id, 60)
-            for child in view.children:
-                child.disabled = True
-            await interaction.response.edit_message(
-                content=(
+        إذا كان عرض.التحقق من الفائز(الصف المضاف، خود.العمود، عرض.رمز التعبير الحالي):
+            الفائز = عرض.اللاعب الحالي
+            اضافة التوازن(فائز.معرف, 60)
+            لـ الطفل في عرض.الأطفال:
+                الطفل.تعطيل = صحيح
+            أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                المحتوى=(
                     f"🎉 ** {winner.mention}** لقد فزت في لعبة **توصيل الكرات"
                     " 4** وحصلت على **60 طولار**💵\n\n"
                     + view.get_board_string()
-                ),
-                view=view,
+                )،
+                عرض = العرض،
             )
-            view.stop()
-            return
+            عرض.ايقاف()
+            إرجاع
 
-        if view.is_board_full():
-            for child in view.children:
-                child.disabled = True
-            await interaction.response.edit_message(
-                content=(
+        إذا كانت عرض.اللوحة ممتلئة():
+            لـ الطفل في عرض.الأطفال:
+                الطفل.تعطيل = صحيح
+            أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                المحتوى=(
                     "🤝 **تعادل** امتلأت اللوحة دون فائز.\n\n"
                     + view.get_board_string()
-                ),
-                view=view,
+                )،
+                عرض = العرض،
             )
-            view.stop()
-            return
+            عرض.ايقاف()
+            إرجاع
 
-        if not view.is_vs_bot:
-            view.current_player = (
-                view.player2
-                if view.current_player == view.player1
-                else view.player1
+        إذا لم تكن ضد البوت:
+            عرض.اللاعب الحالي = (
+                عرض.اللاعب 2
+                إذا كان عرض.اللاعب الحالي == عرض.اللاعب 1
+                إلا عرض.اللاعب 1
             )
-            view.current_emoji = "🟡" if view.current_emoji == "🔴" else "🔴"
-            await interaction.response.edit_message(
-                content=(
+            عرض.رمز التعبير الحالي = "🟡" إذا كان عرض.رمز التعبير الحالي == "🔴" وإلا "🔴"
+            أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                المحتوى=(
                     f" **لعبة توصيل الكرات 4**\nدور: {view.current_player.mention}"
                     f" ({view.current_emoji})\nالجائزة: **60 طولار** للفائز\n\n"
                     + view.get_board_string()
-                ),
-                view=view,
+                )،
+                عرض = العرض،
             )
-        else:
-            bot_col, bot_row = view.bot_move()
-            if bot_row != -1 and view.check_winner(bot_row, bot_col, "🟡"):
-                for child in view.children:
-                    child.disabled = True
-                await interaction.response.edit_message(
-                    content=(
+        إلا:
+            عمود البوت، صف البوت = عرض.حركة البوت()
+            إذا كان صف البوت != -1 وعرض.التحقق من الفائز(صف البوت، عمود البوت، "🟡"):
+                لـ الطفل في عرض.الأطفال:
+                    الطفل.تعطيل = صحيح
+                أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                    المحتوى=(
                         f"🤖 ** لعب البوت رقم {bot_col + 1} وفاز في توصيل الكرات"
                         " 4**\n\n"
                         + view.get_board_string()
                     ),
-                    view=view,
+                    عرض = العرض،
                 )
-                view.stop()
-                return
+                عرض.ايقاف()
+                إرجاع
 
-            if view.is_board_full():
-                for child in view.children:
-                    child.disabled = True
-                await interaction.response.edit_message(
-                    content=(
+            إذا كانت عرض.اللوحة ممتلئة():
+                لـ الطفل في عرض.الأطفال:
+                    الطفل.تعطيل = صحيح
+                أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                    المحتوى=(
                         " **تعادل** امتلأت اللوحة دون فائز.\n\n"
                         + view.get_board_string()
                     ),
-                    view=view,
+                    عرض = العرض،
                 )
-                view.stop()
-                return
+                عرض.ايقاف()
+                إرجاع
 
-            await interaction.response.edit_message(
-                content=(
+            أنتظر تفاعل.الاستجابة.تعديل الرسالة(
+                المحتوى=(
                     f" **لعبة توصيل الكرات 4** \nلعب البوت رقم {bot_col + 1} حان"
                     f" دورك: {view.player1.mention} (🔴)\n\n"
                     + view.get_board_string()
                 ),
-                view=view,
+                عرض = العرض،
             )
 
 
-class Connect4View(discord.ui.View):
-    def __init__(self, player1: discord.User, player2: discord.User = None):
-        super().__init__(timeout=60)
-        self.player1 = player1
-        self.player2 = player2
-        self.is_vs_bot = player2 is None
-        self.current_player = player1
-        self.current_emoji = "🔴"
-        self.message = None
+فئة Connect4View(discord.ui.View):
+    تعريف __init__(خود، اللاعب 1: discord.User، اللاعب 2: discord.User = لا أحد):
+        السوبر().__init__(مهلة الانتظار=60)
+        خود.player1 = اللاعب 1
+        خود.player2 = اللاعب 2
+        خود.is_vs_bot = اللاعب 2 لا يوجد
+        خود.current_player = اللاعب 1
+        خود.current_emoji = "🔴"
+        خود.message = لا أحد
 
-        self.rows = 6
-        self.cols = 7
-        self.board = [["⚪" for _ in range(self.cols)] for _ in range(self.rows)]
+        خود.rows = 6
+        خود.cols = 7
+        خود.board = [["⚪" لـ _ في نطاق(خود.الأعمدة)] لـ _ في نطاق(خود.الصفوف)]
 
-        for col in range(self.cols):
-            row_idx = 0 if col < 5 else 1
-            self.add_item(Connect4Button(col, row_idx))
+        لـ العمود في نطاق(خود.الأعمدة):
+            مؤشر الصف = 0 إذا كان العمود < 5 وإلا 1
+            خود.اضافة عنصر(Connect4Button(عمود، مؤشر الصف))
 
-    async def on_timeout(self):
-        for child in self.children:
-            child.disabled = True
-        if self.message:
-            try:
-                await self.message.edit(
-                    content=(
+    مهلة وقت الانتظار غير متزامنة (خود):
+        لـ الطفل في خود.الأطفال:
+            الطفل.تعطيل = صحيح
+        إذا كانت خود.رسالة:
+            يحاول:
+                أنتظر خود.رسالة.تعديل(
+                    المحتوى=(
                         f"⏰ **انتهت اللعبة لعدم التفاعل خلال دقيقة واحدة**\n\n"
                         + self.get_board_string()
-                    ),
-                    view=self,
+                    )،
+                    عرض = العرض،
                 )
-            except Exception:
-                pass
+            استثناء باستثناء:
+                يمر
 
-    def get_board_string(self) -> str:
-        board_str = ""
-        for r in range(self.rows):
-            board_str += "".join(self.board[r]) + "\n"
-        board_str += "1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣"
-        return board_str
+    تحديد get_board_string(خود) -> str:
+        نص اللوحة = ""
+        لـ r في نطاق(خود.الصفوف):
+            نص اللوحة += "".انضمام(خود.اللوحة[r]) + "\n"
+        نص اللوحة += "1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣"
+        إرجاع نص اللوحة
 
-    def drop_piece(self, col: int, emoji: str) -> int:
-        for r in range(self.rows - 1, -1, -1):
-            if self.board[r][col] == "⚪":
-                self.board[r][col] = emoji
-                return r
-        return -1
+    تحديد drop_piece(خود, العمود: int, التعبير: str) -> int:
+        لـ r في نطاق(خود.الصفوف - 1, -1, -1):
+            إذا كانت خود.اللوحة[r][العمود] == "⚪":
+                خود.اللوحة[r][العمود] = التعبير
+                إرجاع r
+        إرجاع -1
 
-    def is_board_full(self) -> bool:
-        return all(self.board[0][c] != "⚪" for c in range(self.cols))
+    تحديد is_board_full(خود) -> bool:
+        إرجاع جميع(خود.اللوحة[0][c] != "⚪" لـ c في نطاق(خود.الأعمدة))
 
-    def check_winner(self, r: int, c: int, emoji: str) -> bool:
-        count = 0
-        for col in range(self.cols):
-            if self.board[r][col] == emoji:
-                count += 1
-                if count >= 4:
-                    return True
-            else:
-                count = 0
+    تحديد check_winner(خود، r: int، c: int، التعبير: str) -> bool:
+        العدد = 0
+        لـ العمود في نطاق(خود.الأعمدة):
+            إذا كانت خود.اللوحة[r][العمود] == التعبير:
+                العدد += 1
+                إذا كان العدد >= 4:
+                    إرجاع صحيح
+            إلا:
+                العدد = 0
 
-        count = 0
-        for row in range(self.rows):
-            if self.board[row][c] == emoji:
-                count += 1
-                if count >= 4:
-                    return True
-            else:
-                count = 0
+        العدد = 0
+        لـ الصف في نطاق(خود.الصفوف):
+            إذا كانت خود.اللوحة[الصف][c] == التعبير:
+                العدد += 1
+                إذا كان العدد >= 4:
+                    إرجاع صحيح
+            إلا:
+                العدد = 0
 
-        for row in range(self.rows - 3):
-            for col in range(self.cols - 3):
-                if (
-                    self.board[row][col] == emoji
-                    and self.board[row + 1][col + 1] == emoji
-                    and self.board[row + 2][col + 2] == emoji
-                    and self.board[row + 3][col + 3] == emoji
+        لـ الصف في نطاق(خود.الصفوف - 3):
+            لـ العمود في نطاق(خود.الأعمدة - 3):
+                إذا كانت (
+                    خود.اللوحة[الصف][العمود] == التعبير
+                    وخود.اللوحة[الصف + 1][العمود + 1] == التعبير
+                    وخود.اللوحة[الصف + 2][العمود + 2] == التعبير
+                    وخود.اللوحة[الصف + 3][العمود + 3] == التعبير
                 ):
-                    return True
+                    إرجاع صحيح
 
-        for row in range(3, self.rows):
-            for col in range(self.cols - 3):
-                if (
-                    self.board[row][col] == emoji
-                    and self.board[row - 1][col + 1] == emoji
-                    and self.board[row - 2][col + 2] == emoji
-                    and self.board[row - 3][col + 3] == emoji
+        لـ الصف في نطاق(3, خود.الصفوف):
+            لـ العمود في نطاق(خود.الأعمدة - 3):
+                إذا كانت (
+                    خود.اللوحة[الصف][العمود] == التعبير
+                    وخود.اللوحة[الصف - 1][العمود + 1] == التعبير
+                    وخود.اللوحة[الصف - 2][العمود + 2] == التعبير
+                    وخود.اللوحة[الصف - 3][العمود + 3] == التعبير
                 ):
-                    return True
+                    إرجاع صحيح
 
-        return False
+        إرجاع خطأ
 
-    def score_position(self, piece: str) -> int:
-        score = 0
+    تحديد score_position(خود, القطعة: str) -> int:
+        النتيجة = 0
 
-        center_array = [self.board[r][self.cols // 2] for r in range(self.rows)]
-        center_count = center_array.count(piece)
-        score += center_count * 4
+        مصفوفة المركز = [خود.اللوحة[r][خود.الأعمدة // 2] لـ r في نطاق(خود.الصفوف)]
+        عدد المركز = مصفوفة المركز.عد(القطعة)
+        النتيجة += عدد المركز * 4
 
-        def evaluate_window(window, p):
-            win_score = 0
-            opp_p = "🔴" if p == "🟡" else "🟡"
-            if window.count(p) == 4:
-                win_score += 10000
-            elif window.count(p) == 3 and window.count("⚪") == 1:
-                win_score += 100
-            elif window.count(p) == 2 and window.count("⚪") == 2:
-                win_score += 10
+        تحديد evaluate_window(النافذة, p):
+            نتيجة النافذة = 0
+            الخصم p = "🔴" إذا كانت p == "🟡" وإلا "🟡"
+            إذا كانت النافذة.عد(p) == 4:
+                نتيجة النافذة += 10000
+            إلا إذا كانت النافذة.عد(p) == 3 والنافذة.عد("⚪") == 1:
+                نتيجة النافذة += 100
+            إلا إذا كانت النافذة.عد(p) == 2 والنافذة.عد("⚪") == 2:
+                نتيجة النافذة += 10
 
-            if window.count(opp_p) == 3 and window.count("⚪") == 1:
-                win_score -= 120
-            return win_score
+            إذا كانت النافذة.عد(الخصم p) == 3 والنافذة.عد("⚪") == 1:
+                نتيجة النافذة -= 120
+            إرجاع نتيجة النافذة
 
-        for r in range(self.rows):
-            row_array = self.board[r]
-            for c in range(self.cols - 3):
-                window = row_array[c : c + 4]
-                score += evaluate_window(window, piece)
+        لـ r في نطاق(خود.الصفوف):
+            مصفوفة الصف = خود.اللوحة[r]
+            لـ c في نطاق(خود.الأعمدة - 3):
+                النافذة = مصفوفة الصف[c : c + 4]
+                النتيجة += تقييم النافذة(النافذة، القطعة)
 
-        for c in range(self.cols):
-            col_array = [self.board[r][c] for r in range(self.rows)]
-            for r in range(self.rows - 3):
-                window = col_array[r : r + 4]
-                score += evaluate_window(window, piece)
+        لـ c في نطاق(خود.الأعمدة):
+            مصفوفة العمود = [خود.اللوحة[r][c] لـ r في نطاق(خود.الصفوف)]
+            لـ r في نطاق(خود.الصفوف - 3):
+                النافذة = مصفوفة العمود[r : r + 4]
+                النتيجة += تقييم النافذة(النافذة، القطعة)
 
-        for r in range(self.rows - 3):
-            for c in range(self.cols - 3):
-                window = [self.board[r + i][c + i] for i in range(4)]
-                score += evaluate_window(window, piece)
+        لـ r في نطاق(خود.الصفوف - 3):
+            لـ c في نطاق(خود.الأعمدة - 3):
+                النافذة = [خود.اللوحة[r + i][c + i] لـ i في نطاق(4)]
+                النتيجة += تقييم النافذة(النافذة، القطعة)
 
-        for r in range(3, self.rows):
-            for c in range(self.cols - 3):
-                window = [self.board[r - i][c + i] for i in range(4)]
-                score += evaluate_window(window, piece)
+        لـ r في نطاق(3, خود.الصفوف):
+            لـ c في نطاق(خود.الأعمدة - 3):
+                النافذة = [خود.اللوحة[r - i][c + i] لـ i في نطاق(4)]
+                النتيجة += تقييم النافذة(النافذة، القطعة)
 
-        return score
+        إرجاع النتيجة
 
-    def minimax(
-        self, depth: int, alpha: int, beta: int, maximizingPlayer: bool
+    تحديد minimax(
+        خود، العمق: int، بيتا: int، بيتا_2: int، لاعب أقصى: bool
     ) -> tuple:
-        valid_cols = [c for c in range(self.cols) if self.board[0][c] == "⚪"]
-        is_terminal = self.is_board_full()
+        الأعمدة الصالحة = [c لـ c في نطاق(خود.الأعمدة) إذا كانت خود.اللوحة[0][c] == "⚪"]
+        اللوحة منتهية = خود.اللوحة ممتلئة()
 
-        if depth == 0 or is_terminal:
-            return None, self.score_position("🟡")
+        إذا كان العمق == 0 أو اللوحة منتهية:
+            إرجاع لا أحد, خود.تقييم الموقع("🟡")
 
-        if maximizingPlayer:
-            value = -9999999
-            best_col = random.choice(valid_cols)
-            for col in valid_cols:
-                row = self.drop_piece(col, "🟡")
-                if self.check_winner(row, col, "🟡"):
-                    self.board[row][col] = "⚪"
-                    return col, 10000000
-                _, new_score = self.minimax(depth - 1, alpha, beta, False)
-                self.board[row][col] = "⚪"
-                if new_score > value:
-                    value = new_score
-                    best_col = col
-                alpha = max(alpha, value)
-                if alpha >= beta:
-                    break
-            return best_col, value
-        else:
-            value = 9999999
-            best_col = random.choice(valid_cols)
-            for col in valid_cols:
-                row = self.drop_piece(col, "🔴")
-                if self.check_winner(row, col, "🔴"):
-                    self.board[row][col] = "⚪"
-                    return col, -10000000
-                _, new_score = self.minimax(depth - 1, alpha, beta, True)
-                self.board[row][col] = "⚪"
-                if new_score < value:
-                    value = new_score
-                    best_col = col
-                beta = min(beta, value)
-                if alpha >= beta:
-                    break
-            return best_col, value
+        إذا كان لاعب أقصى:
+            القيمة = -9999999
+            أفضل عمود = العشوائي.اختيار(الأعمدة الصالحة)
+            لـ العمود في الأعمدة الصالحة:
+                الصف = خود.إسقاط قطعة(العمود، "🟡")
+                إذا كانت خود.التحقق من الفائز(الصف، العمود، "🟡"):
+                    خود.اللوحة[الصف][العمود] = "⚪"
+                    إرجاع العمود, 10000000
+                _, النتيجة الجديدة = خود.الحد الأدنى والأقصى(العمق - 1, بيتا, بيتا_2, خطأ)
+                خود.اللوحة[الصف][العمود] = "⚪"
+                إذا كانت النتيجة الجديدة > القيمة:
+                    القيمة = النتيجة الجديدة
+                    أفضل عمود = العمود
+                بيتا = أقصى(بيتا، القيمة)
+                إذا كانت بيتا >= بيتا_2:
+                    انكسار
+            إرجاع أفضل عمود, القيمة
+        إلا:
+            القيمة = 9999999
+            أفضل عمود = العشوائي.اختيار(الأعمدة الصالحة)
+            لـ العمود في الأعمدة الصالحة:
+                الصف = خود.إسقاط قطعة(العمود، "🔴")
+                إذا كانت خود.التحقق من الفائز(الصف، العمود، "🔴"):
+                    خود.اللوحة[الصف][العمود] = "⚪"
+                    إرجاع العمود, -10000000
+                _, النتيجة الجديدة = خود.الحد الأدنى والأقصى(العمق - 1, بيتا, بيتا_2, صحيح)
+                خود.اللوحة[الصف][العمود] = "⚪"
+                إذا كانت النتيجة الجديدة < القيمة:
+                    القيمة = النتيجة الجديدة
+                    أفضل عمود = العمود
+                بيتا_2 = أدنى(بيتا_2، القيمة)
+                إذا كانت بيتا >= بيتا_2:
+                    انكسار
+            إرجاع أفضل عمود, القيمة
 
-    def bot_move(self) -> tuple:
-        valid_cols = [c for c in range(self.cols) if self.board[0][c] == "⚪"]
-        if not valid_cols:
-            return -1, -1
+    تحديد bot_move(خود) -> tuple:
+        الأعمدة الصالحة = [c لـ c في نطاق(خود.الأعمدة) إذا كانت خود.اللوحة[0][c] == "⚪"]
+        إذا لم تكن أعمدة صالحة:
+            إرجاع -1, -1
 
-        for col in valid_cols:
-            row = self.drop_piece(col, "🟡")
-            if self.check_winner(row, col, "🟡"):
-                return col, row
-            self.board[row][col] = "⚪"
+        لـ العمود في الأعمدة الصالحة:
+            الصف = خود.إسقاط قطعة(العمود، "🟡")
+            إذا كانت خود.التحقق من الفائز(الصف، العمود، "🟡"):
+                إرجاع العمود, الصف
+            خود.اللوحة[الصف][العمود] = "⚪"
 
-        for col in valid_cols:
-            row = self.drop_piece(col, "🔴")
-            if self.check_winner(row, col, "🔴"):
-                self.board[row][col] = "⚪"
-                bot_row = self.drop_piece(col, "🟡")
-                return col, bot_row
-            self.board[row][col] = "⚪"
+        لـ العمود في الأعمدة الصالحة:
+            الصف = خود.إسقاط قطعة(العمود، "🔴")
+            إذا كانت خود.التحقق من الفائز(الصف، العمود، "🔴"):
+                خود.اللوحة[الصف][العمود] = "⚪"
+                صف البوت = خود.إسقاط قطعة(العمود، "🟡")
+                إرجاع العمود, صف البوت
+            خود.اللوحة[الصف][العمود] = "⚪"
 
-        best_col, _ = self.minimax(4, -9999999, 9999999, True)
-        if best_col is None or best_col not in valid_cols:
-            best_col = random.choice(valid_cols)
+        أفضل عمود, _ = خود.الحد الأدنى والأقصى(4, -9999999, 9999999, صحيح)
+        إذا كان أفضل عمود غير موجود أو أفضل عمود ليس في الأعمدة الصالحة:
+            أفضل عمود = العشوائي.اختيار(الأعمدة الصالحة)
 
-        row = self.drop_piece(best_col, "🟡")
-        return best_col, row
+        الصف = خود.إسقاط قطعة(أفضل عمود، "🟡")
+        إرجاع أفضل عمود, الصف
 
 
 @bot.command(name="توصيل", aliases=["توصيل4", "connect4", "كرات4", "أربعة"])
 @in_channel(GAMES_CHANNEL_ID)
-async def connect4_game(ctx, opponent: discord.Member = None):
-    if opponent and opponent.bot:
-        await ctx.send(
+أمر توصيل كرات غير متزامن (ctx, المنافس: discord.Member = لا أحد):
+    إذا كان المنافس والمنافس.بوت:
+        أنتظر ctx.send(
             "❌ لا يمكنك تحدي بوت آخر، استخدم الأمر بدون منشن للعب ضد هذا البوت."
         )
-        return
+        إرجاع
 
-    if opponent and opponent == ctx.author:
-        await ctx.send("❌ لا يمكنك تحدي نفسك")
-        return
+    إذا كان المنافس والمنافس == ctx.author:
+        أنتظر ctx.send("❌ لا يمكنك تحدي نفسك")
+        إرجاع
 
-    if opponent:
-        view = Connect4View(player1=ctx.author, player2=opponent)
-        msg = await ctx.send(
+    إذا كان المنافس:
+        عرض = Connect4View(اللاعب 1=ctx.author, اللاعب 2=المنافس)
+        الرسالة = أنتظر ctx.send(
             f"**بدأت لعبة توصيل الكرات 4** بين {ctx.author.mention} (🔴) و"
             f" {opponent.mention} (🟡)\nالجائزة: **60 طولار** للفائز\nدور:"
             f" {ctx.author.mention}\n\n"
             + view.get_board_string(),
-            view=view,
-            allowed_mentions=discord.AllowedMentions(users=False),
+            عرض = العرض،
+            الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
         )
-        view.message = msg
-    else:
-        view = Connect4View(player1=ctx.author)
-        msg = await ctx.send(
+        عرض.رسالة = الرسالة
+    إلا:
+        عرض = Connect4View(اللاعب 1=ctx.author)
+        الرسالة = أنتظر ctx.send(
             f"**بدأت لعبة توصيل الكرات 4** بين {ctx.author.mention} (🔴) و"
             " البوت (🟡)\nالجائزة: **60 طولار** للفائز!\nدور:"
             f" {ctx.author.mention}\n\n"
             + view.get_board_string(),
-            view=view,
-            allowed_mentions=discord.AllowedMentions(users=False),
+            عرض = العرض،
+            الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
         )
-        view.message = msg
+        عرض.رسالة = الرسالة
 
 
 # --- 8. الأوامر الاقتصادية والعامة ---
 @bot.command(name="طولاري")
 @in_channel(SHOPPING_CHANNEL_ID)
-async def balance_command(ctx, member: discord.Member = None):
-    target = member or ctx.author
-    bal = get_balance(target.id)
+أمر رصيد طولاري غير متزامن (ctx, العضو: discord.Member = لا أحد):
+    الهدف = العضو أو ctx.author
+    الرصيد = احصل على التوازن(هدف.معرف)
 
-    img_buf = make_card_with_text(
-        None,
+    بوف الصورة = make_card_with_text(
+        لا أحد،
         "خزانة الرصيد",
         f"{bal} طولار",
         f"حفظت الخزانة الملكية رصيدك يا {target.display_name}",
     )
-    file = discord.File(fp=img_buf, filename="balance.png")
-    await ctx.send(file=file)
+    ملف = discord.File(fp=img_buf, اسم الملف="balance.png")
+    أنتظر ctx.send(ملف=ملف)
 
 
 @bot.command(name="ض")
 @commands.has_role(OWNER_ROLE_ID)
 @in_channel(SHOPPING_CHANNEL_ID)
-async def add_money(ctx, member: discord.Member, amount: int):
-    if amount <= 0:
-        await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من 0.")
-        return
+أمر إضافة رصيد غير متزامن (ctx, العضو: discord.Member, المبلغ: int):
+    إذا كان المبلغ <= 0:
+        أنتظر ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من 0.")
+        إرجاع
 
-    add_balance(member.id, amount)
-    await ctx.send(
+    اضافة التوازن(مستخدم.معرف، مبلغ)
+    أنتظر ctx.send(
         f" تم إضافة **{amount}** طولار إلى حساب {member.mention} بنجاح\n"
         f" رصيده الجديد: **{get_balance(member.id)}** طولار.",
-        allowed_mentions=discord.AllowedMentions.none(),
+        الإشارات المسموحة = discord.AllowedMentions.none(),
     )
 
 
 @add_money.error
-async def add_money_error(ctx, error):
-    if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص لصاحب رتبة الاونر فقط")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(
+خطأ في أمر إضافة رصيد غير متزامن (ctx, الخطأ):
+    إذا كان نوع الخطأ هو commands.MissingRole:
+        أنتظر ctx.send("❌ هذا الأمر مخصص لصاحب رتبة الاونر فقط")
+    إلا إذا كان نوع الخطأ هو commands.MissingRequiredArgument:
+        أنتظر ctx.send(
             "**طريقة الاستخدام الصحيحة:**\n"
             "`اضافة @العضو المبلغ`\n"
             "مثال: `.اضافة @User 500`"
         )
-    elif isinstance(error, commands.BadArgument):
-        await ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.")
+    إلا إذا كان نوع الخطأ هو commands.BadArgument:
+        أنتظر ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.")
 
 
 @bot.command(name="ت", aliases=["transfer", "pay"])
 @in_channel(SHOPPING_CHANNEL_ID)
-async def transfer_money(
-    ctx, member: discord.Member = None, amount: int = None
+أمر تحويل أموال غير متزامن (
+    ctx, العضو: discord.Member = لا أحد, المبلغ: int = لا أحد
 ):
-    if not member or amount is None:
-        await ctx.send(
+    إذا لم يكن العضو أو المبلغ غير موجود:
+        أنتظر ctx.send(
             " **طريقة الاستخدام الصحيحة:**\n"
             "`.تحويل @العضو المبلغ`\n"
             "مثال: `.تحويل @User 100`",
-            delete_after=5,
+            بعد الحذف=5،
         )
-        return
+        إرجاع
 
-    if member.bot:
-        await ctx.send("❌ لا يمكنك تحويل الطولارات للبوتات", delete_after=3)
-        return
+    إذا كان العضو.بوت:
+        أنتظر ctx.send("❌ لا يمكنك تحويل الطولارات للبوتات", بعد الحذف=3)
+        إرجاع
 
-    if member == ctx.author:
-        await ctx.send("❌ لا يمكنك تحويل الطولارات لنفسك", delete_after=3)
-        return
+    إذا كان العضو == ctx.author:
+        أنتظر ctx.send("❌ لا يمكنك تحويل الطولارات لنفسك", بعد الحذف=3)
+        إرجاع
 
-    if amount <= 0:
-        await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من **0**", delete_after=3)
-        return
+    إذا كان المبلغ <= 0:
+        أنتظر ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من **0**", بعد الحذف=3)
+        إرجاع
 
-    sender_balance = get_balance(ctx.author.id)
-    if sender_balance < amount:
-        await ctx.send(
+    رصيد المرسل = احصل على التوازن(ctx.author.id)
+    إذا كان رصيد المرسل < المبلغ:
+        أنتظر ctx.send(
             f"❌ رصيدك غير كاف رصيدك الحالي هو **{sender_balance}** طولار.",
-            delete_after=5,
+            بعد الحذف=5،
         )
-        return
+        إرجاع
 
-    remove_balance(ctx.author.id, amount)
-    add_balance(member.id, amount)
+    حذف التوازن(ctx.author.id، مبلغ)
+    اضافة التوازن(مستخدم.معرف، مبلغ)
 
-    await ctx.send(
+    أنتظر ctx.send(
         " **تم التحويل بنجاح**\n"
         f"قمـت بـتحـويـل **{amount}** طولار إلى {member.mention}.\n"
         f" رصيدك المتبقي: **{get_balance(ctx.author.id)}** طولار.",
-        allowed_mentions=discord.AllowedMentions(users=False),
+        الإشارات المسموحة = discord.AllowedMentions(المستخدمون=خطأ),
     )
 
 
 @transfer_money.error
-async def transfer_money_error(ctx, error):
-    if isinstance(error, commands.BadArgument):
-        await ctx.send(
-            "❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.", delete_after=3
+خطأ في أمر تحويل الأموال غير متزامن (ctx, الخطأ):
+    إذا كان نوع الخطأ هو commands.BadArgument:
+        أنتظر ctx.send(
+            "❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.", بعد الحذف=3
         )
 
 
 # --- 8.1 لعبة الرهان التفاعلية المحسنة بالدوران والصور ---
 @bot.command(name="رهان", aliases=["bet", "عجلة"])
 @in_channel(SHOPPING_CHANNEL_ID)
-async def bet_game(
+أمر الرهان غير متزامن (
     ctx,
-    arg1: typing.Union[discord.Member, int] = None,
-    arg2: int = None,
+    المدخل الأول: typing.Union[discord.Member, int] = لا أحد,
+    المدخل الثاني: int = لا أحد,
 ):
-    opponent = None
-    amount = 0
+    المنافس = لا أحد
+    المبلغ = 0
 
-    if isinstance(arg1, discord.Member):
-        opponent = arg1
-        amount = arg2
-    elif isinstance(arg1, int):
-        amount = arg1
+    إذا كان نوع المدخل الأول هو discord.Member:
+        المنافس = المدخل الأول
+        المبلغ = المدخل الثاني
+    إلا إذا كان نوع المدخل الأول هو int:
+        المبلغ = المدخل الأول
 
-    if not amount or amount <= 0:
-        await ctx.send(
+    إذا لم يكن المبلغ موجوداً أو كان المبلغ <= 0:
+        أنتظر ctx.send(
             "⚠️ **طريقة الاستخدام الصحيحة:**\n"
             "• للرهان ضد البوت: `.رهان 1000`\n"
             "• للرهان ضد عضو: `.رهان @العضو 1000`",
-            delete_after=5,
+            بعد الحذف=5،
         )
-        return
+        إرجاع
 
-    if opponent and opponent.bot and opponent != bot.user:
-        await ctx.send("❌ لا يمكنك الرهان ضد بوتات أخرى.", delete_after=3)
-        return
+    إذا كان المنافس والمنافس.بوت والمنافس != bot.user:
+        أنتظر ctx.send("❌ لا يمكنك الرهان ضد بوتات أخرى.", بعد الحذف=3)
+        إرجاع
 
-    if opponent == ctx.author:
-        await ctx.send("❌ لا يمكنك الرهان ضد نفسك!", delete_after=3)
-        return
+    إذا كان المنافس == ctx.author:
+        أنتظر ctx.send("❌ لا يمكنك الرهان ضد نفسك!", بعد الحذف=3)
+        إرجاع
 
-    player1 = ctx.author
-    player2 = opponent if (opponent and opponent != bot.user) else bot.user
+    اللاعب الأول = ctx.author
+    اللاعب الثاني = المنافس إذا (المنافس والمنافس != bot.user) إلا bot.user
 
     # التأكد من الأرصدة
-    if get_balance(player1.id) < amount:
-        await ctx.send(f"❌ رصيدك غير كافٍ! رصيدك الحالي: **{get_balance(player1.id)}** طولار.", delete_after=5)
-        return
+    إذا كان احصل على التوازن(اللاعب الأول.معرف) < المبلغ:
+        أنتظر ctx.send(f"❌ رصيدك غير كافٍ! رصيدك الحالي: **{get_balance(player1.id)}** طولار.", بعد الحذف=5)
+        إرجاع
 
-    if player2 != bot.user and get_balance(player2.id) < amount:
-        await ctx.send(f"❌ العضو {player2.mention} لا يملك رصيداً كافياً للرهان!", delete_after=5)
-        return
+    إذا كان اللاعب الثاني != bot.user واحصل على التوازن(اللاعب الثاني.معرف) < المبلغ:
+        أنتظر ctx.send(f"❌ العضو {player2.mention} لا يملك رصيداً كافياً للرهان!", بعد الحذف=5)
+        إرجاع
 
     # التحدي المباشر ضد لاعب آخر (يحتاج موافقة عبر الأزرار)
-    if player2 != bot.user:
-        card_buf = make_challenge_card(player1, player2, amount)
-        file = discord.File(fp=card_buf, filename="challenge.png")
-        view = ChallengeView(player1, player2, amount)
+    إذا كان اللاعب الثاني != bot.user:
+        بوف الصورة = make_challenge_card(اللاعب الأول، اللاعب الثاني، المبلغ)
+        ملف = discord.File(fp=card_buf, اسم الملف="challenge.png")
+        عرض = ChallengeView(اللاعب الأول، اللاعب الثاني، المبلغ)
 
-        msg = await ctx.send(
-            content=f"⚔️ {player2.mention}، تحداك {player1.mention} في رهان بمبلغ **{amount}** طولار!",
-            file=file,
-            view=view
+        رسالة التحدي = أنتظر ctx.send(
+            المحتوى=f"⚔️ {player2.mention}، تحداك {player1.mention} في رهان بمبلغ **{amount}** طولار!",
+            ملف=ملف،
+            عرض=عرض
         )
 
-        await view.wait()
+        أنتظر عرض.انتظار()
 
-        if not view.accepted:
-            return
+        إذا لم تكن موافقة القبول:
+            إرجاع
 
     # بداية الدوران
-    winner = random.choice([player1, player2])
-    loser = player2 if winner == player1 else player1
+    الفائز = العشوائي.اختيار([اللاعب الأول، اللاعب الثاني])
+    الخاسر = اللاعب الثاني إذا الفائز == اللاعب الأول إلا اللاعب الأول
 
     # استقطاع الأرصدة وإضافتها
-    if player2 != bot.user:
-        remove_balance(player1.id, amount)
-        remove_balance(player2.id, amount)
-        add_balance(winner.id, amount * 2)
-        total_pot = amount * 2
-    else:
-        if winner == player1:
-            add_balance(player1.id, amount)
-        else:
-            remove_balance(player1.id, amount)
-        total_pot = amount
+    إذا كان اللاعب الثاني != bot.user:
+        حذف التوازن(اللاعب الأول.معرف، المبلغ)
+        حذف التوازن(اللاعب الثاني.معرف، المبلغ)
+        اضافة التوازن(الفائز.معرف, المبلغ * 2)
+        إجمالي الوعاء = المبلغ * 2
+    إلا:
+        إذا كان الفائز == اللاعب الأول:
+            اضافة التوازن(اللاعب الأول.معرف، المبلغ)
+        إلا:
+            حذف التوازن(اللاعب الأول.معرف، المبلغ)
+        إجمالي الوعاء = المبلغ
 
     # زاوية التوقف
-    target_sector = random.choice([0, 2, 4, 6]) if winner == player1 else random.choice([1, 3, 5, 7])
-    final_target = (270 - (target_sector * 45 + 22.5)) % 360
-    total_spin = 360 * 3 + final_target
+    القطاع المستهدف = العشوائي.اختيار([0, 2, 4, 6]) إذا الفائز == اللاعب الأول إلا العشوائي.اختيار([1, 3, 5, 7])
+    الهدف النهائي = (270 - (القطاع المستهدف * 45 + 22.5)) % 360
+    إجمالي الدوران = 360 * 3 + الهدف النهائي
 
     # محاكاة انيميشن الدوران السلس
-    frames_count = 6
-    spin_msg = None
+    عدد الإطارات = 6
+    رسالة الدوران = لا أحد
 
-    for i in range(frames_count):
-        progress = (i + 1) / frames_count
-        eased_progress = 1 - math.pow(1 - progress, 3)
-        current_angle = eased_progress * total_spin
+    لـ i في نطاق(عدد الإطارات):
+        التقدم = (i + 1) / عدد الإطارات
+        التقدم المسهل = 1 - الرياضيات.القوة(1 - التقدم, 3)
+        الزاوية الحالية = التقدم المسهل * إجمالي الدوران
 
-        frame_buf = make_wheel_frame(player1.display_name, player2.display_name, current_angle)
-        file = discord.File(fp=frame_buf, filename="wheel_spin.png")
+        بوف الإطار = make_wheel_frame(اللاعب الأول.اسم العرض، اللاعب الثاني.اسم العرض، الزاوية الحالية)
+        ملف = discord.File(fp=frame_buf, اسم الملف="wheel_spin.png")
 
-        if spin_msg is None:
-            spin_msg = await ctx.send(content="🎡 **جاري تدوير العجلة...**", file=file)
-        else:
-            await spin_msg.edit(attachments=[file])
+        إذا كانت رسالة الدوران لا يوجد:
+            رسالة الدوران = أنتظر ctx.send(المحتوى="🎡 **جاري تدوير العجلة...**", ملف=ملف)
+        إلا:
+            أنتظر رسالة الدوران.تعديل(المرفقات=[ملف])
 
-        await asyncio.sleep(0.4)
+        أنتظر asyncio.sleep(0.4)
 
     # عرض النتيجة النهائية
-    res_buf = make_result_card(winner, loser, amount, total_pot)
-    res_file = discord.File(fp=res_buf, filename="result.png")
+    بوف النتيجة = make_result_card(الفائز، الخاسر، المبلغ، إجمالي الوعاء)
+    ملف النتيجة = discord.File(fp=res_buf, اسم الملف="result.png")
 
-    await spin_msg.edit(
-        content=f"🎉 **انتهت اللعبة! فاز {winner.mention} بالرهان!**",
-        attachments=[res_file]
+    أنتظر رسالة الدوران.تعديل(
+        المحتوى=f"🎉 **انتهت اللعبة! فاز {winner.mention} بالرهان!**",
+        المرفقات=[ملف النتيجة]
     )
 
 
 @bet_game.error
-async def bet_game_error(ctx, error):
-    if isinstance(error, commands.BadArgument):
-        await ctx.send(
+خطأ في أمر الرهان غير متزامن (ctx, الخطأ):
+    إذا كان نوع الخطأ هو commands.BadArgument:
+        أنتظر ctx.send(
             "❌ يرجى إدخال مبلغ صحيح أو منشن العضو والمبلغ بشكل صحيح.",
-            delete_after=3,
+            بعد الحذف=3،
         )
 
 
 @bot.command(name="ايدي")
-async def get_id(
+أمر الحصول على الآيدي غير متزامن (
     ctx,
-    target: typing.Union[
+    الهدف: typing.Union[
         discord.TextChannel, discord.Member, discord.Role, str
-    ] = None,
+    ] = لا أحد,
 ):
-    if not target:
-        await ctx.send(f"🆔 الآيدي الخاص بك: `{ctx.author.id}`")
-        return
+    إذا لم يكن هناك هدف:
+        أنتظر ctx.send(f"🆔 الآيدي الخاص بك: `{ctx.author.id}`")
+        إرجاع
 
-    if ctx.message.role_mentions:
-        role = ctx.message.role_mentions[0]
-        await ctx.send(f"🆔 آيدي الرتبة **{role.name}**: `{role.id}`")
-        return
+    إذا كانت رسالة.منشن الرتب:
+        الرتبة = ctx.message.role_mentions[0]
+        أنتظر ctx.send(f"🆔 آيدي الرتبة **{role.name}**: `{role.id}`")
+        إرجاع
 
-    if isinstance(target, discord.TextChannel):
-        await ctx.send(f"🆔 آيدي الروم {target.mention}: `{target.id}`")
-        return
+    إذا كان نوع الهدف هو discord.TextChannel:
+        أنتظر ctx.send(f"🆔 آيدي الروم {target.mention}: `{target.id}`")
+        إرجاع
 
-    if ctx.message.mentions:
-        member = ctx.message.mentions[0]
-        await ctx.send(f"🆔 آيدي العضو {member.mention}: `{member.id}`")
-        return
+    إذا كانت رسالة.المنشن:
+        العضو = ctx.message.mentions[0]
+        أنتظر ctx.send(f"🆔 آيدي العضو {member.mention}: `{member.id}`")
+        إرجاع
 
-    member = discord.utils.find(
-        lambda m: m.name == target or m.display_name == target, ctx.guild.members
+    العضو = discord.utils.find(
+        لامبدا m: m.name == target أو m.display_name == target, ctx.guild.members
     )
-    if member:
-        await ctx.send(f"🆔 آيدي العضو {member.mention}: `{member.id}`")
-        return
+    إذا كان العضو:
+        أنتظر ctx.send(f"🆔 آيدي العضو {member.mention}: `{member.id}`")
+        إرجاع
 
-    role = discord.utils.find(lambda r: r.name == target, ctx.guild.roles)
-    if role:
-        await ctx.send(f"🆔 آيدي الرتبة **{role.name}**: `{role.id}`")
-        return
+    الرتبة = discord.utils.find(لامبدا r: r.name == target, ctx.guild.roles)
+    إذا كانت الرتبة:
+        أنتظر ctx.send(f"🆔 آيدي الرتبة **{role.name}**: `{role.id}`")
+        إرجاع
 
-    await ctx.send("❌ لم يتم العثور على عضو أو رتبة بهذا المنشن/الاسم.")
+    أنتظر ctx.send("❌ لم يتم العثور على عضو أو رتبة بهذا المنشن/الاسم.")
 
 
 @bot.command(name="مسح", aliases=["clear", "مسح_الرسائل"])
 @commands.has_role(OWNER_ROLE_ID)
-async def clear_messages(ctx, amount: int = None):
-    if amount is None or amount <= 0:
-        await ctx.send(
+أمر مسح الرسائل غير متزامن (ctx, المبلغ: int = لا أحد):
+    إذا كان المبلغ لا يوجد أو المبلغ <= 0:
+        أنتظر ctx.send(
             "⚠️ يرجى تحديد عدد الرسائل المراد مسحها.\nمثال: `.مسح 10`",
-            delete_after=2,
+            بعد الحذف=2،
         )
-        return
+        إرجاع
 
-    deleted = await ctx.channel.purge(limit=amount + 1)
-    await ctx.send(f" تم مسح **{len(deleted) - 1}** رسالة بنجاح", delete_after=1)
+    الرسائل المحذوفة = أنتظر ctx.channel.purge(الحد الأقصى=مبلغ + 1)
+    أنتظر ctx.send(f" تم مسح **{len(deleted) - 1}** رسالة بنجاح", بعد الحذف=1)
 
 
 @clear_messages.error
-async def clear_messages_error(ctx, error):
-    if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=2)
-    elif isinstance(error, commands.BadArgument):
-        await ctx.send(
+خطأ أمر مسح الرسائل غير متزامن (ctx, الخطأ):
+    إذا كان نوع الخطأ هو commands.MissingRole:
+        أنتظر ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", بعد الحذف=2)
+    إلا إذا كان نوع الخطأ هو commands.BadArgument:
+        أنتظر ctx.send(
             "❌ يرجى كتابة عدد الرسائل بالأرقام فقط (مثال: `.مسح 5`).",
-            delete_after=1,
+            بعد الحذف=1،
         )
-    elif isinstance(error, commands.BotMissingPermissions):
-        await ctx.send(
+    إلا إذا كان نوع الخطأ هو commands.BotMissingPermissions:
+        أنتظر ctx.send(
             "❌ البوت لا يملك صلاحية `Manage Messages` (إدارة الرسائل) لمسح الشات"
         )
 
 
 @bot.command(name="افتار", aliases=["avatar", "افتاري"])
 @in_channel(AVATAR_CHANNEL_ID)
-async def show_avatar(ctx, member: discord.Member = None):
-    target = member or ctx.author
-    avatar_url = target.display_avatar.url
+أمر إظهار الأفاتار غير متزامن (ctx, العضو: discord.Member = لا أحد):
+    الهدف = العضو أو ctx.author
+    رابط الأفاتار = target.display_avatar.url
 
-    embed = discord.Embed(color=discord.Color.dark_theme())
-    embed.set_image(url=avatar_url)
+    تنسيق = discord.Embed(اللون=discord.Color.dark_theme())
+    تنسيق.تحديد الصورة(رابط=رابط الأفاتار)
 
-    await ctx.send(embed=embed)
+    أنتظر ctx.send(تنسيق=تنسيق)
 
 
 @bot.command(name="بنر", aliases=["banner", "بنري"])
 @in_channel(AVATAR_CHANNEL_ID)
-async def show_banner(ctx, member: discord.Member = None):
-    target = member or ctx.author
-    user = await bot.fetch_user(target.id)
+أمر إظهار البنر غير متزامن (ctx, العضو: discord.Member = لا أحد):
+    الهدف = العضو أو ctx.author
+    المستخدم = أنتظر البوت.جلب المستخدم(هدف.معرف)
 
-    if not user.banner:
-        await ctx.send("❌ هذا الحساب لا يملك بنر", delete_after=2)
-        return
+    إذا لم يكن للمستخدم بنر:
+        أنتظر ctx.send("❌ هذا الحساب لا يملك بنر", بعد الحذف=2)
+        إرجاع
 
-    banner_url = user.banner.url
+    رابط البنر = user.banner.url
 
-    embed = discord.Embed(color=discord.Color.dark_theme())
-    embed.set_image(url=banner_url)
+    تنسيق = discord.Embed(اللون=discord.Color.dark_theme())
+    تنسيق.تحديد الصورة(رابط=رابط البنر)
 
-    await ctx.send(embed=embed)
+    أنتظر ctx.send(تنسيق=تنسيق)
 
 
 @show_avatar.error
-async def avatar_error(ctx, error):
-    if isinstance(error, commands.BadArgument):
-        await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت", delete_after=2)
+خطأ أمر إظهار الأفاتار غير متزامن (ctx, الخطأ):
+    إذا كان نوع الخطأ هو commands.BadArgument:
+        أنتظر ctx.send("❌ لم يتم العثور على هذا العضو أو البوت", بعد الحذف=2)
 
 
 @show_banner.error
-async def banner_error(ctx, error):
-    if isinstance(error, commands.BadArgument):
-        await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت", delete_after=2)
+خطأ أمر إظهار البنر غير متزامن (ctx, الخطأ):
+    إذا كان نوع الخطأ هو commands.BadArgument:
+        أنتظر ctx.send("❌ لم يتم العثور على هذا العضو أو البوت", بعد الحذف=2)
 
 
 @bot.command(name="تغيير")
 @commands.has_permissions(administrator=True)
 @in_channel(AVATAR_CHANNEL_ID)
-async def change_profile(ctx):
-    await ctx.send("ماذا تريد أن تغير؟ اكتب **افتار** أو **بنر**.")
+أمر تغيير بروفايل البوت غير متزامن (ctx):
+    أنتظر ctx.send("ماذا تريد أن تغير؟ اكتب **افتار** أو **بنر**.")
 
-    def check_choice(m):
-        return m.author == ctx.author and m.channel == ctx.channel and m.content in ["افتار", "بنر"]
+    التحقق من الاختيار (m):
+        إرجاع m.author == ctx.author و m.channel == ctx.channel و m.content في ["افتار", "بنر"]
 
-    try:
-        choice_msg = await bot.wait_for("message", check=check_choice, timeout=30.0)
-        choice = choice_msg.content
+    يحاول:
+        رسالة الاختيار = أنتظر البوت.انتظار الرسالة(التحقق=التحقق من الاختيار, مهلة الانتظار=30.0)
+        الاختيار = choice_msg.content
 
-        await ctx.send(f"تم اختيار **{choice}**. الرجاء إرسال الصورة الآن كملف مرفق.")
+        أنتظر ctx.send(f"تم اختيار **{choice}**. الرجاء إرسال الصورة الآن كملف مرفق.")
 
-        def check_image(m):
-            return m.author == ctx.author and m.channel == ctx.channel and len(m.attachments) > 0
+        التحقق من الصورة (m):
+            إرجاع m.author == ctx.author و m.channel == ctx.channel و طول(m.attachments) > 0
 
-        img_msg = await bot.wait_for("message", check=check_image, timeout=60.0)
-        image_url = img_msg.attachments[0].url
+        رسالة الصورة = أنتظر البوت.انتظار الرسالة(التحقق=التحقق من الصورة, مهلة الانتظار=60.0)
+        رابط الصورة = img_msg.attachments[0].url
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(image_url) as resp:
-                if resp.status != 200:
-                    return await ctx.send("تعذر تحميل الصورة، حاول مرة أخرى.")
-                image_data = await resp.read()
+        عبر الجلسة aiohttp.ClientSession() كـ session:
+            عبر الاستجابة session.get(image_url) كـ resp:
+                إذا كانت حالة الاستجابة != 200:
+                    إرجاع أنتظر ctx.send("تعذر تحميل الصورة، حاول مرة أخرى.")
+                بيانات الصورة = أنتظر الاستجابة.قراءة()
 
-        if choice == "افتار":
-            await bot.user.edit(avatar=image_data)
-            await ctx.send("تم تغيير رمزية (افتار) البوت بنجاح ✅")
-        elif choice == "بنر":
-            await bot.user.edit(banner=image_data)
-            await ctx.send("تم تغيير بنر البوت بنجاح! ✅")
+        إذا كان الاختيار == "افتار":
+            أنتظر البوت.تعديل المستخدم(الرمزية=بيانات الصورة)
+            أنتظر ctx.send("تم تغيير رمزية (افتار) البوت بنجاح ✅")
+        إلا إذا كان الاختيار == "بنر":
+            أنتظر البوت.تعديل المستخدم(البنر=بيانات الصورة)
+            أنتظر ctx.send("تم تغيير بنر البوت بنجاح! ✅")
 
-    except asyncio.TimeoutError:
-        await ctx.send("تأخرت في الرد، تم إلغاء العملية.")
-    except discord.HTTPException as e:
-        await ctx.send(f"حدث خطأ أثناء التحديث: {e}")
+    استثناء asyncio.TimeoutError:
+        أنتظر ctx.send("تأخرت في الرد، تم إلغاء العملية.")
+    استثناء discord.HTTPException كـ e:
+        أنتظر ctx.send(f"حدث خطأ أثناء التحديث: {e}")
 
 
 @change_profile.error
-async def change_profile_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("عذراً، هذا الأمر مخصص للمسؤولين  فقط ❌")
+خطأ أمر تغيير البروفايل غير متزامن (ctx, الخطأ):
+    إذا كان نوع الخطأ هو commands.MissingPermissions:
+        أنتظر ctx.send("عذراً، هذا الأمر مخصص للمسؤولين  فقط ❌")
 
 
 # --- 9. قائمة الألعاب والأوامر ---
 @bot.command(name="العاب")
-async def games_list(ctx):
-    embed = discord.Embed(
-        title="قائمة الألعاب ",
-        description=".سؤال\n.لغز\n.حجر\n.اكس\n.توصيل",
-        color=discord.Color.blue(),
+أمر عرض الألعاب غير متزامن (ctx):
+    تنسيق = discord.Embed(
+        عنوان="قائمة الألعاب ",
+        الوصف=".سؤال\n.لغز\n.حجر\n.اكس\n.توصيل",
+        اللون = discord.Color.blue(),
     )
-    await ctx.send(embed=embed)
+    أنتظر ctx.send(تنسيق=تنسيق)
 
 
 @bot.command(name="اوامر")
-async def commands_list(ctx):
-    embed = discord.Embed(
-        title="قائمة الأوامر",
-        description=(
+أمر عرض الأوامر غير متزامن (ctx):
+    تنسيق = discord.Embed(
+        عنوان="قائمة الأوامر",
+        الوصف=(
             ".متجر: شراء الوان ورتب\n.طولاري: يظهر رصيد العضو\n.افتار او بنر:"
             " انشاء افتار العضو\n.ت @العضو: لتحويل الطولارات\n.رهان: لعبة العجلة والرهان"
         ),
-        color=discord.Color.blue(),
+        اللون = discord.Color.blue(),
     )
-    await ctx.send(embed=embed)
+    أنتظر ctx.send(تنسيق=تنسيق)
 
 
 @bot.command(name="دليل", aliases=["help", "المساعدة"])
-async def help_command(ctx):
-    embed = discord.Embed(
-        title="📜 دليل أوامر البوت الشامل",
-        description="إليك قائمة بجميع الأوامر والخصائص المتاحة في البوت:",
-        color=discord.Color.gold(),
+أمر الدليل غير متزامن (ctx):
+    تنسيق = discord.Embed(
+        عنوان="📜 دليل أوامر البوت الشامل",
+        الوصف="إليك قائمة بجميع الأوامر والخصائص المتاحة في البوت:",
+        اللون = discord.Color.gold(),
     )
 
-    embed.add_field(
-        name="🎮 الألعاب (روم الألعاب فقط)",
-        value=(
+    تنسيق.اضافة حقل(
+        الاسم="🎮 الألعاب (روم الألعاب فقط)",
+        القيمة=(
             "• `.سؤال [عدد الجولات]` : مسابقة أسئلة عامة (1-10 جولات)\n"
             "• `.لغز [عدد الجولات]` : التحدي بالألغاز (1-10 جولات)\n"
             "• `.حجر` : لعبة حجرة ورقة مقص ضد البوت بالأزرار\n"
@@ -2320,35 +2320,35 @@ async def help_command(ctx):
             "• `.توصيل [@عضو]` : لعبة Connect 4 ضد البوت أو عضو آخر\n"
             "• `.العاب` : عرض القائمة السريعة للألعاب"
         ),
-        inline=False,
+        التضمين=خطأ،
     )
 
-    embed.add_field(
-        name="💰 الاقتصاد ومتجر الرتب (روم المتجر فقط)",
-        value=(
+    تنسيق.اضافة حقل(
+        الاسم="💰 الاقتصاد ومتجر الرتب (روم المتجر فقط)",
+        القيمة=(
             "• `.متجر` : فتح المتجر الملكي لشراء الرتب والأسماء الملونة\n"
             "• `.طولاري [@عضو]` : عرض رصيد الطولارات الخاص بك أو بعضو آخر\n"
             "• `.ت @العضو المبلغ` : تحويل طولارات إلى عضو آخر\n"
             "• `.رهان [المبلغ]` : الرهان بالعجلة ضد البوت\n"
             "• `.رهان @العضو [المبلغ]` : الرهان بالعجلة ضد عضو آخر"
         ),
-        inline=False,
+        التضمين=خطأ،
     )
 
-    embed.add_field(
-        name="🖼️ البروفايل والأفاتار (روم الأفاتار فقط)",
-        value=(
+    تنسيق.اضافة حقل(
+        الاسم="🖼️ البروفايل والأفاتار (روم الأفاتار فقط)",
+        القيمة=(
             "• `.افتار [@عضو]` : عرض الصورة الشخصية\n"
             "• `.بنر [@عضو]` : عرض الغلاف الخاص بالحساب\n"
             "• `.تغيير` : تغيير افتار أو بنر البوت (للمسؤولين فقط)\n"
             "• *تكبير الإيموجيات المخصصة والستيكرات يشتغل تلقائياً عند إرسالها هنا.*"
         ),
-        inline=False,
+        التضمين=خطأ،
     )
 
-    embed.add_field(
-        name="⚙️ العامة والإدارة",
-        value=(
+    تنسيق.اضافة حقل(
+        الاسم="⚙️ العامة والإدارة",
+        القيمة=(
             "• `.ايدي [روم/رتبة/عضو]` : معرفة الـ ID بأي شيء\n"
             "• `.اوامر` : قائمة الأوامر الأساسية السريعة\n"
             "• `.ض @العضو المبلغ` : إضافة طولارات (لصاحب رتبة الاونر فقط)\n"
@@ -2357,143 +2357,143 @@ async def help_command(ctx):
             "• `.ميوت @العضو [الدقائق] [السبب]` : كتم عضو (لصاحب رتبة الاونر فقط)\n"
             "• `.فك_ميوت @العضو` : إزالة الكتم عن عضو (لصاحب رتبة الاونر فقط)"
         ),
-        inline=False,
+        التضمين=خطأ،
     )
 
-    embed.set_footer(
-        text=f"طلب بواسطة {ctx.author.display_name}",
-        icon_url=ctx.author.display_avatar.url,
+    تنسيق.تحديد التذييل(
+        النص=f"طلب بواسطة {ctx.author.display_name}",
+        رمز الرابط=ctx.author.display_avatar.url,
     )
-    await ctx.send(embed=embed)
+    أنتظر ctx.send(تنسيق=تنسيق)
 
 
 # --- 10. أوامر الإدارة ---
 
 @bot.command(name="انقلع_يالعبد", aliases=["حظر", "ban"])
 @commands.has_role(OWNER_ROLE_ID)
-async def ban_member(
-    ctx, member: discord.Member = None, *, reason: str = "لم يتم ذكر السبب"
+أمر حظر عضو غير متزامن (
+    ctx, العضو: discord.Member = لا أحد, *, السبب: str = "لم يتم ذكر السبب"
 ):
-    if not member:
-        await ctx.send(
+    إذا لم يكن العضو:
+        أنتظر ctx.send(
             "⚠️ **يرجى منشن العضو المراد حظره**\nمثال: `.انقلع_يالعبد @User السبب`",
-            delete_after=3,
+            بعد الحذف=3،
         )
-        return
+        إرجاع
 
-    if member == ctx.author:
-        await ctx.send("❌ لا يمكنك حظر نفسك")
-        return
+    إذا كان العضو == ctx.author:
+        أنتظر ctx.send("❌ لا يمكنك حظر نفسك")
+        إرجاع
 
-    if member.id == ctx.guild.owner_id:
-        await ctx.send("❌ لا يمكنك حظر صاحب السيرفر")
-        return
+    إذا كان معرف العضو == مالك السيرفر:
+        أنتظر ctx.send("❌ لا يمكنك حظر صاحب السيرفر")
+        إرجاع
 
-    try:
-        await member.ban(reason=f"بواسطة {ctx.author.name} - السبب: {reason}")
-        await ctx.send(
+    يحاول:
+        أنتظر عضو.حظر(السبب=f"بواسطة {ctx.author.name} - السبب: {reason}")
+        أنتظر ctx.send(
             f" تم حظر العضو **{member.mention}** بنجاح\n السبب: `{reason}`"
         )
-    except discord.Forbidden:
-        await ctx.send(
+    استثناء discord.Forbidden:
+        أنتظر ctx.send(
             "❌ لا أملك صلاحيات كافية لحظر هذا العضو (تأكد من رتبة البوت أعلى من"
             " رتبة العضو)."
         )
-    except Exception as e:
-        await ctx.send(f"❌ حدث خطأ أثناء الحظر: {e}")
+    استثناء باستثناء كـ e:
+        أنتظر ctx.send(f"❌ حدث خطأ أثناء الحظر: {e}")
 
 
 @ban_member.error
-async def ban_member_error(ctx, error):
-    if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
+خطأ أمر الحظر غير متزامن (ctx, الخطأ):
+    إذا كان نوع الخطأ هو commands.MissingRole:
+        أنتظر ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", بعد الحذف=3)
 
 
 @bot.command(name="ميوت", aliases=["كتم", "mute"])
 @commands.has_role(OWNER_ROLE_ID)
-async def mute_member(
+أمر كتم عضو غير متزامن (
     ctx,
-    member: discord.Member = None,
-    minutes: int = 10,
+    العضو: discord.Member = لا أحد,
+    الدقائق: int = 10,
     *,
-    reason: str = "لم يتم ذكر السبب",
+    السبب: str = "لم يتم ذكر السبب",
 ):
-    if not member:
-        await ctx.send(
+    إذا لم يكن العضو:
+        أنتظر ctx.send(
             "⚠️ **يرجى منشن العضو المراد كتمه**\nمثال: `.ميوت @User 15 السبب` (15"
             " دقيقة)",
-            delete_after=3,
+            بعد الحذف=3،
         )
-        return
+        إرجاع
 
-    if member == ctx.author:
-        await ctx.send("❌ لا يمكنك كتم نفسك")
-        return
+    إذا كان العضو == ctx.author:
+        أنتظر ctx.send("❌ لا يمكنك كتم نفسك")
+        إرجاع
 
-    if minutes <= 0:
-        await ctx.send("❌ يرجى إدخال عدد دقائق صحيح أكثر من 0.")
-        return
+    إذا كانت الدقائق <= 0:
+        أنتظر ctx.send("❌ يرجى إدخال عدد دقائق صحيح أكثر من 0.")
+        إرجاع
 
-    try:
-        duration = datetime.timedelta(minutes=minutes)
-        await member.timeout(
-            duration, reason=f"بواسطة {ctx.author.name} - السبب: {reason}"
+    يحاول:
+        المدة = التاريخ والوقت.الفارق الزمني(الدقائق=دقائق)
+        أنتظر عضو.كتم مؤقت(
+            المدة، السبب=f"بواسطة {ctx.author.name} - السبب: {reason}"
         )
-        await ctx.send(
+        أنتظر ctx.send(
             f" تم كتم العضو **{member.mention}** لمدة **{minutes}** دقيقة\n"
             f" السبب: `{reason}`"
         )
-    except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات كافية لكتم هذا العضو")
-    except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {e}")
+    استثناء discord.Forbidden:
+        أنتظر ctx.send("❌ لا أملك صلاحيات كافية لكتم هذا العضو")
+    استثناء باستثناء كـ e:
+        أنتظر ctx.send(f"❌ حدث خطأ: {e}")
 
 
 @mute_member.error
-async def mute_member_error(ctx, error):
-    if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
+خطأ أمر الكتم غير متزامن (ctx, الخطأ):
+    إذا كان نوع الخطأ هو commands.MissingRole:
+        أنتظر ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", بعد الحذف=3)
 
 
 @bot.command(name="فك_ميوت", aliases=["فك_الكتم", "unmute"])
 @commands.has_role(OWNER_ROLE_ID)
-async def unmute_member(ctx, member: discord.Member = None):
-    if not member:
-        await ctx.send("⚠️ يرجى منشن العضو لفك الكتم عنه", delete_after=3)
-        return
+أمر فك الكتم غير متزامن (ctx, العضو: discord.Member = لا أحد):
+    إذا لم يكن العضو:
+        أنتظر ctx.send("⚠️ يرجى منشن العضو لفك الكتم عنه", بعد الحذف=3)
+        إرجاع
 
-    try:
-        await member.timeout(None)
-        await ctx.send(f" تم فك الكتم عن العضو **{member.mention}** بنجاح")
-    except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات كافية لفك الكتم عن هذا العضو")
-    except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {e}")
+    يحاول:
+        أنتظر عضو.كتم مؤقت(لا أحد)
+        أنتظر ctx.send(f" تم فك الكتم عن العضو **{member.mention}** بنجاح")
+    استثناء discord.Forbidden:
+        أنتظر ctx.send("❌ لا أملك صلاحيات كافية لفك الكتم عن هذا العضو")
+    استثناء باستثناء كـ e:
+        أنتظر ctx.send(f"❌ حدث خطأ: {e}")
 
 
 @unmute_member.error
-async def unmute_member_error(ctx, error):
-    if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
+خطأ أمر فك الكتم غير متزامن (ctx, الخطأ):
+    إذا كان نوع الخطأ هو commands.MissingRole:
+        أنتظر ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", بعد الحذف=3)
 
 
 # --- 11. أحداث التشغيل والترحيب ---
 @bot.event
-async def on_member_join(member):
-    channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
-    if channel:
-        img_buf = make_welcome_card(member)
-        file = discord.File(fp=img_buf, filename="welcome.png")
-        await channel.send(
-            content=f"أهلاً وسهلاً بك يا {member.mention} في السيرفر! 🎉",
-            file=file
+حدث انضمام عضو غير متزامن (العضو):
+    القناة = العضو.السيرفر.احصل على قناة(WELCOME_CHANNEL_ID)
+    إذا كانت القناة:
+        بوف الصورة = make_welcome_card(عضو)
+        ملف = discord.File(fp=img_buf, اسم الملف="welcome.png")
+        أنتظر القناة.ارسال(
+            المحتوى=f"أهلاً وسهلاً بك يا {member.mention} في السيرفر! 🎉",
+            ملف=ملف
         )
 
 
 @bot.event
-async def on_ready():
-    print(f"✅ تم تسجيل الدخول باسم: {bot.user.name}")
-    fetch_latest_balances_from_github()
+حدث جاهزية البوت غير متزامن ():
+    اطبع(f"✅ تم تسجيل الدخول باسم: {bot.user.name}")
+    جلب أحدث أرصدة من GitHub()
 
 
 bot.run(os.environ.get("DISCORD_TOKEN"))
