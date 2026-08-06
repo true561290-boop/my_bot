@@ -2075,7 +2075,7 @@ async def bet_game(
         view = ChallengeView(player1, player2, amount)
 
         msg = await ctx.send(
-            content=f"⚔️ {player2.mention}، تحداك {player1.mention} في رهان بمبلغ **{amount}** طولار!",
+            content=f"⚔️ {player2.mention}، تحداك {player1.mention} في رهان بمبلغ **{amount}** طولار",
             file=file,
             view=view
         )
