@@ -15,7 +15,7 @@ from flask import Flask
 from PIL import Image, ImageDraw, ImageFont
 import requests
 
-# استيراد نظام الأرصدة الموفصل
+# استيراد نظام الأرصدة المنفصل
 from economy import (
     add_balance,
     fetch_latest_balances_from_github,
@@ -133,32 +133,30 @@ SHOP_COLOR_ROLES = {
 }
 
 
-def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
-    width, height = 800, 550
+def fetch_avatar(user):
+    try:
+        url = user.display_avatar.url
+        res = requests.get(url, timeout=5)
+        if res.status_code == 200:
+            avatar = Image.open(io.BytesIO(res.content)).convert("RGBA")
+            return avatar
+    except Exception as e:
+        print(f"Error fetching avatar: {e}")
+    return Image.new("RGBA", (100, 100), (100, 100, 100, 255))
 
+
+def get_base_bg(width=800, height=450):
     if os.path.exists("bg_paper.png"):
         try:
-            img = Image.open("bg_paper.png").convert("RGBA").resize((width, height))
-        except Exception as e:
-            print(f"خطأ في قراءة الصورة المحلية: {e}")
-            img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
-    else:
-        try:
-            res = requests.get(
-                "https://raw.githubusercontent.com/true561290-boop/my_bot/main/bg_paper.png"
-            )
-            if res.status_code == 200:
-                img = (
-                    Image.open(io.BytesIO(res.content))
-                    .convert("RGBA")
-                    .resize((width, height))
-                )
-            else:
-                img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
-        except Exception as e:
-            print(f"لم يتم جلب الصورة، الاعتماد على لون احتياطي: {e}")
-            img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
+            return Image.open("bg_paper.png").convert("RGBA").resize((width, height))
+        except Exception:
+            pass
+    return Image.new("RGBA", (width, height), (30, 25, 45, 255))
 
+
+def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
+    width, height = 800, 550
+    img = get_base_bg(width, height)
     draw = ImageDraw.Draw(img)
 
     font_large = ImageFont.load_default()
@@ -217,47 +215,15 @@ def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
 
 def make_welcome_card(user):
     width, height = 800, 550
+    img = get_base_bg(width, height)
 
-    if os.path.exists("bg_paper.png"):
-        try:
-            img = Image.open("bg_paper.png").convert("RGBA").resize((width, height))
-        except Exception as e:
-            print(f"خطأ في قراءة الصورة المحلية: {e}")
-            img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
-    else:
-        try:
-            res = requests.get(
-                "https://raw.githubusercontent.com/true561290-boop/my_bot/main/bg_paper.png"
-            )
-            if res.status_code == 200:
-                img = (
-                    Image.open(io.BytesIO(res.content))
-                    .convert("RGBA")
-                    .resize((width, height))
-                )
-            else:
-                img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
-        except Exception as e:
-            print(f"لم يتم جلب الصورة، الاعتماد على لون احتياطي: {e}")
-            img = Image.new("RGBA", (width, height), color=(235, 220, 195, 255))
-
-    try:
-        avatar_url = user.display_avatar.url
-        res = requests.get(avatar_url)
-        if res.status_code == 200:
-            avatar = Image.open(io.BytesIO(res.content)).convert("RGBA")
-            avatar = avatar.resize((150, 150))
-
-            mask = Image.new("L", (150, 150), 0)
-            draw_mask = ImageDraw.Draw(mask)
-            draw_mask.ellipse((0, 0, 150, 150), fill=255)
-
-            img.paste(avatar, (width // 2 - 75, 120), mask)
-    except Exception as e:
-        print(f"فشل جلب أفتار المستخدم: {e}")
+    avatar = fetch_avatar(user).resize((150, 150))
+    mask = Image.new("L", (150, 150), 0)
+    draw_mask = ImageDraw.Draw(mask)
+    draw_mask.ellipse((0, 0, 150, 150), fill=255)
+    img.paste(avatar, (width // 2 - 75, 120), mask)
 
     draw = ImageDraw.Draw(img)
-
     font_large = ImageFont.load_default()
     font_sub = ImageFont.load_default()
 
@@ -268,21 +234,18 @@ def make_welcome_card(user):
         except Exception as e:
             print(f"Font error: {e}")
 
-    TEXT_COLOR_TITLE = (80, 20, 10, 255)
-    TEXT_COLOR_SUB = (90, 60, 40, 255)
-
     draw.text(
         (width // 2, 320),
         "مرحباً بك في السيرفر!",
         font=font_large,
-        fill=TEXT_COLOR_TITLE,
+        fill=(80, 20, 10, 255),
         anchor="mm",
     )
     draw.text(
         (width // 2, 380),
         f"{user.display_name}",
         font=font_sub,
-        fill=TEXT_COLOR_SUB,
+        fill=(90, 60, 40, 255),
         anchor="mm",
     )
 
@@ -292,9 +255,52 @@ def make_welcome_card(user):
     return buf
 
 
-# --- دالة جديدة لتوليد العجلة كـ GIF متحرك وسلس ---
-def make_wheel_gif(p1_name, p2_name, target_angle):
-    """توليد ملف GIF يتضمن جميع إطارات دوران العجلة حتى التوقف عند الزاوية المستهدفة"""
+# --- رسوميات لعبة الرهان الجديدة (تطابق التصميم) ---
+
+def make_challenge_card(p1, p2, amount):
+    """تصميم بطاقة التحدي الأولى"""
+    width, height = 800, 400
+    img = Image.new("RGBA", (width, height), (22, 27, 34, 255))
+    draw = ImageDraw.Draw(img)
+
+    font_title = ImageFont.load_default()
+    font_vs = ImageFont.load_default()
+
+    if os.path.exists(FONT_PATH):
+        try:
+            font_title = ImageFont.truetype(FONT_PATH, 28)
+            font_vs = ImageFont.truetype(FONT_PATH, 36)
+        except Exception:
+            pass
+
+    # صور الأفاتار
+    av1 = fetch_avatar(p1).resize((110, 110))
+    av2 = fetch_avatar(p2).resize((110, 110))
+
+    mask = Image.new("L", (110, 110), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, 110, 110), fill=255)
+
+    img.paste(av1, (130, 80), mask)
+    img.paste(av2, (560, 80), mask)
+
+    draw.text((width // 2, 135), "VS", font=font_vs, fill=(230, 50, 50, 255), anchor="mm")
+
+    # أسماء اللاعبين
+    draw.text((185, 210), p1.display_name[:12], font=font_title, fill=(255, 255, 255), anchor="mm")
+    draw.text((615, 210), p2.display_name[:12], font=font_title, fill=(255, 255, 255), anchor="mm")
+
+    # بطاقة المبلغ
+    draw.rectangle([(250, 280), (550, 340)], fill=(35, 43, 54), outline=(212, 175, 55), width=2)
+    draw.text((width // 2, 310), f"المبلغ: {amount} طولار", font=font_title, fill=(255, 215, 0), anchor="mm")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+
+def make_wheel_frame(p1_name, p2_name, current_angle):
+    """رسم إطار منفرد للعجلة بدقة عالية لضمان انيميشن سلس بدون GIF"""
     size = 400
     center = size // 2
     radius = 160
@@ -302,14 +308,8 @@ def make_wheel_gif(p1_name, p2_name, target_angle):
     slice_angle = 360 / num_slices
 
     colors = [
-        (230, 57, 70),   # أحمر
-        (69, 123, 157),  # أزرق
-        (241, 250, 238), # أبيض
-        (29, 53, 87),    # كحلي
-        (230, 57, 70),   # أحمر
-        (69, 123, 157),  # أزرق
-        (241, 250, 238), # أبيض
-        (29, 53, 87),    # كحلي
+        (230, 57, 70), (69, 123, 157), (241, 250, 238), (29, 53, 87),
+        (230, 57, 70), (69, 123, 157), (241, 250, 238), (29, 53, 87)
     ]
 
     font = ImageFont.load_default()
@@ -319,89 +319,112 @@ def make_wheel_gif(p1_name, p2_name, target_angle):
         except Exception:
             pass
 
-    # حساب زوايا الحركة لإنشاء دوران سلس وتدريجي (تخفيف السرعة مع الاقتراب من النهاية)
-    total_spin = 360 * 3 + target_angle  # 3 دورات كاملة + زاوية التوقف
-    frames_count = 18  # عدد إطارات الحركة
-    
-    # توزيع الزوايا باستخدام منحنى تباطؤ (Easing-out)
-    angles = []
-    for i in range(frames_count):
-        progress = i / (frames_count - 1)
-        eased_progress = 1 - math.pow(1 - progress, 3) # معادلة التباطؤ
-        angles.append(eased_progress * total_spin)
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
 
-    images = []
+    # الحلقة الخارجية
+    draw.ellipse([center - radius - 8, center - radius - 8, center + radius + 8, center + radius + 8], fill=(30, 30, 30), outline=(212, 175, 55), width=5)
 
-    for angle in angles:
-        img = Image.new("RGBA", (size, size), color=(0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
+    for i in range(num_slices):
+        start = current_angle + i * slice_angle
+        end = start + slice_angle
+        draw.pieslice([center - radius, center - radius, center + radius, center + radius], start=start, end=end, fill=colors[i], outline=(255, 255, 255), width=2)
 
-        # رسم الخلقة الدائرية الخارجية
-        draw.ellipse(
-            [center - radius - 10, center - radius - 10, center + radius + 10, center + radius + 10],
-            fill=(50, 50, 50),
-            outline=(212, 175, 55),
-            width=6,
-        )
+        mid_angle = math.radians(start + slice_angle / 2)
+        tx = center + (radius * 0.65) * math.cos(mid_angle)
+        ty = center + (radius * 0.65) * math.sin(mid_angle)
+        label = p1_name if i % 2 == 0 else p2_name
+        draw.text((tx, ty), label[:7], fill=(255, 255, 255) if colors[i] != (241, 250, 238) else (0, 0, 0), font=font, anchor="mm")
 
-        # رسم قطاعات العجلة
-        for i in range(num_slices):
-            start = angle + i * slice_angle
-            end = start + slice_angle
-            draw.pieslice(
-                [center - radius, center - radius, center + radius, center + radius],
-                start=start,
-                end=end,
-                fill=colors[i],
-                outline=(255, 255, 255),
-                width=2,
-            )
-
-            mid_angle = math.radians(start + slice_angle / 2)
-            text_x = center + (radius * 0.65) * math.cos(mid_angle)
-            text_y = center + (radius * 0.65) * math.sin(mid_angle)
-
-            label = p1_name if i % 2 == 0 else p2_name
-            draw.text(
-                (text_x, text_y),
-                label[:8],
-                fill=(255, 255, 255) if colors[i] != (241, 250, 238) else (0, 0, 0),
-                font=font,
-                anchor="mm",
-            )
-
-        # رسم الدائرة الداخلية
-        draw.ellipse(
-            [center - 25, center - 25, center + 25, center + 25],
-            fill=(212, 175, 55),
-            outline=(255, 255, 255),
-            width=3,
-        )
-
-        # رسم مؤشر السهم
-        pointer_poly = [
-            (center, center - radius - 15),
-            (center - 15, center - radius - 35),
-            (center + 15, center - radius - 35),
-        ]
-        draw.polygon(pointer_poly, fill=(255, 215, 0), outline=(0, 0, 0), width=2)
-
-        images.append(img)
+    # المؤشر الذهبي
+    pointer_poly = [(center, center - radius - 12), (center - 12, center - radius - 30), (center + 12, center - radius - 30)]
+    draw.polygon(pointer_poly, fill=(255, 215, 0), outline=(0, 0, 0), width=2)
 
     buf = io.BytesIO()
-    # حفظ الإطارات كـ GIF متحرك بدون تكرار لا نهائي (loop=1 ليدور مرة واحدة فقط)
-    images[0].save(
-        buf,
-        format="GIF",
-        save_all=True,
-        append_images=images[1:],
-        duration=100,  # سرعة الإطار بالملي ثانية
-        loop=1,
-        transparency=0,
-        disposal=2
-    )
+    img.save(buf, format="PNG")
     buf.seek(0)
     return buf
+
+
+def make_result_card(winner, loser, amount, total_pot):
+    """تصميم بطاقة النتيجة النهائية المعتمدة على الصور الرسمية"""
+    width, height = 800, 420
+    img = Image.new("RGBA", (width, height), (18, 22, 29, 255))
+    draw = ImageDraw.Draw(img)
+
+    font_title = ImageFont.load_default()
+    font_main = ImageFont.load_default()
+
+    if os.path.exists(FONT_PATH):
+        try:
+            font_title = ImageFont.truetype(FONT_PATH, 32)
+            font_main = ImageFont.truetype(FONT_PATH, 22)
+        except Exception:
+            pass
+
+    # صور الفائز والخاسر
+    w_av = fetch_avatar(winner).resize((120, 120))
+    l_av = fetch_avatar(loser).resize((90, 90))
+
+    mask_w = Image.new("L", (120, 120), 0)
+    ImageDraw.Draw(mask_w).ellipse((0, 0, 120, 120), fill=255)
+
+    mask_l = Image.new("L", (90, 90), 0)
+    ImageDraw.Draw(mask_l).ellipse((0, 0, 90, 90), fill=255)
+
+    img.paste(w_av, (140, 60), mask_w)
+    img.paste(l_av, (560, 75), mask_l)
+
+    # إطار الفائز الذهبي
+    draw.ellipse([(135, 55), (265, 185)], outline=(255, 215, 0), width=4)
+
+    # النصوص
+    draw.text((200, 205), f"👑 الفائز: {winner.display_name}", font=font_title, fill=(255, 215, 0), anchor="mm")
+    draw.text((605, 185), f"الخاسر: {loser.display_name}", font=font_main, fill=(180, 180, 180), anchor="mm")
+
+    # رصيد الحاضر لكل طرف
+    draw.text((200, 245), f"الرصيد: {get_balance(winner.id)} طولار", font=font_main, fill=(100, 255, 100), anchor="mm")
+    draw.text((605, 220), f"الرصيد: {get_balance(loser.id)} طولار", font=font_main, fill=(255, 100, 100), anchor="mm")
+
+    # بطاقة الإجمالي
+    draw.rectangle([(200, 310), (600, 380)], fill=(28, 35, 45), outline=(212, 175, 55), width=2)
+    draw.text((400, 345), f"المبلغ الإجمالي المكتسب: {total_pot} طولار", font=font_title, fill=(255, 215, 0), anchor="mm")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+
+class ChallengeView(discord.ui.View):
+    def __init__(self, p1, p2, amount):
+        super().__init__(timeout=30)
+        self.p1 = p1
+        self.p2 = p2
+        self.amount = amount
+        self.accepted = None
+
+    @discord.ui.button(label="قبول التحدي", style=discord.ButtonStyle.success, emoji="✅")
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.p2:
+            await interaction.response.send_message("❌ هذا التحدي ليس موجهاً لك!", ephemeral=True)
+            return
+        self.accepted = True
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(view=self)
+        self.stop()
+
+    @discord.ui.button(label="رفض التحدي", style=discord.ButtonStyle.danger, emoji="✖️")
+    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.p2:
+            await interaction.response.send_message("❌ هذا التحدي ليس موجهاً لك!", ephemeral=True)
+            return
+        self.accepted = False
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="❌ تم رفض الرهان.", view=self)
+        self.stop()
 
 
 class TimedSubView(discord.ui.View):
@@ -420,7 +443,6 @@ class TimedSubView(discord.ui.View):
 
 
 class BackToMainButton(discord.ui.Button):
-
     def __init__(self):
         super().__init__(
             label="رجوع للمتجر", style=discord.ButtonStyle.secondary, emoji="🔙"
@@ -440,7 +462,6 @@ class BackToMainButton(discord.ui.Button):
 
 
 class ColorSelect(discord.ui.Select):
-
     def __init__(self):
         options = [
             discord.SelectOption(
@@ -570,7 +591,6 @@ async def on_message(message):
 
 
 class VIPSelect(discord.ui.Select):
-
     def __init__(self):
         options = [
             discord.SelectOption(
@@ -629,7 +649,6 @@ class VIPSelect(discord.ui.Select):
 
 
 class MainCategorySelect(discord.ui.Select):
-
     def __init__(self):
         options = [
             discord.SelectOption(
@@ -671,7 +690,6 @@ class MainCategorySelect(discord.ui.Select):
 
 
 class MainShopView(discord.ui.View):
-
     def __init__(self):
         super().__init__(timeout=60)
         self.add_item(MainCategorySelect())
@@ -1228,7 +1246,6 @@ async def riddle_game(ctx, rounds: int = 1):
 
 
 class RPSView(discord.ui.View):
-
     def __init__(self, author):
         super().__init__(timeout=30)
         self.author = author
@@ -1312,7 +1329,6 @@ async def rps_game(ctx):
 
 # --- 6. لعبة إكس أو التفاعلية ---
 class XOButton(discord.ui.Button):
-
     def __init__(self, x: int, y: int):
         super().__init__(
             style=discord.ButtonStyle.secondary, label="‎", row=y
@@ -1423,7 +1439,6 @@ class XOButton(discord.ui.Button):
 
 
 class XOView(discord.ui.View):
-
     def __init__(self, player1: discord.User, player2: discord.User = None):
         super().__init__(timeout=60)
         self.player1 = player1
@@ -1533,7 +1548,6 @@ async def xo_game(ctx, opponent: discord.Member = None):
 
 # --- 7. لعبة توصيل الكرات 4 التفاعلية ---
 class Connect4Button(discord.ui.Button):
-
     def __init__(self, col: int, row_idx: int):
         super().__init__(
             style=discord.ButtonStyle.primary,
@@ -1641,7 +1655,6 @@ class Connect4Button(discord.ui.Button):
 
 
 class Connect4View(discord.ui.View):
-
     def __init__(self, player1: discord.User, player2: discord.User = None):
         super().__init__(timeout=60)
         self.player1 = player1
@@ -1984,7 +1997,8 @@ async def transfer_money_error(ctx, error):
             "❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.", delete_after=3
         )
 
-# --- 8.1 لعبة الرهان والعجلة التفاعلية المعدلة ---
+
+# --- 8.1 لعبة الرهان التفاعلية المحسنة بالدوران والصور ---
 @bot.command(name="رهان", aliases=["bet", "عجلة"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def bet_game(
@@ -2021,96 +2035,81 @@ async def bet_game(
     player1 = ctx.author
     player2 = opponent if (opponent and opponent != bot.user) else bot.user
 
-    p1_balance = get_balance(player1.id)
-    if p1_balance < amount:
-        await ctx.send(
-            f"❌ رصيدك غير كافٍ للرهان! رصيدك الحالي: **{p1_balance}** طولار.",
-            delete_after=5,
-        )
+    # التأكد من الأرصدة
+    if get_balance(player1.id) < amount:
+        await ctx.send(f"❌ رصيدك غير كافٍ! رصيدك الحالي: **{get_balance(player1.id)}** طولار.", delete_after=5)
         return
 
+    if player2 != bot.user and get_balance(player2.id) < amount:
+        await ctx.send(f"❌ العضو {player2.mention} لا يملك رصيداً كافياً للرهان!", delete_after=5)
+        return
+
+    # التحدي المباشر ضد لاعب آخر (يحتاج موافقة عبر الأزرار)
     if player2 != bot.user:
-        p2_balance = get_balance(player2.id)
-        if p2_balance < amount:
-            await ctx.send(
-                f"❌ العضو {player2.mention} لا يملك رصيداً كافياً للرهان! رصيده: **{p2_balance}** طولار.",
-                delete_after=5,
-            )
+        card_buf = make_challenge_card(player1, player2, amount)
+        file = discord.File(fp=card_buf, filename="challenge.png")
+        view = ChallengeView(player1, player2, amount)
+
+        msg = await ctx.send(
+            content=f"⚔️ {player2.mention}، تحداك {player1.mention} في رهان بمبلغ **{amount}** طولار!",
+            file=file,
+            view=view
+        )
+
+        await view.wait()
+
+        if not view.accepted:
             return
 
+    # بداية الدوران
     winner = random.choice([player1, player2])
+    loser = player2 if winner == player1 else player1
 
-    # تحديد زاوية التوقف النهائية بناءً على الفائز
-    if winner == player1:
-        target_sector = random.choice([0, 2, 4, 6])
-    else:
-        target_sector = random.choice([1, 3, 5, 7])
-
-    final_angle = (270 - (target_sector * 45 + 22.5)) % 360
-
-    embed = discord.Embed(
-        title="🎰 لعبة الرهان والعجلة",
-        description=(
-            f"⚔️ **الرهان قائم بين:** {player1.mention} 🆚 {player2.mention}\n"
-            f"💰 **المبلغ المراهن عليه:** `{amount}` طولار\n\n"
-            f"🎡 **جاري تدوير العجلة...**"
-        ),
-        color=discord.Color.gold(),
-    )
-
-    # إنشاء ملف GIF المتحرك وإرساله مرة واحدة
-    gif_buf = make_wheel_gif(player1.display_name, player2.display_name, final_angle)
-    file = discord.File(fp=gif_buf, filename="wheel.gif")
-    embed.set_image(url="attachment://wheel.gif")
-    msg = await ctx.send(embed=embed, file=file)
-
-    # الانتظار حتى انتهاء انيميشن الدوران الكامل في GIF
-    await asyncio.sleep(2.5)
-
-    # احتساب الرصيد وصياغة النتيجة النهائية
-    if winner == player1:
-        add_balance(player1.id, amount)
-        if player2 != bot.user:
-            remove_balance(player2.id, amount)
-            result_text = (
-                f"🎉 **مبروك {player1.mention}!** وقفت العجلة عند اسمك وفزت بالرهان!\n"
-                f"📈 تم إضافة **{amount}** طولار لرصيدك.\n"
-                f"📉 وتم سحب **{amount}** طولار من رصيد {player2.mention}."
-            )
-        else:
-            result_text = (
-                f"🎉 **مبروك {player1.mention}!** وقفت العجلة عند اسمك وفزت على البوت!\n"
-                f"📈 تم إضافة **{amount}** طولار إلى رصيدك."
-            )
-        embed_color = discord.Color.green()
-    else:
+    # استقطاع الأرصدة وإضافتها
+    if player2 != bot.user:
         remove_balance(player1.id, amount)
-        if player2 != bot.user:
-            add_balance(player2.id, amount)
-            result_text = (
-                f"💀 **للأسف {player1.mention}،** وقفت العجلة عند اسم {player2.mention} وخسرت الرهان!\n"
-                f"📉 تم سحب **{amount}** طولار من رصيدك.\n"
-                f"📈 وتم إضافتها لرصيد {player2.mention}."
-            )
+        remove_balance(player2.id, amount)
+        add_balance(winner.id, amount * 2)
+        total_pot = amount * 2
+    else:
+        if winner == player1:
+            add_balance(player1.id, amount)
         else:
-            result_text = (
-                f"🤖 **فاز البوت عليك!** وقفت العجلة عند اسم البوت.\n"
-                f"📉 تم سحب **{amount}** طولار من رصيدك."
-            )
-        embed_color = discord.Color.red()
+            remove_balance(player1.id, amount)
+        total_pot = amount
 
-    # تعديل النص ولون الـ Embed فقط دون تعديل الصورة المتحركة
-    final_embed = discord.Embed(
-        title="🎰 نتيجة الرهان النهائي",
-        description=(
-            f"🎯 **استقرت العجلة على:** `{winner.display_name}`\n\n"
-            f"{result_text}\n\n"
-            f"💰 رصيدك الحالي: **{get_balance(player1.id)}** طولار"
-        ),
-        color=embed_color,
+    # زاوية التوقف
+    target_sector = random.choice([0, 2, 4, 6]) if winner == player1 else random.choice([1, 3, 5, 7])
+    final_target = (270 - (target_sector * 45 + 22.5)) % 360
+    total_spin = 360 * 3 + final_target
+
+    # محاكاة انيميشن الدوران السلس
+    frames_count = 6
+    spin_msg = None
+
+    for i in range(frames_count):
+        progress = (i + 1) / frames_count
+        eased_progress = 1 - math.pow(1 - progress, 3)
+        current_angle = eased_progress * total_spin
+
+        frame_buf = make_wheel_frame(player1.display_name, player2.display_name, current_angle)
+        file = discord.File(fp=frame_buf, filename="wheel_spin.png")
+
+        if spin_msg is None:
+            spin_msg = await ctx.send(content="🎡 **جاري تدوير العجلة...**", file=file)
+        else:
+            await spin_msg.edit(attachments=[file])
+
+        await asyncio.sleep(0.4)
+
+    # عرض النتيجة النهائية
+    res_buf = make_result_card(winner, loser, amount, total_pot)
+    res_file = discord.File(fp=res_buf, filename="result.png")
+
+    await spin_msg.edit(
+        content=f"🎉 **انتهت اللعبة! فاز {winner.mention} بالرهان!**",
+        attachments=[res_file]
     )
-    final_embed.set_image(url="attachment://wheel.gif")
-    await msg.edit(embed=final_embed)
 
 
 @bet_game.error
