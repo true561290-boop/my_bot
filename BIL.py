@@ -2462,10 +2462,7 @@ async def unmute_member(ctx, member: discord.Member = None):
 
     try:
         await member.timeout(None)
-        await ctx.send(
-            f"✅ تم فك الكتم عن العضو **{member.mention}** بنجاح.",
-            allowed_mentions=discord.AllowedMentions(users=False),
-        )
+        await ctx.send(f" تم فك الكتم عن العضو **{member.mention}** بنجاح")
     except discord.Forbidden:
         await ctx.send("❌ لا أملك صلاحيات كافية لفك الكتم عن هذا العضو")
     except Exception as e:
@@ -2476,6 +2473,19 @@ async def unmute_member(ctx, member: discord.Member = None):
 async def unmute_member_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
+
+
+# --- 11. أحداث التشغيل والترحيب ---
+@bot.event
+async def on_member_join(member):
+    channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
+    if channel:
+        img_buf = make_welcome_card(member)
+        file = discord.File(fp=img_buf, filename="welcome.png")
+        await channel.send(
+            content=f"أهلاً وسهلاً بك يا {member.mention} في السيرفر! 🎉",
+            file=file,
+        )
 
 
 @bot.event
