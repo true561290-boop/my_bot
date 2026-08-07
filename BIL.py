@@ -337,73 +337,117 @@ async def generate_bet_result_card(
     return buffer
 
 
-# رسم عجلة الرهان المتحركة
-def make_wheel_frame(p1_name: str, p2_name: str, angle: float) -> io.BytesIO:
-    width, height = 500, 500
-    img = Image.new("RGBA", (width, height), (30, 30, 35, 255))
-    draw = ImageDraw.Draw(img)
-    center = (width // 2, height // 2)
-    radius = 200
+# --- دالة جديدة لتوليد العجلة كـ GIF متحرك وسلس ---
+def make_wheel_gif(p1_name, p2_name, target_angle):
+    """توليد ملف GIF يتضمن جميع إطارات دوران العجلة حتى التوقف عند الزاوية المستهدفة"""
+    size = 400
+    center = size // 2
+    radius = 160
+    num_slices = 8
+    slice_angle = 360 / num_slices
 
-    for i in range(8):
-        start_deg = angle + i * 45
-        end_deg = angle + (i + 1) * 45
-        color = (220, 50, 50, 255) if i % 2 == 0 else (50, 120, 220, 255)
-        draw.pieslice(
-            [center[0] - radius, center[1] - radius, center[0] + radius, center[1] + radius],
-            start_deg,
-            end_deg,
-            fill=color,
-            outline=(255, 255, 255, 255),
-            width=2,
+    colors = [
+        (230, 57, 70),   # أحمر
+        (69, 123, 157),  # أزرق
+        (241, 250, 238), # أبيض
+        (29, 53, 87),    # كحلي
+        (230, 57, 70),   # أحمر
+        (69, 123, 157),  # أزرق
+        (241, 250, 238), # أبيض
+        (29, 53, 87),    # كحلي
+    ]
+
+    font = ImageFont.load_default()
+    if os.path.exists(FONT_PATH):
+        try:
+            font = ImageFont.truetype(FONT_PATH, 16)
+        except Exception:
+            pass
+
+    # حساب زوايا الحركة لإنشاء دوران سلس وتدريجي (تخفيف السرعة مع الاقتراب من النهاية)
+    total_spin = 360 * 3 + target_angle  # 3 دورات كاملة + زاوية التوقف
+    frames_count = 18  # عدد إطارات الحركة
+    
+    # توزيع الزوايا باستخدام منحنى تباطؤ (Easing-out)
+    angles = []
+    for i in range(frames_count):
+        progress = i / (frames_count - 1)
+        eased_progress = 1 - math.pow(1 - progress, 3) # معادلة التباطؤ
+        angles.append(eased_progress * total_spin)
+
+    images = []
+
+    for angle in angles:
+        img = Image.new("RGBA", (size, size), color=(0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # رسم الخلقة الدائرية الخارجية
+        draw.ellipse(
+            [center - radius - 10, center - radius - 10, center + radius + 10, center + radius + 10],
+            fill=(50, 50, 50),
+            outline=(212, 175, 55),
+            width=6,
         )
 
-    # السهم
-    draw.polygon(
-        [
-            (center[0], center[1] - radius - 10),
-            (center[0] - 15, center[1] - radius - 30),
-            (center[0] + 15, center[1] - radius - 30),
-        ],
-        fill=(255, 215, 0, 255),
-    )
+        # رسم قطاعات العجلة
+        for i in range(num_slices):
+            start = angle + i * slice_angle
+            end = start + slice_angle
+            draw.pieslice(
+                [center - radius, center - radius, center + radius, center + radius],
+                start=start,
+                end=end,
+                fill=colors[i],
+                outline=(255, 255, 255),
+                width=2,
+            )
 
-    # الدائرة المركزية
-    draw.ellipse(
-        [center[0] - 35, center[1] - 35, center[0] + 35, center[1] + 35],
-        fill=(40, 40, 45, 255),
-        outline=(255, 255, 255, 255),
-        width=2,
-    )
+            mid_angle = math.radians(start + slice_angle / 2)
+            text_x = center + (radius * 0.65) * math.cos(mid_angle)
+            text_y = center + (radius * 0.65) * math.sin(mid_angle)
+
+            label = p1_name if i % 2 == 0 else p2_name
+            draw.text(
+                (text_x, text_y),
+                label[:8],
+                fill=(255, 255, 255) if colors[i] != (241, 250, 238) else (0, 0, 0),
+                font=font,
+                anchor="mm",
+            )
+
+        # رسم الدائرة الداخلية
+        draw.ellipse(
+            [center - 25, center - 25, center + 25, center + 25],
+            fill=(212, 175, 55),
+            outline=(255, 255, 255),
+            width=3,
+        )
+
+        # رسم مؤشر السهم
+        pointer_poly = [
+            (center, center - radius - 15),
+            (center - 15, center - radius - 35),
+            (center + 15, center - radius - 35),
+        ]
+        draw.polygon(pointer_poly, fill=(255, 215, 0), outline=(0, 0, 0), width=2)
+
+        images.append(img)
 
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    # حفظ الإطارات كـ GIF متحرك بدون تكرار لا نهائي (loop=1 ليدور مرة واحدة فقط)
+    images[0].save(
+        buf,
+        format="GIF",
+        save_all=True,
+        append_images=images[1:],
+        duration=100,  # سرعة الإطار بالملي ثانية
+        loop=1,
+        transparency=0,
+        disposal=2
+    )
     buf.seek(0)
     return buf
 
-
-class TimedSubView(discord.ui.View):
-    def __init__(self, timeout=60):
-        super().__init__(timeout=timeout)
-        self.message = None
-
-    async def on_timeout(self):
-        for child in self.children:
-            child.disabled = True
-        if self.message:
-            try:
-                await self.message.edit(view=self)
-            except Exception:
-                pass
-
-
-class ChallengeView(discord.ui.View):
-    def __init__(self, challenger: discord.Member, opponent: discord.Member, amount: int):
-        super().__init__(timeout=60)
-        self.challenger = challenger
-        self.opponent = opponent
-        self.amount = amount
-        self.accepted = False
 
     @discord.ui.button(label="قبول التحدي ⚔️", style=discord.ButtonStyle.success)
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -552,7 +596,7 @@ async def on_message(message):
         "سلام عليكم": (
             f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}"
         ),
-        "باك": f"ولكم باك نيغا {message.author.mention}",
+        "باك": f"ولكم باك {message.author.mention}",
     }
 
     user_msg = clean_content if clean_content in auto_responses else raw_content
