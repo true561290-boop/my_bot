@@ -15,7 +15,7 @@ else:
         print(f"❌ خطأ أثناء الاتصال بـ Upstash: {e}")
         redis = None
 
-async def get_balance(user_id: int) -> int:
+def get_balance(user_id: int) -> int:
     if not redis:
         return 0
     try:
@@ -25,7 +25,7 @@ async def get_balance(user_id: int) -> int:
         print(f"❌ خطأ في جلب الرصيد: {e}")
         return 0
 
-async def add_balance(user_id: int, amount: int):
+def add_balance(user_id: int, amount: int):
     if not redis:
         return 0
     try:
@@ -36,7 +36,7 @@ async def add_balance(user_id: int, amount: int):
         print(f"❌ خطأ في إضافة الرصيد: {e}")
         return 0
 
-async def remove_balance(user_id: int, amount: int):
+def remove_balance(user_id: int, amount: int):
     if not redis:
         return 0
     try:
@@ -47,5 +47,5 @@ async def remove_balance(user_id: int, amount: int):
         print(f"❌ خطأ في خصم الرصيد: {e}")
         return 0
 
-async def fetch_latest_balances_from_github():
+def fetch_latest_balances_from_github():
     pass
