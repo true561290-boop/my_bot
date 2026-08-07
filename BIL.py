@@ -2034,7 +2034,7 @@ async def transfer_money_error(ctx, error):
         )
 
 
-# --- 8.1 لعبة الرهان التفاعلية المحسنة بالدوران والصور ---
+# --- 8.1 لعبة الرهان والعجلة التفاعلية المعدلة ---
 @bot.command(name="رهان", aliases=["bet", "عجلة"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def bet_game(
@@ -2071,96 +2071,96 @@ async def bet_game(
     player1 = ctx.author
     player2 = opponent if (opponent and opponent != bot.user) else bot.user
 
-    # التأكد من الأرصدة
-    if get_balance(player1.id) < amount:
-        await ctx.send(f"❌ رصيدك غير كافٍ! رصيدك الحالي: **{get_balance(player1.id)}** طولار.", delete_after=5)
-        return
-
-    if player2 != bot.user and get_balance(player2.id) < amount:
-        await ctx.send(f"❌ العضو {player2.mention} لا يملك رصيداً كافياً للرهان!", delete_after=5)
-        return
-
-    # التحدي المباشر ضد لاعب آخر (يحتاج موافقة عبر الأزرار)
-    if player2 != bot.user:
-        p1_bytes = await player1.display_avatar.read()
-        p2_bytes = await player2.display_avatar.read()
-        card_buf = await generate_bet_challenge_card(p1_bytes, p2_bytes, amount)
-        file = discord.File(fp=card_buf, filename="challenge.png")
-        view = ChallengeView(player1, player2, amount)
-
-        msg = await ctx.send(
-            content=f"⚔️ {player2.mention}، تحداك {player1.mention} في رهان بمبلغ **{amount}** طولار",
-            file=file,
-            view=view,
+    p1_balance = get_balance(player1.id)
+    if p1_balance < amount:
+        await ctx.send(
+            f"❌ رصيدك غير كافٍ للرهان! رصيدك الحالي: **{p1_balance}** طولار.",
+            delete_after=5,
         )
+        return
 
-        await view.wait()
-
-        if not view.accepted:
+    if player2 != bot.user:
+        p2_balance = get_balance(player2.id)
+        if p2_balance < amount:
+            await ctx.send(
+                f"❌ العضو {player2.mention} لا يملك رصيداً كافياً للرهان! رصيده: **{p2_balance}** طولار.",
+                delete_after=5,
+            )
             return
 
-    # بداية الدوران
     winner = random.choice([player1, player2])
-    loser = player2 if winner == player1 else player1
 
-    # استقطاع الأرصدة وإضافتها
-    if player2 != bot.user:
-        remove_balance(player1.id, amount)
-        remove_balance(player2.id, amount)
-        add_balance(winner.id, amount * 2)
-        total_pot = amount * 2
+    # تحديد زاوية التوقف النهائية بناءً على الفائز
+    if winner == player1:
+        target_sector = random.choice([0, 2, 4, 6])
     else:
-        if winner == player1:
-            add_balance(player1.id, amount)
-        else:
-            remove_balance(player1.id, amount)
-        total_pot = amount
+        target_sector = random.choice([1, 3, 5, 7])
 
-    # زاوية التوقف
-    target_sector = random.choice([0, 2, 4, 6]) if winner == player1 else random.choice([1, 3, 5, 7])
-    final_target = (270 - (target_sector * 45 + 22.5)) % 360
-    total_spin = 360 * 3 + final_target
+    final_angle = (270 - (target_sector * 45 + 22.5)) % 360
 
-    # محاكاة انيميشن الدوران السلس
-    frames_count = 6
-    spin_msg = None
-
-    for i in range(frames_count):
-        progress = (i + 1) / frames_count
-        eased_progress = 1 - math.pow(1 - progress, 3)
-        current_angle = eased_progress * total_spin
-
-        frame_buf = make_wheel_frame(player1.display_name, player2.display_name, current_angle)
-        file = discord.File(fp=frame_buf, filename="wheel_spin.png")
-
-        if spin_msg is None:
-            spin_msg = await ctx.send(content="🎡 **جاري تدوير العجلة...**", file=file)
-        else:
-            await spin_msg.edit(attachments=[file])
-
-        await asyncio.sleep(0.4)
-
-    # عرض النتيجة النهائية
-    win_bytes = await winner.display_avatar.read()
-    lose_bytes = await loser.display_avatar.read()
-    res_buf = await generate_bet_result_card(
-        win_bytes, lose_bytes, winner.display_name, loser.display_name, total_pot
-    )
-    res_file = discord.File(fp=res_buf, filename="result.png")
-
-    await spin_msg.edit(
-        content=f"🎉 **انتهت اللعبة! فاز {winner.mention} بالرهان!**",
-        attachments=[res_file],
+    embed = discord.Embed(
+        title="🎰 لعبة الرهان والعجلة",
+        description=(
+            f"⚔️ **الرهان قائم بين:** {player1.mention} 🆚 {player2.mention}\n"
+            f"💰 **المبلغ المراهن عليه:** `{amount}` طولار\n\n"
+            f"🎡 **جاري تدوير العجلة...**"
+        ),
+        color=discord.Color.gold(),
     )
 
+    # إنشاء ملف GIF المتحرك وإرساله مرة واحدة
+    gif_buf = make_wheel_gif(player1.display_name, player2.display_name, final_angle)
+    file = discord.File(fp=gif_buf, filename="wheel.gif")
+    embed.set_image(url="attachment://wheel.gif")
+    msg = await ctx.send(embed=embed, file=file)
 
-@bet_game.error
-async def bet_game_error(ctx, error):
-    if isinstance(error, commands.BadArgument):
-        await ctx.send(
-            "❌ يرجى إدخال مبلغ صحيح أو منشن العضو والمبلغ بشكل صحيح.",
-            delete_after=3,
-        )
+    # الانتظار حتى انتهاء انيميشن الدوران الكامل في GIF
+    await asyncio.sleep(2.5)
+
+    # احتساب الرصيد وصياغة النتيجة النهائية
+    if winner == player1:
+        add_balance(player1.id, amount)
+        if player2 != bot.user:
+            remove_balance(player2.id, amount)
+            result_text = (
+                f"🎉 **مبروك {player1.mention}!** وقفت العجلة عند اسمك وفزت بالرهان!\n"
+                f"📈 تم إضافة **{amount}** طولار لرصيدك.\n"
+                f"📉 وتم سحب **{amount}** طولار من رصيد {player2.mention}."
+            )
+        else:
+            result_text = (
+                f"🎉 **مبروك {player1.mention}!** وقفت العجلة عند اسمك وفزت على البوت!\n"
+                f"📈 تم إضافة **{amount}** طولار إلى رصيدك."
+            )
+        embed_color = discord.Color.green()
+    else:
+        remove_balance(player1.id, amount)
+        if player2 != bot.user:
+            add_balance(player2.id, amount)
+            result_text = (
+                f"💀 **للأسف {player1.mention}،** وقفت العجلة عند اسم {player2.mention} وخسرت الرهان!\n"
+                f"📉 تم سحب **{amount}** طولار من رصيدك.\n"
+                f"📈 وتم إضافتها لرصيد {player2.mention}."
+            )
+        else:
+            result_text = (
+                f"🤖 **فاز البوت عليك!** وقفت العجلة عند اسم البوت.\n"
+                f"📉 تم سحب **{amount}** طولار من رصيدك."
+            )
+        embed_color = discord.Color.red()
+
+    # تعديل النص ولون الـ Embed فقط دون تعديل الصورة المتحركة
+    final_embed = discord.Embed(
+        title="🎰 نتيجة الرهان النهائي",
+        description=(
+            f"🎯 **استقرت العجلة على:** `{winner.display_name}`\n\n"
+            f"{result_text}\n\n"
+            f"💰 رصيدك الحالي: **{get_balance(player1.id)}** طولار"
+        ),
+        color=embed_color,
+    )
+    final_embed.set_image(url="attachment://wheel.gif")
+    await msg.edit(embed=final_embed)
 
 
 @bot.command(name="ايدي")
