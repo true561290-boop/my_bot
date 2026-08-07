@@ -15,36 +15,45 @@ else:
         print(f"❌ خطأ أثناء الاتصال بـ Upstash: {e}")
         redis = None
 
-def get_balance(user_id: int) -> int:
+def _extract_id(user_input) -> int:
+    """استخراج المعرف الرقمي سواء كان المدخل رقم أو كائن عضو من ديسكورد"""
+    if hasattr(user_input, 'id'):
+        return user_input.id
+    return int(user_input)
+
+def get_balance(user_id) -> int:
     if not redis:
         return 0
     try:
-        bal = redis.get(f"balance:{user_id}")
+        uid = _extract_id(user_id)
+        bal = redis.get(f"balance:{uid}")
         return int(bal) if bal is not None else 0
     except Exception as e:
-        print(f"❌ خطأ في جلب الرصيد: {e}")
+        print(f"❌ خطأ في get_balance: {e}")
         return 0
 
-def add_balance(user_id: int, amount: int):
+def add_balance(user_id, amount: int) -> int:
     if not redis:
         return 0
     try:
-        new_bal = redis.incrby(f"balance:{user_id}", int(amount))
-        print(f"✅ تم إضافة {amount} للمستخدم {user_id}. الرصيد الجديد: {new_bal}")
-        return new_bal
+        uid = _extract_id(user_id)
+        new_bal = redis.incrby(f"balance:{uid}", int(amount))
+        print(f"✅ تم إضافة {amount} للمستخدم {uid}. الرصيد الجديد: {new_bal}")
+        return int(new_bal)
     except Exception as e:
-        print(f"❌ خطأ في إضافة الرصيد: {e}")
+        print(f"❌ خطأ في add_balance: {e}")
         return 0
 
-def remove_balance(user_id: int, amount: int):
+def remove_balance(user_id, amount: int) -> int:
     if not redis:
         return 0
     try:
-        new_bal = redis.decrby(f"balance:{user_id}", int(amount))
-        print(f"✅ تم خصم {amount} من المستخدم {user_id}. الرصيد الجديد: {new_bal}")
-        return new_bal
+        uid = _extract_id(user_id)
+        new_bal = redis.decrby(f"balance:{uid}", int(amount))
+        print(f"✅ تم خصم {amount} من المستخدم {uid}. الرصيد الجديد: {new_bal}")
+        return int(new_bal)
     except Exception as e:
-        print(f"❌ خطأ في خصم الرصيد: {e}")
+        print(f"❌ خطأ في remove_balance: {e}")
         return 0
 
 def fetch_latest_balances_from_github():
