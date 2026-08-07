@@ -552,7 +552,7 @@ async def on_message(message):
         "سلام عليكم": (
             f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}"
         ),
-        "باك": f"ولكم باك {message.author.mention}",
+        "باك": f"ولكم باك نيغا {message.author.mention}",
     }
 
     user_msg = clean_content if clean_content in auto_responses else raw_content
