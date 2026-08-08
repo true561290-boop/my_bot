@@ -601,7 +601,7 @@ raw_content = message.content.strip()
                 found_auto_reply = True
                 break
 
-إذا تم المنشن ولكن لم نجد أي كلمة من الردود التلقائية (مثلاً منشن فقط أو منشن + كلام غريب)
+#إذا تم المنشن ولكن لم نجد أي كلمة من الردود التلقائية (مثلاً منشن فقط أو منشن + كلام غريب
         if not found_auto_reply:
             await message.channel.send(f"هلا {message.author.mention}! كيف أقدر أساعدك؟")
 
