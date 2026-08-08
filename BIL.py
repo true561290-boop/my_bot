@@ -574,25 +574,40 @@ async def on_message(message):
             emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{extension}?size=1024"
             await message.channel.send(emoji_url)
             return
-
-    raw_content = message.content.strip()
+            
+raw_content = message.content.strip()
     clean_content = (
         raw_content[1:].strip() if raw_content.startswith(".") else raw_content
     )
 
     auto_responses = {
-        "السلام عليكم": (
-            f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}"
-        ),
-        "السلام عليكم ورحمة الله وبركاته": (
-            f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}"
-        ),
-        "سلام عليكم": (
-            f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}"
-        ),
+        "السلام عليكم": f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
+        "السلام عليكم ورحمة الله وبركاته": f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
+        "سلام عليكم": f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
         "باك": f"ولكم باك {message.author.mention}",
     }
 
+    # 1. التحقق إذا كان البوت "منشن" في الرسالة
+    if bot.user.mentioned_in(message):
+        found_auto_reply = False
+
+#نبحث هل أي كلمة من الردود موجودة "داخل" نص الرسالة (حتى لو مع كلام ثاني)
+        for key, response in auto_responses.items():
+            if key in raw_content:
+                await message.channel.send(
+                    response,
+                    allowed_mentions=discord.AllowedMentions(users=False),
+                )
+                found_auto_reply = True
+                break
+
+إذا تم المنشن ولكن لم نجد أي كلمة من الردود التلقائية (مثلاً منشن فقط أو منشن + كلام غريب)
+        if not found_auto_reply:
+            await message.channel.send(f"هلا {message.author.mention}! كيف أقدر أساعدك؟")
+
+        return # نخرج من الدالة هنا عشان ما يكمل للأسفل
+
+    # 2. المنطق القديم (للأوامر التي تبدأ بـ . أو تطابق الكلمة تماماً)
     user_msg = clean_content if clean_content in auto_responses else raw_content
     if user_msg in auto_responses:
         await message.channel.send(
