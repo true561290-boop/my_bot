@@ -59,18 +59,13 @@ async def anime_search(ctx, *, query: str = None):
     # تنظيف اسم الأنمي من الكلمات الزائدة
     anime_name = re.sub(r'(الموسم\s*\d+|الحلقة\s*\d+)', '', query).strip()
     
-    # تجهيز نص البحث وتحويله لصيغة تدعمها الروابط (URL Encoding)
+    # تجهيز نص البحث وتحويله لصيغة تدعمها الروابط
     full_search_text = f"{anime_name} الموسم {season} الحلقة {episode}"
     encoded_query = urllib.parse.quote(full_search_text)
 
-    # 1. رابط ويتانمي (استخدام البحث الدقيق لتجنب خطأ 404 تماماً)
-    witanime_link = f"https://witanime.pics/?search={encoded_query}"
-    
-    # 2. رابط موقع r.elif.news الجديد
-    elif_news_link = f"https://r.elif.news/?s={encoded_query}"
-
-    # 3. بحث شامل تحسباً لأي طارئ
-    google_search = f"https://www.google.com/search?q={encoded_query}+مترجم"
+    # استخدام بحث جوجل المخصص (site:) لتخطي حماية المواقع والوصول للحلقة مباشرة
+    witanime_link = f"https://www.google.com/search?q=site:witanime.pics+{encoded_query}"
+    elif_news_link = f"https://www.google.com/search?q=site:r.elif.news+{encoded_query}"
 
     # تصميم رسالة البوت (Embed)
     embed = discord.Embed(
@@ -80,11 +75,10 @@ async def anime_search(ctx, *, query: str = None):
     )
 
     embed.add_field(
-        name="📺 روابط المشاهدة (سيرفرات سريعة):",
+        name="📺 روابط الوصول المباشر للحلقة:",
         value=(
-            f"🔗 **[البحث في Witanime (مضمون بدون خطأ 404)]({witanime_link})**\n"
-            f"🔗 **[مشاهدة عبر r.elif.news]({elif_news_link})**\n"
-            f"🔗 **[بحث شامل لجودة عالية (Google)]({google_search})**"
+            f"🔗 **[حلقة Witanime المباشرة]({witanime_link})**\n"
+            f"🔗 **[حلقة r.elif.news المباشرة]({elif_news_link})**"
         ),
         inline=False
     )
