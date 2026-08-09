@@ -1,5 +1,6 @@
 import os
 import re
+import urllib.parse
 from threading import Thread
 import discord
 from discord.ext import commands
@@ -48,25 +49,28 @@ async def anime_search(ctx, *, query: str = None):
         await ctx.send(embed=embed, delete_after=15)
         return
 
-    # تحليل الطلب لاستخراج الموسم والحلقة باستخدام (Regex)
+    # استخراج الموسم والحلقة بذكاء
     season_match = re.search(r'الموسم\s*(\d+)', query)
     episode_match = re.search(r'الحلقة\s*(\d+)', query)
 
     season = season_match.group(1) if season_match else "1"
     episode = episode_match.group(1) if episode_match else "1"
 
-    # استخراج اسم الأنمي وتنظيفه من كلمة "الموسم" و "الحلقة"
+    # تنظيف اسم الأنمي من الكلمات الزائدة
     anime_name = re.sub(r'(الموسم\s*\d+|الحلقة\s*\d+)', '', query).strip()
-    anime_slug = anime_name.replace(" ", "-").lower()
-
-    # تجهيز الروابط المباشرة للمواقع السريعة
-    # 1. محاولة بناء رابط مباشر لموقع Witanime
-    witanime_direct = f"https://witanime.pics/episode/{anime_slug}-الموسم-{season}-الحلقة-{episode}/"
     
-    # 2. روابط بحث دقيقة في مواقع سريعة لا تقطع (XSAnime و AnimeSlayer)
-    search_query = f"{anime_name} الموسم {season} الحلقة {episode}".replace(" ", "+")
-    xsanime_search = f"https://xsanime.com/?s={search_query}"
-    google_search = f"https://www.google.com/search?q={search_query}+مترجم+موقع+ويتانمي+او+انمي+سلاير"
+    # تجهيز نص البحث وتحويله لصيغة تدعمها الروابط (URL Encoding)
+    full_search_text = f"{anime_name} الموسم {season} الحلقة {episode}"
+    encoded_query = urllib.parse.quote(full_search_text)
+
+    # 1. رابط ويتانمي (استخدام البحث الدقيق لتجنب خطأ 404 تماماً)
+    witanime_link = f"https://witanime.pics/?search={encoded_query}"
+    
+    # 2. رابط موقع r.elif.news الجديد
+    elif_news_link = f"https://r.elif.news/?s={encoded_query}"
+
+    # 3. بحث شامل تحسباً لأي طارئ
+    google_search = f"https://www.google.com/search?q={encoded_query}+مترجم"
 
     # تصميم رسالة البوت (Embed)
     embed = discord.Embed(
@@ -78,9 +82,9 @@ async def anime_search(ctx, *, query: str = None):
     embed.add_field(
         name="📺 روابط المشاهدة (سيرفرات سريعة):",
         value=(
-            f"🔗 **[رابط ويتانمي المباشر (قد يحتاج VPN ببعض الدول)]({witanime_direct})**\n"
-            f"🔗 **[بحث سريع في XSAnime (بدون تقطيع)]({xsanime_search})**\n"
-            f"🔗 **[بحث شامل للجودات العالية (Google)]({google_search})**"
+            f"🔗 **[البحث في Witanime (مضمون بدون خطأ 404)]({witanime_link})**\n"
+            f"🔗 **[مشاهدة عبر r.elif.news]({elif_news_link})**\n"
+            f"🔗 **[بحث شامل لجودة عالية (Google)]({google_search})**"
         ),
         inline=False
     )
