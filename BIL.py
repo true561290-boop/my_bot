@@ -59,13 +59,14 @@ async def anime_search(ctx, *, query: str = None):
     # تنظيف اسم الأنمي من الكلمات الزائدة
     anime_name = re.sub(r'(الموسم\s*\d+|الحلقة\s*\d+)', '', query).strip()
     
-    # تجهيز نص البحث وتحويله لصيغة تدعمها الروابط
-    full_search_text = f"{anime_name} الموسم {season} الحلقة {episode}"
-    encoded_query = urllib.parse.quote(full_search_text)
+    # تجهيز نص بحث دقيق (الاسم + الحلقة) للحصول على أفضل نتيجة داخل المواقع
+    clean_search = f"{anime_name} الحلقة {episode}"
+    encoded_query = urllib.parse.quote(clean_search)
 
-    # استخدام بحث جوجل المخصص (site:) لتخطي حماية المواقع والوصول للحلقة مباشرة
-    witanime_link = f"https://www.google.com/search?q=site:witanime.pics+{encoded_query}"
-    elif_news_link = f"https://www.google.com/search?q=site:r.elif.news+{encoded_query}"
+    # روابط البحث الداخلي المباشرة للمواقع (تتخطى جوجل وتفتح الموقع نفسه)
+    witanime_link = f"https://witanime.pics/?s={encoded_query}"
+    elif_news_link = f"https://r.elif.news/?s={encoded_query}"
+    animearab_link = f"https://animearab.com/?s={encoded_query}"
 
     # تصميم رسالة البوت (Embed)
     embed = discord.Embed(
@@ -75,17 +76,18 @@ async def anime_search(ctx, *, query: str = None):
     )
 
     embed.add_field(
-        name="📺 روابط الوصول المباشر للحلقة:",
+        name="📺 روابط المشاهدة المباشرة:",
         value=(
-            f"🔗 **[حلقة Witanime المباشرة]({witanime_link})**\n"
-            f"🔗 **[حلقة r.elif.news المباشرة]({elif_news_link})**"
+            f"🔗 **[مشاهدة عبر Witanime]({witanime_link})**\n"
+            f"🔗 **[مشاهدة عبر r.elif.news]({elif_news_link})**\n"
+            f"🔗 **[مشاهدة عبر انمي عرب]({animearab_link})**"
         ),
         inline=False
     )
     
     avatar_url = ctx.author.display_avatar.url if ctx.author.display_avatar else None
     embed.set_footer(
-        text=f"طلب بواسطة {ctx.author.display_name} | مشاهدة ممتعة بدون تقطيع 🍿",
+        text=f"طلب بواسطة {ctx.author.display_name} | مشاهدة ممتعة 🍿",
         icon_url=avatar_url
     )
 
