@@ -49,7 +49,7 @@ keep_alive()
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-bot = commands.Bot(command_prefix="", intents=intents)
+bot = commands.Bot(command_prefix=".", intents=intents)
 bot.remove_command("help")
 
 WELCOME_CHANNEL_ID = 1515396548392128670
@@ -254,7 +254,6 @@ def make_welcome_card(user):
     buf.seek(0)
     return buf
 
-
 # ==========================================
 # 🎨 أدوات المعالجة والتصميم (PIL Helper Functions) - أمر الرهان المحدث
 # ==========================================
@@ -395,6 +394,21 @@ class ChallengeView(discord.ui.View):
             return await interaction.response.send_message("❌ هذا التحدي ليس موجهًا لك!", ephemeral=True)
 
         self.accepted = True
+        # لا نحذف الرسالة هنا؛ أمر الرهان سيحوّل نفس الرسالة إلى العجلة.
+        # حذفها من callback كان يجعل msg.edit يفشل بعد قبول التحدي.
+        await interaction.response.defer()
+        self.stop()
+
+    @discord.ui.button(label="رفض ✖️", style=discord.ButtonStyle.red)
+    async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.opponent.id:
+            return await interaction.response.send_message("❌ هذا التحدي ليس موجهًا لك!", ephemeral=True)
+        self.accepted = False
+        self.stop()
+        await interaction.response.send_message(f"❌ رفض {self.opponent.mention} التحدي.")
+
+
+	self.accepted = True
         # لا نحذف الرسالة هنا؛ أمر الرهان سيحوّل نفس الرسالة إلى العجلة.
         # حذفها من callback كان يجعل msg.edit يفشل بعد قبول التحدي.
         await interaction.response.defer()
