@@ -2416,7 +2416,7 @@ async def balance_command(ctx, member: discord.Member = None):
         f"حفظت الخزانة الملكية رصيدك يا {target.display_name}",
     )
     file = discord.File(fp=img_buf, filename="balance.png")
-    await ctx.send(file=file)
+    await ctx.send(file=fileallowed_mentions=discord.AllowedMentions(users=False))
 
 
 @bot.command(name="ض")
