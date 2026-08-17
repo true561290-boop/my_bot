@@ -3125,3 +3125,4 @@ async def on_ready():
 
 
 bot.run(os.environ.get("DISCORD_TOKEN"))
+bot.run(TOKEN)
