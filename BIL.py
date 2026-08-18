@@ -3116,13 +3116,13 @@ async def on_member_join(member):
         )
 
 
+# تسجيل الأوامر والملفات المكملة عند جهوزية البوت
 @bot.event
 async def on_ready():
-    print(f"✅ تم تسجيل الدخول باسم: {bot.user.name}")
-    if not bot.get_cog("BetCog"):
-        await bot.add_cog(BetCog(bot))
-    fetch_latest_balances_from_github()
+    await bot.add_cog(BetCog(bot))
+    print(f"✅ Bot is ready! Logged in as {bot.user}")
 
 
-bot.run(os.environ.get("DISCORD_TOKEN"))
+# تشغيل البوت
+TOKEN = os.getenv("DISCORD_TOKEN")
 bot.run(TOKEN)
