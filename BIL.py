@@ -648,9 +648,163 @@ async def save_avatar_expression(message):
     return False
 
 
+async def handle_bot_identity_command(message):
+    """تنفيذ أوامر تغيير اسم/صورة/يوزر البوت عند توجيه الأمر إلى البوت نفسه."""
+    if not message.guild or not message.content:
+        return False
+
+    bot_id = bot.user.id if bot.user else None
+    if not bot_id:
+        return False
+
+    # الأوامر مخصصة لصاحب رتبة OWNER فقط.
+    if OWNER_ROLE_ID not in {role.id for role in message.author.roles}:
+        return False
+
+    mention_pattern = rf"<@!?{bot_id}>"
+    match = re.search(mention_pattern, message.content)
+    if not match:
+        return False
+
+    content = message.content.strip()
+    command_part = re.sub(rf"\s*{mention_pattern}", "", content, count=1).strip()
+
+    # تغيير اسم البوت داخل السيرفر (Nickname).
+    name_match = re.fullmatch(r"تغيير_اسم(?:\s+(.+))?", command_part)
+    if name_match:
+        new_name = (name_match.group(1) or "").strip()
+        if not new_name:
+            await message.channel.send(
+                "❌ طريقة الاستخدام الصحيحة: `تغيير_اسم @البوت الاسم الجديد`",
+                delete_after=5,
+            )
+            return True
+
+        if len(new_name) > 32:
+            await message.channel.send(
+                "❌ اسم البوت يجب ألا يتجاوز 32 حرفاً.",
+                delete_after=5,
+            )
+            return True
+
+        try:
+            await message.guild.me.edit(
+                nick=new_name,
+                reason=f"تغيير اسم البوت بواسطة {message.author}",
+            )
+            await message.channel.send(
+                f"✅ تم تغيير اسم البوت إلى **{new_name}**.",
+                delete_after=5,
+            )
+        except discord.Forbidden:
+            await message.channel.send(
+                "❌ لا أملك صلاحية تغيير اسم/لقب البوت في هذا السيرفر.",
+                delete_after=5,
+            )
+        except discord.HTTPException as e:
+            await message.channel.send(
+                f"❌ تعذر تغيير اسم البوت: `{e}`",
+                delete_after=5,
+            )
+        return True
+
+    # تغيير يوزر البوت (Username) على Discord.
+    username_match = re.fullmatch(r"تغيير_يوزر(?:\s+(.+))?", command_part)
+    if username_match:
+        new_username = (username_match.group(1) or "").strip()
+        if not new_username:
+            await message.channel.send(
+                "❌ طريقة الاستخدام الصحيحة: `تغيير_يوزر @البوت اليوزر_الجديد`",
+                delete_after=5,
+            )
+            return True
+
+        if len(new_username) < 2 or len(new_username) > 32:
+            await message.channel.send(
+                "❌ يوزر البوت يجب أن يكون بين 2 و32 حرفاً.",
+                delete_after=5,
+            )
+            return True
+
+        try:
+            await bot.user.edit(
+                username=new_username,
+                reason=f"تغيير يوزر البوت بواسطة {message.author}",
+            )
+            await message.channel.send(
+                f"✅ تم تغيير يوزر البوت إلى **{new_username}**.",
+                delete_after=5,
+            )
+        except discord.Forbidden:
+            await message.channel.send(
+                "❌ لا يمكنني تغيير يوزر البوت بسبب صلاحيات Discord.",
+                delete_after=5,
+            )
+        except discord.HTTPException as e:
+            await message.channel.send(
+                f"❌ تعذر تغيير يوزر البوت: `{e}`",
+                delete_after=5,
+            )
+        return True
+
+    # تغيير صورة البوت باستخدام صورة مرفقة بالرسالة.
+    image_match = re.fullmatch(r"تغيير_صورة", command_part)
+    if image_match:
+        if not message.attachments:
+            await message.channel.send(
+                "❌ أرفق الصورة مع الأمر.\n"
+                "مثال: `تغيير_صورة @البوت` ثم أرفق الصورة.",
+                delete_after=6,
+            )
+            return True
+
+        attachment = message.attachments[0]
+        content_type = attachment.content_type or ""
+        filename = attachment.filename.lower()
+        allowed_extensions = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+
+        if not (
+            content_type.startswith("image/")
+            or filename.endswith(allowed_extensions)
+        ):
+            await message.channel.send(
+                "❌ الملف المرفق يجب أن يكون صورة.",
+                delete_after=5,
+            )
+            return True
+
+        try:
+            image_bytes = await attachment.read()
+            await bot.user.edit(
+                avatar=image_bytes,
+                reason=f"تغيير صورة البوت بواسطة {message.author}",
+            )
+            await message.channel.send(
+                "✅ تم تغيير صورة البوت بنجاح.",
+                delete_after=5,
+            )
+        except discord.Forbidden:
+            await message.channel.send(
+                "❌ لا يمكنني تغيير صورة البوت بسبب صلاحيات Discord.",
+                delete_after=5,
+            )
+        except discord.HTTPException as e:
+            await message.channel.send(
+                f"❌ تعذر تغيير صورة البوت: `{e}`",
+                delete_after=5,
+            )
+        return True
+
+    return False
+
+
 @bot.event
 async def on_message(message):
     if message.author.bot:
+        return
+
+    # أوامر تغيير اسم/صورة/يوزر البوت.
+    if await handle_bot_identity_command(message):
         return
 
     # في روم السرقة: تكبير الستيكر/الإيموجي كما كان سابقاً.
