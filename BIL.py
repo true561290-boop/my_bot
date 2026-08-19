@@ -165,22 +165,24 @@ def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
 
     if os.path.exists(FONT_PATH):
         try:
-            font_large = ImageFont.truetype(FONT_PATH, 44)
-            font_med = ImageFont.truetype(FONT_PATH, 34)
-            font_sub = ImageFont.truetype(FONT_PATH, 22)
+            font_large = ImageFont.truetype(FONT_PATH, 54)
+            font_med = ImageFont.truetype(FONT_PATH, 37)
+            font_sub = ImageFont.truetype(FONT_PATH, 40)
         except Exception as e:
             print(f"Font error: {e}")
 
-    TEXT_COLOR_TITLE = (80, 20, 10, 255)
-    TEXT_COLOR_MAIN = (30, 20, 10, 255)
-    TEXT_COLOR_SUB = (90, 60, 40, 255)
+    TEXT_COLOR_TITLE = (220, 181, 123, 255)
+    TEXT_COLOR_MAIN = (220, 181, 123, 255)
+    TEXT_COLOR_SUB = (62, 39, 35, 255)
 
     if title_text:
         draw.text(
-            (width // 2, 130),
+            (width // 2, 80),
             title_text,
             font=font_large,
             fill=TEXT_COLOR_TITLE,
+            stroke_width=1,
+            stroke_fill=TEXT_COLOR_TITLE,
             anchor="mm",
         )
         draw.line(
@@ -191,7 +193,7 @@ def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
 
     if main_text:
         draw.text(
-            (width // 2, 260),
+            (width // 2, 310),
             main_text,
             font=font_med,
             fill=TEXT_COLOR_MAIN,
@@ -200,7 +202,7 @@ def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
 
     if sub_text:
         draw.text(
-            (width // 2, 380),
+            (width // 2, 205),
             sub_text,
             font=font_sub,
             fill=TEXT_COLOR_SUB,
@@ -507,373 +509,6 @@ class ColorSelect(discord.ui.Select):
             f" **{item['price']}** طولار.\n*(تم إغلاق المتجر)*",
             ephemeral=True,
         )
-
-
-# --- 4. نظام الرد التلقائي + تكبير الإيموجي/الستيكر + حفظها في روم الأفاتار ---
-
-async def save_avatar_expression(message):
-    """حفظ الإيموجي المخصص أو الستيكر المرسل في روم الأفاتار. للـ OWNER فقط."""
-    if not message.guild or message.channel.id != AVATAR_CHANNEL_ID:
-        return False
-
-    if OWNER_ROLE_ID not in {role.id for role in message.author.roles}:
-        return False
-
-    # حفظ الستيكر أولاً إذا كانت الرسالة تحتوي على ستيكر.
-    if message.stickers:
-        sticker = message.stickers[0]
-        try:
-            if not message.guild.me.guild_permissions.manage_emojis_and_stickers:
-                await message.channel.send(
-                    "❌ البوت لا يملك صلاحية **Manage Emojis and Stickers**.",
-                    delete_after=5,
-                )
-                return True
-
-            async with aiohttp.ClientSession() as session:
-                async with session.get(str(sticker.url)) as resp:
-                    if resp.status != 200:
-                        await message.channel.send("❌ تعذر تحميل الستيكر.", delete_after=4)
-                        return True
-                    sticker_bytes = await resp.read()
-
-            # أسماء الستيكرات في Discord بين 2 و30 حرفاً.
-            safe_name = re.sub(r"[^a-zA-Z0-9_\-]", "_", sticker.name).strip("_-")
-            if len(safe_name) < 2:
-                safe_name = f"sticker_{sticker.id}"
-            safe_name = safe_name[:30]
-
-            # إذا كان الاسم موجوداً مسبقاً، نضيف جزءاً من الـ ID لتقليل التعارض.
-            if any(s.name == safe_name for s in message.guild.stickers):
-                suffix = str(sticker.id)[-6:]
-                safe_name = f"{safe_name[:30-len(suffix)-1]}_{suffix}"
-
-            # الامتداد بحسب الرابط؛ JSON مناسب لستيكرات Lottie، وPNG/APNG للأنواع الأخرى.
-            path_part = str(sticker.url).split("?")[0].lower()
-            extension = ".json" if path_part.endswith(".json") else (".gif" if path_part.endswith(".gif") else ".png")
-
-            sticker_file = discord.File(
-                io.BytesIO(sticker_bytes),
-                filename=f"{safe_name}{extension}",
-            )
-
-            created = await message.guild.create_sticker(
-                name=safe_name,
-                description="محفوظ من روم الأفاتار",
-                emoji="😀",
-                file=sticker_file,
-                reason=f"حفظ ستيكر بواسطة {message.author} في روم الأفاتار",
-            )
-
-            await message.channel.send(
-                f"✅ تم حفظ الستيكر **{created.name}** في ستيكرات السيرفر.",
-                delete_after=5,
-            )
-        except discord.Forbidden:
-            await message.channel.send(
-                "❌ لا أملك صلاحية إضافة الستيكرات في هذا السيرفر.",
-                delete_after=5,
-            )
-        except discord.HTTPException as e:
-            await message.channel.send(
-                f"❌ تعذر حفظ الستيكر. قد يكون الحجم أو النوع غير مدعوم، أو وصلت إلى حد الستيكرات.\n`{e}`",
-                delete_after=7,
-            )
-        except Exception as e:
-            print(f"خطأ أثناء حفظ الستيكر: {e}")
-            await message.channel.send("❌ حدث خطأ أثناء حفظ الستيكر.", delete_after=5)
-        return True
-
-    # حفظ الإيموجيات المخصصة مثل <:name:id> أو <a:name:id>.
-    emoji_matches = re.findall(r"<(a)?:(\w+):(\d+)>", message.content)
-    if emoji_matches:
-        try:
-            if not message.guild.me.guild_permissions.manage_emojis_and_stickers:
-                await message.channel.send(
-                    "❌ البوت لا يملك صلاحية **Manage Emojis and Stickers**.",
-                    delete_after=5,
-                )
-                return True
-
-            saved = []
-            async with aiohttp.ClientSession() as session:
-                for animated_flag, source_name, emoji_id in emoji_matches:
-                    is_animated = bool(animated_flag)
-                    extension = "gif" if is_animated else "png"
-                    emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{extension}?size=1024"
-
-                    async with session.get(emoji_url) as resp:
-                        if resp.status != 200:
-                            continue
-                        emoji_bytes = await resp.read()
-
-                    safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", source_name).strip("_")
-                    if len(safe_name) < 2:
-                        safe_name = f"emoji_{emoji_id}"
-                    safe_name = safe_name[:32]
-
-                    if any(e.name == safe_name and e.guild_id == message.guild.id for e in message.guild.emojis):
-                        suffix = str(emoji_id)[-6:]
-                        safe_name = f"{safe_name[:32-len(suffix)-1]}_{suffix}"
-
-                    created = await message.guild.create_custom_emoji(
-                        name=safe_name,
-                        image=emoji_bytes,
-                        reason=f"حفظ إيموجي بواسطة {message.author} في روم الأفاتار",
-                    )
-                    saved.append(str(created))
-
-            if saved:
-                await message.channel.send(
-                    "✅ تم حفظ الإيموجي في إيموجيات السيرفر: " + " ".join(saved),
-                    delete_after=6,
-                )
-            else:
-                await message.channel.send("❌ تعذر تحميل الإيموجي لحفظه.", delete_after=4)
-        except discord.Forbidden:
-            await message.channel.send(
-                "❌ لا أملك صلاحية إضافة الإيموجيات في هذا السيرفر.",
-                delete_after=5,
-            )
-        except discord.HTTPException as e:
-            await message.channel.send(
-                f"❌ تعذر حفظ الإيموجي. قد يكون الحجم أو النوع غير مدعوم، أو وصلت إلى الحد المسموح.\n`{e}`",
-                delete_after=7,
-            )
-        except Exception as e:
-            print(f"خطأ أثناء حفظ الإيموجي: {e}")
-            await message.channel.send("❌ حدث خطأ أثناء حفظ الإيموجي.", delete_after=5)
-        return True
-
-    return False
-
-
-async def handle_bot_identity_command(message):
-    """تنفيذ أوامر تغيير اسم/صورة/يوزر البوت عند توجيه الأمر إلى البوت نفسه."""
-    if not message.guild or not message.content:
-        return False
-
-    bot_id = bot.user.id if bot.user else None
-    if not bot_id:
-        return False
-
-    # الأوامر مخصصة لصاحب رتبة OWNER فقط.
-    if OWNER_ROLE_ID not in {role.id for role in message.author.roles}:
-        return False
-
-    mention_pattern = rf"<@!?{bot_id}>"
-    match = re.search(mention_pattern, message.content)
-    if not match:
-        return False
-
-    content = message.content.strip()
-    command_part = re.sub(rf"\s*{mention_pattern}", "", content, count=1).strip()
-
-    # تغيير اسم البوت داخل السيرفر (Nickname).
-    name_match = re.fullmatch(r"تغيير_اسم(?:\s+(.+))?", command_part)
-    if name_match:
-        new_name = (name_match.group(1) or "").strip()
-        if not new_name:
-            await message.channel.send(
-                "❌ طريقة الاستخدام الصحيحة: `تغيير_اسم @البوت الاسم الجديد`",
-                delete_after=5,
-            )
-            return True
-
-        if len(new_name) > 32:
-            await message.channel.send(
-                "❌ اسم البوت يجب ألا يتجاوز 32 حرفاً.",
-                delete_after=5,
-            )
-            return True
-
-        try:
-            await message.guild.me.edit(
-                nick=new_name,
-                reason=f"تغيير اسم البوت بواسطة {message.author}",
-            )
-            await message.channel.send(
-                f"✅ تم تغيير اسم البوت إلى **{new_name}**.",
-                delete_after=5,
-            )
-        except discord.Forbidden:
-            await message.channel.send(
-                "❌ لا أملك صلاحية تغيير اسم/لقب البوت في هذا السيرفر.",
-                delete_after=5,
-            )
-        except discord.HTTPException as e:
-            await message.channel.send(
-                f"❌ تعذر تغيير اسم البوت: `{e}`",
-                delete_after=5,
-            )
-        return True
-
-    # تغيير يوزر البوت (Username) على Discord.
-    username_match = re.fullmatch(r"تغيير_يوزر(?:\s+(.+))?", command_part)
-    if username_match:
-        new_username = (username_match.group(1) or "").strip()
-        if not new_username:
-            await message.channel.send(
-                "❌ طريقة الاستخدام الصحيحة: `تغيير_يوزر @البوت اليوزر_الجديد`",
-                delete_after=5,
-            )
-            return True
-
-        if len(new_username) < 2 or len(new_username) > 32:
-            await message.channel.send(
-                "❌ يوزر البوت يجب أن يكون بين 2 و32 حرفاً.",
-                delete_after=5,
-            )
-            return True
-
-        try:
-            await bot.user.edit(
-                username=new_username,
-                reason=f"تغيير يوزر البوت بواسطة {message.author}",
-            )
-            await message.channel.send(
-                f"✅ تم تغيير يوزر البوت إلى **{new_username}**.",
-                delete_after=5,
-            )
-        except discord.Forbidden:
-            await message.channel.send(
-                "❌ لا يمكنني تغيير يوزر البوت بسبب صلاحيات Discord.",
-                delete_after=5,
-            )
-        except discord.HTTPException as e:
-            await message.channel.send(
-                f"❌ تعذر تغيير يوزر البوت: `{e}`",
-                delete_after=5,
-            )
-        return True
-
-    # تغيير صورة البوت باستخدام صورة مرفقة بالرسالة.
-    image_match = re.fullmatch(r"تغيير_صورة", command_part)
-    if image_match:
-        if not message.attachments:
-            await message.channel.send(
-                "❌ أرفق الصورة مع الأمر.\n"
-                "مثال: `تغيير_صورة @البوت` ثم أرفق الصورة.",
-                delete_after=6,
-            )
-            return True
-
-        attachment = message.attachments[0]
-        content_type = attachment.content_type or ""
-        filename = attachment.filename.lower()
-        allowed_extensions = (".png", ".jpg", ".jpeg", ".gif", ".webp")
-
-        if not (
-            content_type.startswith("image/")
-            or filename.endswith(allowed_extensions)
-        ):
-            await message.channel.send(
-                "❌ الملف المرفق يجب أن يكون صورة.",
-                delete_after=5,
-            )
-            return True
-
-        try:
-            image_bytes = await attachment.read()
-            await bot.user.edit(
-                avatar=image_bytes,
-                reason=f"تغيير صورة البوت بواسطة {message.author}",
-            )
-            await message.channel.send(
-                "✅ تم تغيير صورة البوت بنجاح.",
-                delete_after=5,
-            )
-        except discord.Forbidden:
-            await message.channel.send(
-                "❌ لا يمكنني تغيير صورة البوت بسبب صلاحيات Discord.",
-                delete_after=5,
-            )
-        except discord.HTTPException as e:
-            await message.channel.send(
-                f"❌ تعذر تغيير صورة البوت: `{e}`",
-                delete_after=5,
-            )
-        return True
-
-    return False
-
-
-@bot.event
-async def on_message(message):
-    if message.author.bot:
-        return
-
-    # أوامر تغيير اسم/صورة/يوزر البوت.
-    if await handle_bot_identity_command(message):
-        return
-
-    # في روم السرقة: تكبير الستيكر/الإيموجي كما كان سابقاً.
-    if message.channel.id == THEFT_CHANNEL_ID:
-        if message.stickers:
-            sticker = message.stickers[0]
-            await message.channel.send(sticker.url)
-            return
-
-        emoji_match = re.search(r"<(a)?:(\w+):(\d+)>", message.content)
-        if emoji_match:
-            is_animated = emoji_match.group(1)
-            emoji_id = emoji_match.group(3)
-            extension = "gif" if is_animated else "png"
-            emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{extension}?size=1024"
-            await message.channel.send(emoji_url)
-            return
-
-    # روم الأفاتار: الإيموجي/الستيكر يحفظه الـ OWNER تلقائياً.
-    if await save_avatar_expression(message):
-        return
-
-    raw_content = message.content.strip()
-    clean_content = (
-        raw_content[1:].strip() if raw_content.startswith(".") else raw_content
-    )
-
-    if (
-        "السلام عليكم ورحمة الله وبركاته" in clean_content
-        or "السلام عليكم" in clean_content
-        or "سلام عليكم" in clean_content
-    ):
-        await message.channel.send(
-            f"وعليكم السلام ورحمة الله وبركاته {message.author.mention}",
-            allowed_mentions=discord.AllowedMentions(users=False),
-        )
-        return
-
-    if "باك" in clean_content:
-        await message.channel.send(
-            f"ولكم باك {message.author.mention}",
-            allowed_mentions=discord.AllowedMentions(users=False),
-        )
-        return
-
-    if "<@1440678377643180124>" in clean_content:
-        await message.reply(
-            "ماذا تريد ايها العبد",
-            allowed_mentions=discord.AllowedMentions(users=False),
-        )
-
-    if message.guild and message.content.startswith("# "):
-        level_50_role = message.guild.get_role(LEVEL_50_ROLE_ID)
-        if level_50_role and level_50_role not in message.author.roles:
-            try:
-                await message.delete()
-                warning = await message.channel.send(
-                    f"⚠️ يا {message.author.mention}، لا يمكنك الكتابة بخط كبير `#` لأنك"
-                    " لا تملك رتبة **Level 50** يمكنك شراؤها من المتجر.",
-                    allowed_mentions=discord.AllowedMentions(users=False),
-                )
-                await asyncio.sleep(2)
-                await warning.delete()
-                return
-            except Exception as e:
-                print(f"خطأ أثناء حذف الرسالة: {e}")
-
-    # يجب استدعاؤه مرة واحدة فقط حتى لا تتكرر أوامر البوت.
-    await bot.process_commands(message)
 
 
 class VIPSelect(discord.ui.Select):
@@ -2567,7 +2202,7 @@ async def balance_command(ctx, member: discord.Member = None):
         None,
         "خزانة الرصيد",
         f"{bal} طولار",
-        f"حفظت الخزانة الملكية رصيدك يا {target.display_name}",
+        f"{target.display_name}",
     )
     file = discord.File(fp=img_buf, filename="balance.png")
     await ctx.send(file=file, allowed_mentions=discord.AllowedMentions(users=False))
@@ -2760,16 +2395,16 @@ class BetCog(commands.Cog):
         winner = ctx.author if winner_idx == 0 else opponent
         loser = opponent if winner_idx == 0 else ctx.author
 
-        # نستخدم نفس رسالة التحدي طوال الجولة: تحدي -> عجلة -> نتيجة.
+        # إرسال العجلة في رسالة جديدة مستقلة، دون تعديل رسالة التحدي.
         try:
             gif_buffer = generate_wheel_gif(
                 ctx.author.display_name, opponent.display_name, winner_idx
             )
             gif_file = discord.File(gif_buffer, filename="wheel.gif")
-            await msg.edit(
+            await ctx.send(
                 content="🎰 **جاري تدوير عجلة المصير...**",
-                attachments=[gif_file],
-                view=None,
+                file=gif_file,
+                allowed_mentions=discord.AllowedMentions.none(),
             )
         except Exception as e:
             print(f"[BET] Wheel error: {type(e).__name__}: {e}")
@@ -2785,8 +2420,7 @@ class BetCog(commands.Cog):
         winner_bal_after = get_balance(winner.id)
         loser_bal_after = get_balance(loser.id)
 
-        # 4. تجهيز صورة النتيجة قبل تعديل الرسالة، حتى لا تختفي العجلة
-        # ثم تبقى القناة بدون نتيجة إذا حدث خطأ أثناء إنشاء الصورة.
+        # 4. تجهيز صورة النتيجة.
         try:
             winner_bytes = await winner.display_avatar.read()
             loser_bytes = await loser.display_avatar.read()
@@ -2808,96 +2442,31 @@ class BetCog(commands.Cog):
                 "⚠️ تعذر إنشاء صورة النتيجة، لكن تم احتساب الرهان بنجاح."
             )
 
-        # 5. تحويل نفس رسالة العجلة إلى صورة النتيجة.
-        # لا نحذف الرسالة ولا نرسل رسالة جديدة؛ هذا يمنع اختفاء النتيجة.
+        # 5. إرسال النتيجة في رسالة جديدة مستقلة، دون تعديل رسالة التحدي أو رسالة العجلة.
+        # نستخدم كائن Member نفسه في AllowedMentions بدل winner.id.
         try:
-            await msg.edit(
+            await ctx.send(
                 content=(
                     f"🎉 **مبروك للفائز** {winner.mention} كسب مبارزة عجلة المصير "
-                    f"وحصل على **${amount:,}** طولار من منافسه"
+                    f"وحصل على **{amount:,}** طولار من منافسه"
                 ),
-                attachments=[result_file],
-                view=None,
+                file=result_file,
+                allowed_mentions=discord.AllowedMentions(users=[winner]),
             )
         except Exception as e:
-            print(f"[BET] Result message edit error: {type(e).__name__}: {e}")
-            # احتياط: إذا تعذر تعديل الرسالة الأصلية، نرسل النتيجة في رسالة جديدة.
+            print(f"[BET] Result message send error: {type(e).__name__}: {e}")
+            # إظهار الخطأ داخل Discord أيضًا حتى لا يفشل الإرسال بصمت.
             try:
-                result_img.seek(0)
-                fallback_file = discord.File(result_img, filename="bet_result.png")
                 await ctx.send(
-                    content=(
-                        f"🎉 **مبروك للفائز** {winner.mention} كسب **${amount:,}** طولار"
-                    ),
-                    file=fallback_file,
-                    allowed_mentions=discord.AllowedMentions(users=[winner.id]),
+                    "⚠️ تم احتساب الرهان، لكن تعذر إرسال صورة النتيجة. "
+                    f"الخطأ: `{type(e).__name__}: {e}`"
                 )
-            except Exception as e2:
-                print(f"[BET] Fallback result send error: {type(e2).__name__}: {e2}")
+            except Exception:
+                pass
 
 
 async def setup(bot):
     await bot.add_cog(BetCog(bot))
-
-
-@bot.command(name="رول")
-@commands.has_role(OWNER_ROLE_ID)
-async def add_role_to_member(ctx, member: discord.Member = None, role: discord.Role = None):
-    """إعطاء رتبة لعضو: رول @العضو @الرتبة"""
-    if member is None or role is None:
-        await ctx.send(
-            "⚠️ الاستخدام الصحيح: `.رول @العضو @الرتبة`",
-            delete_after=4,
-        )
-        return
-
-    if role.is_default():
-        await ctx.send("❌ لا يمكن إعطاء رتبة @everyone.", delete_after=3)
-        return
-
-    if role.managed:
-        await ctx.send("❌ لا يمكن للبوت إعطاء رتبة مُدارة بواسطة تكامل أو بوت آخر.", delete_after=3)
-        return
-
-    if role >= ctx.guild.me.top_role:
-        await ctx.send(
-            "❌ لا أستطيع إعطاء هذه الرتبة لأن رتبة البوت ليست أعلى منها.\n"
-            "ارفع رتبة البوت فوق الرتبة المطلوبة من إعدادات السيرفر.",
-            delete_after=5,
-        )
-        return
-
-    if role in member.roles:
-        await ctx.send(
-            f"ℹ️ العضو {member.mention} يملك رتبة **{role.name}** بالفعل.",
-            delete_after=3,
-        )
-        return
-
-    try:
-        await member.add_roles(role, reason=f"إعطاء رتبة بواسطة {ctx.author}")
-        await ctx.send(
-            f"✅ تم إعطاء الرتبة **{role.name}** للعضو {member.mention} بنجاح.",
-            allowed_mentions=discord.AllowedMentions(users=[member.id]),
-        )
-    except discord.Forbidden:
-        await ctx.send(
-            "❌ لا أملك صلاحية إدارة هذه الرتبة. تأكد من أن رتبة البوت أعلى من الرتبة المطلوبة.",
-            delete_after=4,
-        )
-    except discord.HTTPException as e:
-        await ctx.send(f"❌ حدث خطأ أثناء إعطاء الرتبة: `{e}`", delete_after=4)
-
-
-@add_role_to_member.error
-async def add_role_to_member_error(ctx, error):
-    if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط.", delete_after=3)
-    elif isinstance(error, commands.BadArgument):
-        await ctx.send(
-            "❌ تعذر التعرف على العضو أو الرتبة. استخدم المنشن بهذا الشكل: `.رول @العضو @الرتبة`",
-            delete_after=4,
-        )
 
 
 @bot.command(name="ايدي")
@@ -3062,21 +2631,7 @@ async def change_profile_error(ctx, error):
 async def games_list(ctx):
     embed = discord.Embed(
         title="قائمة الألعاب ",
-        description=".سؤال\n.لغز\n.حجر\n.اكس\n.توصيل",
-        color=discord.Color.blue(),
-    )
-    await ctx.send(embed=embed)
-
-
-@bot.command(name="اوامر")
-async def commands_list(ctx):
-    embed = discord.Embed(
-        title="قائمة الأوامر",
-        description=(
-            ".متجر: شراء الوان ورتب\n.طولاري: يظهر رصيد العضو\n.افتار او بنر:"
-            " انشاء افتار العضو\n.ت @العضو: لتحويل الطولارات\n"
-            ".رهان: لعبة العجلة والرهان\n.رول @العضو @الرتبة: إعطاء رتبة للعضو (للاونر فقط)"
-        ),
+        description=".سؤال\n\n.لغز\n\n.حجر\n\n.اكس\n\n.توصيل",
         color=discord.Color.blue(),
     )
     await ctx.send(embed=embed)
@@ -3255,19 +2810,6 @@ async def unmute_member(ctx, member: discord.Member = None):
 async def unmute_member_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
-
-
-# --- 11. أحداث التشغيل والترحيب ---
-@bot.event
-async def on_member_join(member):
-    channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
-    if channel:
-        img_buf = make_welcome_card(member)
-        file = discord.File(fp=img_buf, filename="welcome.png")
-        await channel.send(
-            content=f"أهلاً وسهلاً بك يا {member.mention} في السيرفر! 🎉",
-            file=file
-        )
 
 
 # تسجيل الأوامر والملفات المكملة عند جهوزية البوت
