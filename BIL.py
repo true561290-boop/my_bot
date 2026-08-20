@@ -3,11 +3,12 @@ import asyncio
 import datetime
 import io
 import os
+from dotenv import load_dotenv
 import random
 import math
 from threading import Thread
 import typing
-
+import gc
 import aiohttp
 import discord
 from discord.ext import commands
@@ -49,7 +50,7 @@ keep_alive()
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-bot = commands.Bot(command_prefix="", intents=intents)
+bot = commands.Bot(command_prefix="-", intents=intents, max_messages=None)
 bot.remove_command("help")
 
 WELCOME_CHANNEL_ID = 1515396548392128670
@@ -133,18 +134,6 @@ SHOP_COLOR_ROLES = {
 }
 
 
-def fetch_avatar(user):
-    try:
-        url = user.display_avatar.url
-        res = requests.get(url, timeout=5)
-        if res.status_code == 200:
-            avatar = Image.open(io.BytesIO(res.content)).convert("RGBA")
-            return avatar
-    except Exception as e:
-        print(f"Error fetching avatar: {e}")
-    return Image.new("RGBA", (100, 100), (100, 100, 100, 255))
-
-
 def get_base_bg(width=800, height=450):
     if os.path.exists("bg_paper.png"):
         try:
@@ -212,48 +201,7 @@ def make_card_with_text(unused_url, title_text, main_text, sub_text=""):
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
-    return buf
-
-
-def make_welcome_card(user):
-    width, height = 800, 550
-    img = get_base_bg(width, height)
-
-    avatar = fetch_avatar(user).resize((150, 150))
-    mask = Image.new("L", (150, 150), 0)
-    draw_mask = ImageDraw.Draw(mask)
-    draw_mask.ellipse((0, 0, 150, 150), fill=255)
-    img.paste(avatar, (width // 2 - 75, 120), mask)
-
-    draw = ImageDraw.Draw(img)
-    font_large = ImageFont.load_default()
-    font_sub = ImageFont.load_default()
-
-    if os.path.exists(FONT_PATH):
-        try:
-            font_large = ImageFont.truetype(FONT_PATH, 42)
-            font_sub = ImageFont.truetype(FONT_PATH, 24)
-        except Exception as e:
-            print(f"Font error: {e}")
-
-    draw.text(
-        (width // 2, 320),
-        "مرحباً بك في السيرفر!",
-        font=font_large,
-        fill=(80, 20, 10, 255),
-        anchor="mm",
-    )
-    draw.text(
-        (width // 2, 380),
-        f"{user.display_name}",
-        font=font_sub,
-        fill=(90, 60, 40, 255),
-        anchor="mm",
-    )
-
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
+    img.close()
     return buf
 
 
@@ -315,6 +263,7 @@ def draw_challenge_card(p1_avatar_bytes, p2_avatar_bytes, p1_name, p2_name, amou
     out = io.BytesIO()
     base.save(out, format="PNG")
     out.seek(0)
+    base.close()
     return out
 
 def draw_result_card(winner_avatar_bytes, loser_avatar_bytes, winner_name, loser_name, prize, winner_bal, loser_bal):
@@ -338,6 +287,7 @@ def draw_result_card(winner_avatar_bytes, loser_avatar_bytes, winner_name, loser
     out = io.BytesIO()
     base.save(out, format="PNG")
     out.seek(0)
+    base.close()
     return out
 
 def generate_wheel_gif(p1_name, p2_name, winner_index):
@@ -346,7 +296,7 @@ def generate_wheel_gif(p1_name, p2_name, winner_index):
     center = (300, 300)
     radius = 245
     frames = []
-    total_frames = 40
+    total_frames = 20
     # مؤشر ثابت في الأعلى؛ نحرّك قطاعي العجلة تحته.
     # PIL: 270 درجة = الأعلى. نضع مركز القطاع الفائز تحت المؤشر.
     winner_center = 270 if winner_index == 0 else 90
@@ -378,8 +328,14 @@ def generate_wheel_gif(p1_name, p2_name, winner_index):
         frames.append(frame.convert("P", palette=Image.Palette.ADAPTIVE))
 
     out = io.BytesIO()
-    frames[0].save(out, format="GIF", save_all=True, append_images=frames[1:], duration=50, loop=0, disposal=2)
+    frames[0].save(out, format="GIF", 
+save_all=True, append_images=frames[1:], duration=50, loop=0, disposal=2)
     out.seek(0)
+    
+    # تفريغ جميع الإطارات من الرام
+    for f in frames:
+        f.close()
+        
     return out
 
 # ==========================================
@@ -629,17 +585,13 @@ class MainShopView(discord.ui.View):
 @bot.command(name="متجر", aliases=["اقتصاد"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def shop_command(ctx):
-    img_buf = make_card_with_text(
-        None,
-        "المتجر الملكي",
-        "خزانة البلاط ومراسيمه",
-        "اختر القسم للتنقل والشراء",
-    )
-    file = discord.File(fp=img_buf, filename="shop.png")
-    view = MainShopView()
-    msg = await ctx.send(file=file, view=view)
-    view.message = msg
-
+    # استخدام with سيقوم بإغلاق الذاكرة img_buf تلقائياً بعد الإرسال
+    with make_card_with_text(None, "المتجر الملكي", "خزانة البلاط ومراسيمه", "اختر القسم للتنقل والشراء") as img_buf:
+        file = discord.File(fp=img_buf, filename="shop.png")
+        view = MainShopView()
+        msg = await ctx.send(file=file, view=view)
+        view.message = msg
+    gc.collect()
 
 # --- 5. نظام الألعاب والأسئلة ---
 
@@ -2190,23 +2142,19 @@ async def anime_guess_command(ctx, rounds: int = 1):
     # السماح للاعب ببدء لعبة جديدة
     ACTIVE_ANIME_GAMES.pop(user_id, None)
 
+    gc.collect()
 
-# --- 8. الأوامر الاقتصادية والعامة ---
+
 @bot.command(name="طولاري",aliases=["طولار"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def balance_command(ctx, member: discord.Member = None):
     target = member or ctx.author
     bal = get_balance(target.id)
 
-    img_buf = make_card_with_text(
-        None,
-        "خزانة الرصيد",
-        f"{bal} طولار",
-        f"{target.display_name}",
-    )
-    file = discord.File(fp=img_buf, filename="balance.png")
-    await ctx.send(file=file, allowed_mentions=discord.AllowedMentions(users=False))
-
+    with make_card_with_text(None, "خزانة الرصيد", f"{bal} طولار", f"{target.display_name}") as img_buf:
+        file = discord.File(fp=img_buf, filename="balance.png")
+        await ctx.send(file=file, allowed_mentions=discord.AllowedMentions(users=False))
+    gc.collect()
 
 @bot.command(name="ض")
 @commands.has_role(OWNER_ROLE_ID)
@@ -2463,7 +2411,7 @@ class BetCog(commands.Cog):
                 )
             except Exception:
                 pass
-
+        gc.collect()
 
 async def setup(bot):
     await bot.add_cog(BetCog(bot))
@@ -2637,7 +2585,7 @@ async def games_list(ctx):
     await ctx.send(embed=embed)
 
 
-@bot.command(name="دليل", aliases=["help", "المساعدة"])
+@bot.command(name="هيلب", aliases=["help", "المساعدة"])
 async def help_command(ctx):
     embed = discord.Embed(
         title="📜 دليل أوامر البوت الشامل",
@@ -2820,5 +2768,4 @@ async def on_ready():
 
 
 # تشغيل البوت
-TOKEN = os.getenv("DISCORD_TOKEN")
-bot.run(TOKEN)
+bot.run("DISCORD_TOKEN")
