@@ -16,6 +16,9 @@ from flask import Flask
 from PIL import Image, ImageDraw, ImageFont
 import requests
 
+import arabic_reshaper
+from bidi.algorithm import get_display
+
 # استيراد نظام الأرصدة المنفصل
 from economy import (
     add_balance,
@@ -23,6 +26,16 @@ from economy import (
     get_balance,
     remove_balance,
 )
+
+def fix_arabic(text: str) -> str:
+    reshaper_config = {
+        'delete_harakat': False,
+        'support_ligatures': True,
+    }
+    reshaper = arabic_reshaper.ArabicReshaper(configuration=reshaper_config)
+    reshaped_text = reshaper.reshape(str(text))
+    bidi_text = get_display(reshaped_text)
+    return bidi_text
 
 # --- 1. خادم الويب للحفاظ على استمرار التشغيل 24/7 ---
 app = Flask("")
@@ -2151,7 +2164,7 @@ async def balance_command(ctx, member: discord.Member = None):
     target = member or ctx.author
     bal = get_balance(target.id)
 
-    with make_card_with_text(None, "خزانة الرصيد", f"{bal} طولار", f"{target.display_name}") as img_buf:
+    with make_card_with_text(None, fix_arabic("خزانة الرصيد"), fix_arabic(f"{bal} طولار"), f"{target.display_name}") as img_buf:
         file = discord.File(fp=img_buf, filename="balance.png")
         await ctx.send(file=file, allowed_mentions=discord.AllowedMentions(users=False))
     gc.collect()
