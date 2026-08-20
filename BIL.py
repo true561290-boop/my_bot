@@ -2768,4 +2768,4 @@ async def on_ready():
 
 
 # تشغيل البوت
-bot.run("DISCORD_TOKEN")
+bot.run(os.environ.get("DISCORD_TOKEN"))
