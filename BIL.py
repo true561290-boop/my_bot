@@ -3,7 +3,14 @@ import asyncio
 import datetime
 import io
 import os
+import json
 from dotenv import load_dotenv
+
+load_dotenv()
+
+UPSTASH_REDIS_REST_URL = os.getenv("UPSTASH_REDIS_REST_URL")
+UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN")
+
 import random
 import math
 from threading import Thread
@@ -16,9 +23,6 @@ from flask import Flask
 from PIL import Image, ImageDraw, ImageFont
 import requests
 
-import arabic_reshaper
-from bidi.algorithm import get_display
-
 # استيراد نظام الأرصدة المنفصل
 from economy import (
     add_balance,
@@ -26,16 +30,6 @@ from economy import (
     get_balance,
     remove_balance,
 )
-
-def fix_arabic(text: str) -> str:
-    reshaper_config = {
-        'delete_harakat': False,
-        'support_ligatures': True,
-    }
-    reshaper = arabic_reshaper.ArabicReshaper(configuration=reshaper_config)
-    reshaped_text = reshaper.reshape(str(text))
-    bidi_text = get_display(reshaped_text)
-    return bidi_text
 
 # --- 1. خادم الويب للحفاظ على استمرار التشغيل 24/7 ---
 app = Flask("")
@@ -63,7 +57,7 @@ keep_alive()
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-bot = commands.Bot(command_prefix="-", intents=intents, max_messages=None)
+bot = commands.Bot(command_prefix="", intents=intents, max_messages=None)
 bot.remove_command("help")
 
 WELCOME_CHANNEL_ID = 1515396548392128670
@@ -1883,279 +1877,195 @@ async def connect4_game(ctx, opponent: discord.Member = None):
 
 # --- إعدادات وتعاريف لعبة خمن ---
 ACTIVE_ANIME_GAMES = {}
-ANIME_GUESS_DIR = "anime_guess"  # اسم المجلد الذي يحتوي على صور الشخصيات
 ANIME_REWARD = 20  # الجائزة بالطولار لكل إجابة صحيحة
+ANIME_DATABASE_FILE = os.path.join(BASE_DIR, "anime_characters.json")
 
-# قائمة الشخصيات (قم بتعديل الأسماء واسم ملف الصورة حسب ما لديك في المجلد)
-ANIME_CHARACTERS = [
-    {
-        "image": "lelouch.jpg",
-        "answers": ["لولوش", "lelouch"],
-    },
-    {
-        "image": "senku.jpg",
-        "answers": ["سينكو", "senku"],
-    },
-    {
-        "image": "Johan.jpg",
-        "answers": ["يوهان", "ليبيرت"],
-    },
-    {
-        "image": "rick.jpg",
-        "answers": ["ريك", "rick"],
-    },
-    {
-        "image": "ippo.jpg",
-        "answers": ["ايبو", "ippo"],
-    },
-    {
-        "image": "volg.jpg",
-        "answers": ["فولغ", "فولج", "volg"],
-    },
-    {
-        "image": "hashida.jpg",
-        "answers": ["هاشيدا", "hashida"],
-    },
-    {
-        "image": "chihiro.jpg",
-        "answers": ["تشيهيرو", "chihiro"],
-    },
-    {
-        "image": "chigiri.jpg",
-        "answers": ["تشيجيري", "تشيجري"],
-    },
-    {
-        "image": "cise.jpg",
-        "answers": ["كيسي", "كيس"],
-    },
-    {
-        "image": "anastasia.jpg",
-        "answers": ["اناستازيا", "anastasia"],
-    },
-    {
-        "image": "ames.jpg",
-        "answers": ["اميس", "ames"],
-    },
-    {
-        "image": "kagami.jpg",
-        "answers": ["كاجامي", "كاغامي"],
-    },
-    {
-        "image": "kamaji.jpg",
-        "answers": ["كاماجي", "كاماغي"],
-    },
-    {
-        "image": "kanna.jpg",
-        "answers": ["كانا", "كاموي"],
-    },
-    {
-        "image": "kinji.jpg",
-        "answers": ["كينجي", "كينغي"],
-    },
-    {
-        "image": "kodama.jpg",
-        "answers": ["كوداما", "kodama"],
-    },
-    {
-        "image": "mikey.jpg",
-        "answers": ["مايكي", "mikey"],
-    },
-    {
-        "image": "norman.jpg",
-        "answers": ["نورمان", "norman"],
-    },
-    {
-        "image": "okapi.jpg",
-        "answers": ["اوكابي", "okapi"],
-    },
-    {
-        "image": "ram.jpg",
-        "answers": ["رام", "ram"],
-    },
-    {
-        "image": "rudeus.jpg",
-        "answers": ["روديوس", "ريوديوس"],
-    },
-    {
-        "image": "rukawa.jpg",
-        "answers": ["ريوكاوا", "rukawa"],
-    },
-    {
-        "image": "samar.jpg",
-        "answers": ["سمر", "samar"],
-    },
-    {
-        "image": "squanchy.jpg",
-        "answers": ["سكوانتشي", "سكوانشي"],
-    },
-    {
-        "image": "yoruichi.jpg",
-        "answers": ["يوريتشي", "يوريشي"],
-    },
-    {
-        "image": "sylphiette.jpg",
-        "answers": ["سيليفت", "سيلفت"],
-    },
-    {
-        "image": "rei.jpg",
-        "answers": ["راي", "rei"],
-    },
-    {
-        "image": "kashimo.jpg",
-        "answers": ["كاشيمو", "kashimo"],
-    },
-]
+def load_anime_characters():
+    """تحميل قاعدة شخصيات الأنمي من ملف JSON وإرجاع الشخصيات الصالحة فقط."""
+    try:
+        with open(ANIME_DATABASE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        if not isinstance(data, list):
+            print("[ANIME] ملف anime_characters.json يجب أن يحتوي على قائمة شخصيات.")
+            return []
+
+        valid_characters = []
+        for character in data:
+            if not isinstance(character, dict):
+                continue
+
+            image_url = str(character.get("image_url") or "").strip()
+            answers = character.get("answers") or []
+            name = str(character.get("name") or "").strip()
+
+            if not image_url or not (image_url.startswith("http://") or image_url.startswith("https://")):
+                continue
+
+            if not isinstance(answers, list):
+                answers = [answers]
+
+            clean_answers = [str(answer).strip() for answer in answers if str(answer).strip()]
+            if name and name not in clean_answers:
+                clean_answers.append(name)
+
+            if not clean_answers:
+                continue
+
+            valid_characters.append({
+                **character,
+                "name": name or clean_answers[0],
+                "answers": clean_answers,
+                "image_url": image_url,
+            })
+
+        return valid_characters
+
+    except FileNotFoundError:
+        print(f"[ANIME] لم يتم العثور على ملف قاعدة الشخصيات: {ANIME_DATABASE_FILE}")
+        return []
+    except json.JSONDecodeError as e:
+        print(f"[ANIME] ملف anime_characters.json غير صالح JSON: {e}")
+        return []
+    except Exception as e:
+        print(f"[ANIME] فشل تحميل قاعدة الشخصيات: {e}")
+        return []
+
 
 def is_correct_anime_answer(user_answer: str, valid_answers: list) -> bool:
-    """دالة التحقق من الإجابة وتجاهل الفروقات في المسافات أو حالة الأحرف"""
+    """دالة التحقق من الإجابة وتجاهل الفروقات في المسافات أو حالة الأحرف."""
     clean_input = user_answer.strip().lower()
     return any(clean_input == ans.strip().lower() for ans in valid_answers)
+
+
 @bot.command(name="خمن")
 @in_channel(GAMES_CHANNEL_ID)
 async def anime_guess_command(ctx, rounds: int = 1):
-
-  # التحقق من عدد الجولات
-  if rounds < 1 or rounds > 10:
-    await ctx.send(
-        "❌ عدد الجولات يجب أن يكون من **1 إلى 10**.",
-        allowed_mentions=discord.AllowedMentions(users=False),
-    )
-    return
-
-  user_id = ctx.author.id
-
-  # منع اللاعب من بدء لعبة ثانية أثناء لعبه
-  if user_id in ACTIVE_ANIME_GAMES:
-    await ctx.send(
-        f"⚠️ {ctx.author.mention} لديك لعبة خمن قيد التشغيل بالفعل.",
-        allowed_mentions=discord.AllowedMentions(users=False),
-    )
-    return
-
-  # التأكد من وجود الصور
-  available_characters = []
-
-  for character in ANIME_CHARACTERS:
-    image_path = os.path.join(ANIME_GUESS_DIR, character["image"])
-
-    if os.path.exists(image_path):
-      available_characters.append(character)
-
-  if not available_characters:
-    await ctx.send(
-        "❌ لا توجد صور شخصيات في مجلد `anime_guess`.",
-        allowed_mentions=discord.AllowedMentions(users=False),
-    )
-    return
-
-  # التأكد من أن عدد الجولات لا يتجاوز عدد الصور لتجنب التكرار
-  if rounds > len(available_characters):
-    rounds = len(available_characters)
-    await ctx.send(
-        f"⚠️ تم تعديل عدد الجولات إلى **{rounds}** لعدم توفر صور كافية بدون"
-        " تكرار.",
-        allowed_mentions=discord.AllowedMentions(users=False),
-    )
-
-  # سحب شخصيات عشوائية بدون تكرار للعبة بالكامل
-  chosen_characters = random.sample(available_characters, rounds)
-
-  # تسجيل اللعبة
-  ACTIVE_ANIME_GAMES[user_id] = True
-
-  correct_count = 0
-  total_reward = 0
-
-  try:
-    await ctx.send(
-        f" **لعبة خمن بدأت**\n"
-        f"👤 اللاعب┃{ctx.author.mention}\n"
-        f"🎯 عدد الجولات┃**{rounds}**\n"
-        f"💰 المكافأة┃**{ANIME_REWARD} طولار** لكل إجابة صحيحة.\n\n"
-        f"⏱️ لديك **15 ثانية** للإجابة في كل جولة.",
-        allowed_mentions=discord.AllowedMentions(users=False),
-    )
-
-    for round_number in range(1, rounds + 1):
-
-      character = chosen_characters[round_number - 1]
-
-      image_path = os.path.join(ANIME_GUESS_DIR, character["image"])
-
-      # --- تعديل قياس الصورة إلى 750x1100 ---
-      with Image.open(image_path) as img:
-        # تغيير الحجم: (العرض: 750, الارتفاع: 1100)
-        resized_img = img.resize((790, 1090))
-
-        # حفظ الصورة المعدلة في الذاكرة المؤقتة (BytesIO)
-        img_bytes = io.BytesIO()
-        img_format = img.format if img.format else "PNG"
-        resized_img.save(img_bytes, format=img_format)
-        img_bytes.seek(0)
-
-        # تجهيز الملف للإرسال من الذاكرة
-        file = discord.File(fp=img_bytes, filename=character["image"])
-
-      await ctx.send(
-          f" **الجولة {round_number}/{rounds}**\n من هذه الشخصية؟",
-          file=file,
-          allowed_mentions=discord.AllowedMentions(users=False),
-      )
-
-# استقبال إجابة اللاعب (تم التعديل لتجاهل الإجابات الخاطئة)
-      def check(message):
-        return (
-            message.author.id == user_id
-            and message.channel.id == ctx.channel.id
-            and not message.author.bot
-            # أضفنا هذا الشرط لكي يقبل البوت الرسالة فقط إذا كانت الإجابة صحيحة
-            and is_correct_anime_answer(message.content, character["answers"])
-        )
-
-      try:
-        # البوت سينتظر 15 ثانية، ولن يستجيب إلا للرسالة التي تطابق الإجابة
-        answer_message = await bot.wait_for(
-            "message", timeout=15, check=check
-        )
-        
-        # إذا نجح السطر السابق، فهذا يعني أن الإجابة صحيحة بالضرورة
-        add_balance(user_id, ANIME_REWARD)
-        correct_count += 1
-        total_reward += ANIME_REWARD
-
+    # التحقق من عدد الجولات
+    if rounds < 1 or rounds > 10:
         await ctx.send(
-            f"✅ **إجابة صحيحة**\n"
-            f"💰 حصلت على **+{ANIME_REWARD} طولار**.",
+            "❌ عدد الجولات يجب أن يكون من **1 إلى 10**.",
+            allowed_mentions=discord.AllowedMentions(users=False),
+        )
+        return
+
+    user_id = ctx.author.id
+
+    # منع اللاعب من بدء لعبة ثانية أثناء لعبه
+    if user_id in ACTIVE_ANIME_GAMES:
+        await ctx.send(
+            f"⚠️ {ctx.author.mention} لديك لعبة خمن قيد التشغيل بالفعل.",
+            allowed_mentions=discord.AllowedMentions(users=False),
+        )
+        return
+
+    # تحميل قاعدة الشخصيات من ملف JSON
+    available_characters = load_anime_characters()
+
+    if not available_characters:
+        await ctx.send(
+            "❌ لم يتم العثور على شخصيات صالحة في `anime_characters.json`.\n"
+            "تأكد من وجود الملف وأنه يحتوي على `image_url` و`answers` لكل شخصية.",
+            allowed_mentions=discord.AllowedMentions(users=False),
+        )
+        return
+
+    # التأكد من أن عدد الجولات لا يتجاوز عدد الشخصيات لتجنب التكرار
+    if rounds > len(available_characters):
+        rounds = len(available_characters)
+        await ctx.send(
+            f"⚠️ تم تعديل عدد الجولات إلى **{rounds}** لعدم توفر شخصيات كافية بدون تكرار.",
             allowed_mentions=discord.AllowedMentions(users=False),
         )
 
-      except asyncio.TimeoutError:
-        # عند انتهاء الوقت دون أن يكتب أحد الإجابة الصحيحة
-        correct_answer = character["answers"][0] # جلب أول إجابة من قائمة الإجابات كإجابة نموذجية
+    # سحب شخصيات عشوائية بدون تكرار للعبة بالكامل
+    chosen_characters = random.sample(available_characters, rounds)
+
+    # تسجيل اللعبة
+    ACTIVE_ANIME_GAMES[user_id] = True
+
+    correct_count = 0
+    total_reward = 0
+
+    try:
         await ctx.send(
-            f"⏰ انتهى الوقت يا {ctx.author.mention}.\n❌ الإجابة الصحيحة كانت: **{correct_answer}**",
+            f" **لعبة خمن بدأت**\n"
+            f"👤 اللاعب┃{ctx.author.mention}\n"
+            f"🎯 عدد الجولات┃**{rounds}**\n"
+            f"💰 المكافأة┃**{ANIME_REWARD} طولار** لكل إجابة صحيحة.\n\n"
+            f"⏱️ لديك **15 ثانية** للإجابة في كل جولة.",
             allowed_mentions=discord.AllowedMentions(users=False),
         )
-        continue
 
-    # النتيجة النهائية
-    current_balance = get_balance(user_id)
+        for round_number, character in enumerate(chosen_characters, start=1):
+            image_url = character["image_url"]
 
-    await ctx.send(
-        f" **انتهت لعبة خمن**\n"
-        f"👤 اللاعب┃{ctx.author.mention}\n"
-        f" الجولات┃**{rounds}**\n"
-        f"✅ الإجابات الصحيحة┃**{correct_count}/{rounds}**\n"
-        f"💰 إجمالي المكافأة┃**{total_reward} طولار**\n"
-        f"💳 رصيدك الحالي┃**{current_balance:,} طولار**",
-        allowed_mentions=discord.AllowedMentions(users=False),
-    )
+            # إرسال صورة الشخصية مباشرة من الإنترنت عبر Embed دون تنزيلها محلياً
+            embed = discord.Embed(
+                description=f" **الجولة {round_number}/{rounds}**\n من هذه الشخصية؟",
+                color=discord.Color.blue(),
+            )
+            embed.set_image(url=image_url)
 
-  finally:
-    # السماح للاعب ببدء لعبة جديدة
-    ACTIVE_ANIME_GAMES.pop(user_id, None)
+            if character.get("source_url"):
+                embed.url = character["source_url"]
 
-    gc.collect()
+            await ctx.send(
+                embed=embed,
+                allowed_mentions=discord.AllowedMentions(users=False),
+            )
+
+            # قبول إجابة اللاعب الحالية فقط إذا كانت صحيحة
+            def check(message):
+                return (
+                    message.author.id == user_id
+                    and message.channel.id == ctx.channel.id
+                    and not message.author.bot
+                    and is_correct_anime_answer(message.content, character["answers"])
+                )
+
+            try:
+                # البوت ينتظر 15 ثانية، ولن يستجيب إلا للرسالة التي تطابق الإجابة
+                await bot.wait_for("message", timeout=15, check=check)
+
+                add_balance(user_id, ANIME_REWARD)
+                correct_count += 1
+                total_reward += ANIME_REWARD
+
+                await ctx.send(
+                    f"✅ **إجابة صحيحة**\n"
+                    f"💰 حصلت على **+{ANIME_REWARD} طولار**.",
+                    allowed_mentions=discord.AllowedMentions(users=False),
+                )
+
+            except asyncio.TimeoutError:
+                correct_answer = character["answers"][0]
+                await ctx.send(
+                    f"⏰ انتهى الوقت يا {ctx.author.mention}.\n"
+                    f"❌ الإجابة الصحيحة كانت: **{correct_answer}**",
+                    allowed_mentions=discord.AllowedMentions(users=False),
+                )
+
+            if round_number < rounds:
+                await asyncio.sleep(1)
+
+        # النتيجة النهائية
+        current_balance = get_balance(user_id)
+
+        await ctx.send(
+            f" **انتهت لعبة خمن**\n"
+            f"👤 اللاعب┃{ctx.author.mention}\n"
+            f" الجولات┃**{rounds}**\n"
+            f"✅ الإجابات الصحيحة┃**{correct_count}/{rounds}**\n"
+            f"💰 إجمالي المكافأة┃**{total_reward} طولار**\n"
+            f"💳 رصيدك الحالي┃**{current_balance:,} طولار**",
+            allowed_mentions=discord.AllowedMentions(users=False),
+        )
+
+    finally:
+        # السماح للاعب ببدء لعبة جديدة
+        ACTIVE_ANIME_GAMES.pop(user_id, None)
+        gc.collect()
 
 
 @bot.command(name="طولاري",aliases=["طولار"])
@@ -2164,7 +2074,7 @@ async def balance_command(ctx, member: discord.Member = None):
     target = member or ctx.author
     bal = get_balance(target.id)
 
-    with make_card_with_text(None, fix_arabic("خزانة الرصيد"), fix_arabic(f"{bal} طولار"), f"{target.display_name}") as img_buf:
+    with make_card_with_text(None, "خزانة الرصيد", f"{bal} طولار", f"{target.display_name}") as img_buf:
         file = discord.File(fp=img_buf, filename="balance.png")
         await ctx.send(file=file, allowed_mentions=discord.AllowedMentions(users=False))
     gc.collect()
