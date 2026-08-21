@@ -5,12 +5,6 @@ import io
 import os
 import json
 from dotenv import load_dotenv
-
-load_dotenv()
-
-UPSTASH_REDIS_REST_URL = os.getenv("UPSTASH_REDIS_REST_URL")
-UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN")
-
 import random
 import math
 from threading import Thread
