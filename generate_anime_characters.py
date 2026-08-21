@@ -10,10 +10,24 @@ TARGET_COUNT = 1000
 PER_PAGE = 25
 
 
-def fetch_page(page: int):
-    response = requests.get(API_URL, params={"page": page}, timeout=30)
-    response.raise_for_status()
-    return response.json().get("data", [])
+def fetch_page(page, retries=5):
+    url = f"https://api.jikan.moe/v4/top/characters?page={page}"
+    # إضافة User-Agent لتبدو الطلبات وكأنها من متصفح عادي
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+
+    for attempt in range(1, retries + 1):
+        try:
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()  # التحقق من نجاح الطلب
+            time.sleep(1)  # انتظر ثانية واحدة بين الطلبات لتجنب حظر الـ API
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"فشل جلب الصفحة {page} (المحاولة {attempt}/{retries}): {e}")
+            time.sleep(3)  # الانتظار 3 ثوانٍ قبل المحاولة التالية
+
+    return None
 
 
 def main():
