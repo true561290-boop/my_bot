@@ -1,12 +1,23 @@
 import re
 import asyncio
+import yt_dlp
+import tempfile
 import datetime
 import io
 import os
+import json
 from dotenv import load_dotenv
+
+load_dotenv()
+
+UPSTASH_REDIS_REST_URL = os.getenv("UPSTASH_REDIS_REST_URL")
+UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN")
+
+import string
 import random
 import math
 from threading import Thread
+from difflib import SequenceMatcher
 import typing
 import gc
 import aiohttp
@@ -16,9 +27,6 @@ from flask import Flask
 from PIL import Image, ImageDraw, ImageFont
 import requests
 
-import arabic_reshaper
-from bidi.algorithm import get_display
-
 # استيراد نظام الأرصدة المنفصل
 from economy import (
     add_balance,
@@ -26,16 +34,6 @@ from economy import (
     get_balance,
     remove_balance,
 )
-
-def fix_arabic(text: str) -> str:
-    reshaper_config = {
-        'delete_harakat': False,
-        'support_ligatures': True,
-    }
-    reshaper = arabic_reshaper.ArabicReshaper(configuration=reshaper_config)
-    reshaped_text = reshaper.reshape(str(text))
-    bidi_text = get_display(reshaped_text)
-    return bidi_text
 
 # --- 1. خادم الويب للحفاظ على استمرار التشغيل 24/7 ---
 app = Flask("")
@@ -73,6 +71,8 @@ OWNER_ROLE_ID = 1515396547528102131
 GAMES_CHANNEL_ID = 1515416733102379100
 THEFT_CHANNEL_ID = 1532648660997771335
 SHOPPING_CHANNEL_ID = 1532645480373420142
+AMENDMENTS_CHANNEL_ID = 1541143390224130209
+TICKET_CHANNEL_ID =1515709356723798177
 
 BACKGROUND_IMAGE_URL = "https://i.ibb.co/6R2N29S/vintage-paper-bg.png"
 FONT_PATH = "arabic_font.ttf"
@@ -1883,279 +1883,229 @@ async def connect4_game(ctx, opponent: discord.Member = None):
 
 # --- إعدادات وتعاريف لعبة خمن ---
 ACTIVE_ANIME_GAMES = {}
-ANIME_GUESS_DIR = "anime_guess"  # اسم المجلد الذي يحتوي على صور الشخصيات
 ANIME_REWARD = 20  # الجائزة بالطولار لكل إجابة صحيحة
+ANIME_DATABASE_FILE = os.path.join(BASE_DIR, "anime_characters.json")
 
-# قائمة الشخصيات (قم بتعديل الأسماء واسم ملف الصورة حسب ما لديك في المجلد)
-ANIME_CHARACTERS = [
-    {
-        "image": "lelouch.jpg",
-        "answers": ["لولوش", "lelouch"],
-    },
-    {
-        "image": "senku.jpg",
-        "answers": ["سينكو", "senku"],
-    },
-    {
-        "image": "Johan.jpg",
-        "answers": ["يوهان", "ليبيرت"],
-    },
-    {
-        "image": "rick.jpg",
-        "answers": ["ريك", "rick"],
-    },
-    {
-        "image": "ippo.jpg",
-        "answers": ["ايبو", "ippo"],
-    },
-    {
-        "image": "volg.jpg",
-        "answers": ["فولغ", "فولج", "volg"],
-    },
-    {
-        "image": "hashida.jpg",
-        "answers": ["هاشيدا", "hashida"],
-    },
-    {
-        "image": "chihiro.jpg",
-        "answers": ["تشيهيرو", "chihiro"],
-    },
-    {
-        "image": "chigiri.jpg",
-        "answers": ["تشيجيري", "تشيجري"],
-    },
-    {
-        "image": "cise.jpg",
-        "answers": ["كيسي", "كيس"],
-    },
-    {
-        "image": "anastasia.jpg",
-        "answers": ["اناستازيا", "anastasia"],
-    },
-    {
-        "image": "ames.jpg",
-        "answers": ["اميس", "ames"],
-    },
-    {
-        "image": "kagami.jpg",
-        "answers": ["كاجامي", "كاغامي"],
-    },
-    {
-        "image": "kamaji.jpg",
-        "answers": ["كاماجي", "كاماغي"],
-    },
-    {
-        "image": "kanna.jpg",
-        "answers": ["كانا", "كاموي"],
-    },
-    {
-        "image": "kinji.jpg",
-        "answers": ["كينجي", "كينغي"],
-    },
-    {
-        "image": "kodama.jpg",
-        "answers": ["كوداما", "kodama"],
-    },
-    {
-        "image": "mikey.jpg",
-        "answers": ["مايكي", "mikey"],
-    },
-    {
-        "image": "norman.jpg",
-        "answers": ["نورمان", "norman"],
-    },
-    {
-        "image": "okapi.jpg",
-        "answers": ["اوكابي", "okapi"],
-    },
-    {
-        "image": "ram.jpg",
-        "answers": ["رام", "ram"],
-    },
-    {
-        "image": "rudeus.jpg",
-        "answers": ["روديوس", "ريوديوس"],
-    },
-    {
-        "image": "rukawa.jpg",
-        "answers": ["ريوكاوا", "rukawa"],
-    },
-    {
-        "image": "samar.jpg",
-        "answers": ["سمر", "samar"],
-    },
-    {
-        "image": "squanchy.jpg",
-        "answers": ["سكوانتشي", "سكوانشي"],
-    },
-    {
-        "image": "yoruichi.jpg",
-        "answers": ["يوريتشي", "يوريشي"],
-    },
-    {
-        "image": "sylphiette.jpg",
-        "answers": ["سيليفت", "سيلفت"],
-    },
-    {
-        "image": "rei.jpg",
-        "answers": ["راي", "rei"],
-    },
-    {
-        "image": "kashimo.jpg",
-        "answers": ["كاشيمو", "kashimo"],
-    },
-]
+def load_anime_characters():
+    """تحميل قاعدة شخصيات الأنمي من ملف JSON وإرجاع الشخصيات الصالحة فقط."""
+    try:
+        with open(ANIME_DATABASE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-def is_correct_anime_answer(user_answer: str, valid_answers: list) -> bool:
-    """دالة التحقق من الإجابة وتجاهل الفروقات في المسافات أو حالة الأحرف"""
-    clean_input = user_answer.strip().lower()
-    return any(clean_input == ans.strip().lower() for ans in valid_answers)
+        if not isinstance(data, list):
+            print("[ANIME] ملف anime_characters.json يجب أن يحتوي على قائمة شخصيات.")
+            return []
+
+        valid_characters = []
+        for character in data:
+            if not isinstance(character, dict):
+                continue
+
+            image_url = str(character.get("image_url") or "").strip()
+            answers = character.get("answers") or []
+            name = str(character.get("name") or "").strip()
+
+            if not image_url or not (image_url.startswith("http://") or image_url.startswith("https://")):
+                continue
+
+            if not isinstance(answers, list):
+                answers = [answers]
+
+            clean_answers = [str(answer).strip() for answer in answers if str(answer).strip()]
+            if name and name not in clean_answers:
+                clean_answers.append(name)
+
+            if not clean_answers:
+                continue
+
+            valid_characters.append({
+                **character,
+                "name": name or clean_answers[0],
+                "answers": clean_answers,
+                "image_url": image_url,
+            })
+
+        return valid_characters
+
+    except FileNotFoundError:
+        print(f"[ANIME] لم يتم العثور على ملف قاعدة الشخصيات: {ANIME_DATABASE_FILE}")
+        return []
+    except json.JSONDecodeError as e:
+        print(f"[ANIME] ملف anime_characters.json غير صالح JSON: {e}")
+        return []
+    except Exception as e:
+        print(f"[ANIME] فشل تحميل قاعدة الشخصيات: {e}")
+        return []
+
+
+def is_correct_anime_answer(user_answer, valid_answers):
+    # تنظيف نص المستخدم
+    user_input = user_answer.strip().lower()
+    
+    if not user_input:
+        return False
+
+    for answer in valid_answers:
+        clean_answer = answer.strip().lower()
+        
+        # 1. مطابقة كاملة 
+        if user_input == clean_answer:
+            return True
+            
+        # 2. مطابقة جزء من الاسم (الاسم الأول أو الأخير)
+        words = clean_answer.split()
+        for word in words:
+            if len(word) > 2 and user_input == word:
+                return True
+
+        # 3. التسامح مع الأخطاء الإملائية (حرف أو حرفين)
+        overall_similarity = SequenceMatcher(None, user_input, clean_answer).ratio()
+        if overall_similarity >= 0.75:  
+            return True
+
+        for word in words:
+            if len(word) > 2:
+                word_similarity = SequenceMatcher(None, user_input, word).ratio()
+                if word_similarity >= 0.75:
+                    return True
+
+    return False
+
+
 @bot.command(name="خمن")
 @in_channel(GAMES_CHANNEL_ID)
 async def anime_guess_command(ctx, rounds: int = 1):
+    if rounds < 1 or rounds > 10:
+        await ctx.send(
+            "❌ عدد الجولات يجب أن يكون من **1 إلى 10**.",
+            allowed_mentions=discord.AllowedMentions(users=False),
+        )
+        return
 
-  # التحقق من عدد الجولات
-  if rounds < 1 or rounds > 10:
+    user_id = ctx.author.id
+
+    if user_id in ACTIVE_ANIME_GAMES:
+        await ctx.send(
+            f"⚠️ {ctx.author.mention} لديك لعبة خمن قيد التشغيل بالفعل.",
+            allowed_mentions=discord.AllowedMentions(users=False),
+        )
+        return
+
+    available_characters = load_anime_characters()
+    if not available_characters:
+        await ctx.send(
+            "❌ لم يتم العثور على شخصيات صالحة في `anime_characters.json`.\n"
+            "تأكد من وجود الملف وأنه يحتوي على `image_url` و`answers` لكل شخصية.",
+            allowed_mentions=discord.AllowedMentions(users=False),
+        )
+        return
+
+    if rounds > len(available_characters):
+        rounds = len(available_characters)
+        await ctx.send(
+            f"⚠️ تم تعديل عدد الجولات إلى **{rounds}** لعدم توفر شخصيات كافية بدون تكرار.",
+            allowed_mentions=discord.AllowedMentions(users=False),
+        )
+
+    chosen_characters = random.sample(available_characters, rounds)
+
+    # تسجيل اللعبة
+    ACTIVE_ANIME_GAMES[user_id] = True
+
+    correct_count = 0
+    total_reward = 0
+
     await ctx.send(
-        "❌ عدد الجولات يجب أن يكون من **1 إلى 10**.",
-        allowed_mentions=discord.AllowedMentions(users=False),
-    )
-    return
-
-  user_id = ctx.author.id
-
-  # منع اللاعب من بدء لعبة ثانية أثناء لعبه
-  if user_id in ACTIVE_ANIME_GAMES:
-    await ctx.send(
-        f"⚠️ {ctx.author.mention} لديك لعبة خمن قيد التشغيل بالفعل.",
-        allowed_mentions=discord.AllowedMentions(users=False),
-    )
-    return
-
-  # التأكد من وجود الصور
-  available_characters = []
-
-  for character in ANIME_CHARACTERS:
-    image_path = os.path.join(ANIME_GUESS_DIR, character["image"])
-
-    if os.path.exists(image_path):
-      available_characters.append(character)
-
-  if not available_characters:
-    await ctx.send(
-        "❌ لا توجد صور شخصيات في مجلد `anime_guess`.",
-        allowed_mentions=discord.AllowedMentions(users=False),
-    )
-    return
-
-  # التأكد من أن عدد الجولات لا يتجاوز عدد الصور لتجنب التكرار
-  if rounds > len(available_characters):
-    rounds = len(available_characters)
-    await ctx.send(
-        f"⚠️ تم تعديل عدد الجولات إلى **{rounds}** لعدم توفر صور كافية بدون"
-        " تكرار.",
-        allowed_mentions=discord.AllowedMentions(users=False),
-    )
-
-  # سحب شخصيات عشوائية بدون تكرار للعبة بالكامل
-  chosen_characters = random.sample(available_characters, rounds)
-
-  # تسجيل اللعبة
-  ACTIVE_ANIME_GAMES[user_id] = True
-
-  correct_count = 0
-  total_reward = 0
-
-  try:
-    await ctx.send(
-        f" **لعبة خمن بدأت**\n"
+        f"**🎮 لعبة خمن بدأت**\n"
         f"👤 اللاعب┃{ctx.author.mention}\n"
         f"🎯 عدد الجولات┃**{rounds}**\n"
-        f"💰 المكافأة┃**{ANIME_REWARD} طولار** لكل إجابة صحيحة.\n\n"
+        f"💰 المكافأة┃**{ANIME_REWARD} طولار** لكل إجابة صحيحة.\n"
         f"⏱️ لديك **15 ثانية** للإجابة في كل جولة.",
         allowed_mentions=discord.AllowedMentions(users=False),
     )
 
-    for round_number in range(1, rounds + 1):
+    try:
+        for round_number, character in enumerate(chosen_characters, start=1):
+            image_url = character["image_url"]
 
-      character = chosen_characters[round_number - 1]
+            # إنشاء الـ Embed (بدون صورة حالياً)
+            embed = discord.Embed(
+                description=f"** الجولة {round_number}/{rounds}**\nمن هذه الشخصية؟",
+                color=discord.Color.blue(),
+            )
+            if character.get("source_url"):
+                embed.url = character["source_url"]
 
-      image_path = os.path.join(ANIME_GUESS_DIR, character["image"])
+            # محاولة تحميل الصورة وإرسالها كملف مرفق
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(image_url) as resp:
+                        if resp.status == 200:
+                            data = io.BytesIO(await resp.read())
+                            file = discord.File(data, filename="anime_char.png")
+                            embed.set_image(url="attachment://anime_char.png")
 
-      # --- تعديل قياس الصورة إلى 750x1100 ---
-      with Image.open(image_path) as img:
-        # تغيير الحجم: (العرض: 750, الارتفاع: 1100)
-        resized_img = img.resize((790, 1090))
+                            await ctx.send(
+                                file=file,
+                                embed=embed,
+                                allowed_mentions=discord.AllowedMentions(users=False)
+                            )
+                        else:
+                            raise Exception("فشل التحميل السريع")
+            except Exception:
+                # فشل التحميل -> نرسل الصورة عبر الرابط (مرة واحدة فقط)
+                embed.set_image(url=image_url)
+                await ctx.send(
+                    embed=embed,
+                    allowed_mentions=discord.AllowedMentions(users=False)
+                )
 
-        # حفظ الصورة المعدلة في الذاكرة المؤقتة (BytesIO)
-        img_bytes = io.BytesIO()
-        img_format = img.format if img.format else "PNG"
-        resized_img.save(img_bytes, format=img_format)
-        img_bytes.seek(0)
+            # انتظار الإجابة
+            def check(message):
+                return (
+                    message.author.id == user_id
+                    and message.channel.id == ctx.channel.id
+                    and not message.author.bot
+                    and is_correct_anime_answer(message.content, character["answers"])
+                )
 
-        # تجهيز الملف للإرسال من الذاكرة
-        file = discord.File(fp=img_bytes, filename=character["image"])
+            try:
+                await bot.wait_for("message", timeout=15, check=check)
+                add_balance(user_id, ANIME_REWARD)
+                correct_count += 1
+                total_reward += ANIME_REWARD
 
-      await ctx.send(
-          f" **الجولة {round_number}/{rounds}**\n من هذه الشخصية؟",
-          file=file,
-          allowed_mentions=discord.AllowedMentions(users=False),
-      )
+                await ctx.send(
+                    f"✅ **إجابة صحيحة**\n💰 حصلت على **+{ANIME_REWARD} طولار**.",
+                    allowed_mentions=discord.AllowedMentions(users=False),
+                )
 
-# استقبال إجابة اللاعب (تم التعديل لتجاهل الإجابات الخاطئة)
-      def check(message):
-        return (
-            message.author.id == user_id
-            and message.channel.id == ctx.channel.id
-            and not message.author.bot
-            # أضفنا هذا الشرط لكي يقبل البوت الرسالة فقط إذا كانت الإجابة صحيحة
-            and is_correct_anime_answer(message.content, character["answers"])
-        )
+            except asyncio.TimeoutError:
+                correct_answer = character["answers"][0]
+                await ctx.send(
+                    f"⏰ انتهى الوقت يا {ctx.author.mention}.\n"
+                    f"❌ الإجابة الصحيحة كانت: **{correct_answer}**",
+                    allowed_mentions=discord.AllowedMentions(users=False),
+                )
 
-      try:
-        # البوت سينتظر 15 ثانية، ولن يستجيب إلا للرسالة التي تطابق الإجابة
-        answer_message = await bot.wait_for(
-            "message", timeout=15, check=check
-        )
-        
-        # إذا نجح السطر السابق، فهذا يعني أن الإجابة صحيحة بالضرورة
-        add_balance(user_id, ANIME_REWARD)
-        correct_count += 1
-        total_reward += ANIME_REWARD
+            if round_number < rounds:
+                await asyncio.sleep(1)
 
-        await ctx.send(
-            f"✅ **إجابة صحيحة**\n"
-            f"💰 حصلت على **+{ANIME_REWARD} طولار**.",
-            allowed_mentions=discord.AllowedMentions(users=False),
-        )
-
-      except asyncio.TimeoutError:
-        # عند انتهاء الوقت دون أن يكتب أحد الإجابة الصحيحة
-        correct_answer = character["answers"][0] # جلب أول إجابة من قائمة الإجابات كإجابة نموذجية
-        await ctx.send(
-            f"⏰ انتهى الوقت يا {ctx.author.mention}.\n❌ الإجابة الصحيحة كانت: **{correct_answer}**",
-            allowed_mentions=discord.AllowedMentions(users=False),
-        )
-        continue
+    finally:
+        # حذف المفتاح بعد انتهاء اللعبة (سواء اكتملت أو حدث خطأ)
+        ACTIVE_ANIME_GAMES.pop(user_id, None)
 
     # النتيجة النهائية
     current_balance = get_balance(user_id)
-
     await ctx.send(
-        f" **انتهت لعبة خمن**\n"
+        f"**🏁 انتهت لعبة خمن**\n"
         f"👤 اللاعب┃{ctx.author.mention}\n"
-        f" الجولات┃**{rounds}**\n"
+        f"📊 الجولات┃**{rounds}**\n"
         f"✅ الإجابات الصحيحة┃**{correct_count}/{rounds}**\n"
         f"💰 إجمالي المكافأة┃**{total_reward} طولار**\n"
         f"💳 رصيدك الحالي┃**{current_balance:,} طولار**",
         allowed_mentions=discord.AllowedMentions(users=False),
     )
-
-  finally:
-    # السماح للاعب ببدء لعبة جديدة
-    ACTIVE_ANIME_GAMES.pop(user_id, None)
-
-    gc.collect()
 
 
 @bot.command(name="طولاري",aliases=["طولار"])
@@ -2164,7 +2114,7 @@ async def balance_command(ctx, member: discord.Member = None):
     target = member or ctx.author
     bal = get_balance(target.id)
 
-    with make_card_with_text(None, fix_arabic("خزانة الرصيد"), fix_arabic(f"{bal} طولار"), f"{target.display_name}") as img_buf:
+    with make_card_with_text(None, "خزانة الرصيد", f"{bal} طولار", f"{target.display_name}") as img_buf:
         file = discord.File(fp=img_buf, filename="balance.png")
         await ctx.send(file=file, allowed_mentions=discord.AllowedMentions(users=False))
     gc.collect()
@@ -2705,7 +2655,7 @@ async def ban_member_error(ctx, error):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
 
-@bot.command(name="ميوت", aliases=["كتم", "mute"])
+@bot.command(name="اصمت", aliases=["كتم", "mute"])
 @commands.has_role(OWNER_ROLE_ID)
 async def mute_member(
     ctx,
@@ -2751,18 +2701,21 @@ async def mute_member_error(ctx, error):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
 
-@bot.command(name="فك_ميوت", aliases=["فك_الكتم", "unmute"])
+@bot.command(name="تحدث", aliases=["فك_الكتم", "unmute"])
 @commands.has_role(OWNER_ROLE_ID)
-async def unmute_member(ctx, member: discord.Member = None):
+async def unmute_member(ctx, member: discord.Member):
     if not member:
-        await ctx.send("⚠️ يرجى منشن العضو لفك الكتم عنه", delete_after=3)
+        await ctx.send(
+            "⚠️ **يرجى منشن العضو المراد فك كتمه**\nمثال: `.فك_ميوت @User`",
+            delete_after=3,
+        )
         return
 
     try:
-        await member.timeout(None)
+        await member.edit(timeout=None)
         await ctx.send(f" تم فك الكتم عن العضو **{member.mention}** بنجاح")
     except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات كافية لفك الكتم عن هذا العضو")
+        await ctx.send("❌ لا أملك صلاحيات كافية لفك كتم هذا العضو")
     except Exception as e:
         await ctx.send(f"❌ حدث خطأ: {e}")
 
@@ -2771,6 +2724,895 @@ async def unmute_member(ctx, member: discord.Member = None):
 async def unmute_member_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
+
+
+# ==========================================
+# 🔒 أوامر قفل وفتح الرومات (للأونر فقط)
+# ==========================================
+
+@bot.command(name="ق")
+@commands.has_role(OWNER_ROLE_ID)
+async def lock_channel(ctx):
+    """يقفل الروم الحالي (يمنع الأعضاء من الإرسال)"""
+    channel = ctx.channel
+    # التحقق من الصلاحية الحالية للدور الافتراضي
+    default_perms = channel.permissions_for(ctx.guild.default_role)
+    if not default_perms.send_messages:
+        await ctx.send("🔒 هذا الروم مقفول بالفعل.")
+        return
+    # تعديل الصلاحية: منع الإرسال
+    overwrite = channel.overwrites_for(ctx.guild.default_role)
+    overwrite.send_messages = False
+    await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite)
+    await ctx.send("🔒 تم قفل الروم.")
+
+@bot.command(name="ف")
+@commands.has_role(OWNER_ROLE_ID)
+async def unlock_channel(ctx):
+    """يفتح الروم الحالي (يسمح للأعضاء بالإرسال)"""
+    channel = ctx.channel
+    # التحقق من الصلاحية الحالية للدور الافتراضي
+    default_perms = channel.permissions_for(ctx.guild.default_role)
+    if default_perms.send_messages:
+        await ctx.send("🔓 هذا الروم مفتوح بالفعل.")
+        return
+    # تعديل الصلاحية: السماح بالإرسال
+    overwrite = channel.overwrites_for(ctx.guild.default_role)
+    overwrite.send_messages = True
+    await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite)
+    await ctx.send("🔓 تم فتح الروم.")
+
+# معالجة الأخطاء (اختياري)
+@lock_channel.error
+@unlock_channel.error
+async def lock_unlock_error(ctx, error):
+    if isinstance(error, commands.MissingRole):
+        await ctx.send("❌ هذا الأمر مخصص للأونر فقط.", delete_after=3)
+
+
+# ضع ID الكاتيجوري هنا، أو اتركه 0 لإنشاء التذاكر بدون كاتيجوري
+TICKET_CATEGORY_ID = 0
+
+
+class TicketView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="فتح",
+        style=discord.ButtonStyle.primary,
+        emoji="🎫",
+        custom_id="persistent_ticket_open"
+    )
+    async def open_ticket(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        guild = interaction.guild
+
+        if guild is None:
+            await interaction.response.send_message(
+                "❌ لا يمكن فتح تذكرة خارج السيرفر.",
+                ephemeral=True
+            )
+            return
+
+        # البحث عن الكاتيجوري بشكل آمن
+        category = None
+
+        if TICKET_CATEGORY_ID:
+            category = guild.get_channel(TICKET_CATEGORY_ID)
+
+            if category is not None and not isinstance(
+                category,
+                discord.CategoryChannel
+            ):
+                category = None
+
+        # إنشاء اسم آمن وفريد للتذكرة
+        base_name = re.sub(
+            r"[^a-zA-Z0-9_-]",
+            "",
+            interaction.user.name
+        )[:20]
+
+        if not base_name:
+            base_name = "user"
+
+        rand_suffix = "".join(
+            random.choices(
+                string.ascii_lowercase + string.digits,
+                k=4
+            )
+        )
+
+        channel_name = f"ticket-{base_name}-{rand_suffix}"
+
+        # الصلاحيات
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(
+                view_channel=False
+            ),
+
+            interaction.user: discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True
+            )
+        }
+
+        # إعطاء الأونر صلاحية الدخول
+        owner_role = guild.get_role(OWNER_ROLE_ID)
+
+        if owner_role:
+            overwrites[owner_role] = discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True
+            )
+
+        # إنشاء القناة
+        try:
+            channel = await guild.create_text_channel(
+                name=channel_name,
+                category=category,
+                overwrites=overwrites,
+                reason=f"Ticket opened by {interaction.user}"
+            )
+
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                "❌ لا أملك صلاحية إنشاء القنوات. تأكد من أن البوت يملك صلاحية **Manage Channels**.",
+                ephemeral=True
+            )
+            return
+
+        except Exception as e:
+            print(f"[TICKET ERROR] {e}")
+
+            await interaction.response.send_message(
+                f"❌ حدث خطأ أثناء إنشاء التذكرة:\n`{e}`",
+                ephemeral=True
+            )
+            return
+
+        # رسالة التذكرة
+        embed = discord.Embed(
+            title="🎫 تذكرة جديدة",
+            description=(
+                f"يو {interaction.user.mention} \n\n"
+                "اكتب مشكلتك أو استفسارك هنا، وسيتم الرد عليك من الإدارة.\n\n"
+            ),
+            color=discord.Color.blue()
+        )
+
+        file = None
+
+        try:
+            ticket_image = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "ticket.png"
+            )
+
+            if os.path.exists(ticket_image):
+                file = discord.File(
+                    ticket_image,
+                    filename="ticket.png"
+                )
+
+                embed.set_image(
+                    url="attachment://ticket.png"
+                )
+
+        except Exception as e:
+            print(f"[TICKET IMAGE ERROR] {e}")
+
+        delete_view = TicketDeleteView()
+
+        try:
+            if file:
+                await channel.send(
+                    embed=embed,
+                    view=delete_view,
+                    file=file
+                )
+            else:
+                await channel.send(
+                    embed=embed,
+                    view=delete_view
+                )
+
+        except Exception as e:
+            print(f"[TICKET MESSAGE ERROR] {e}")
+
+            try:
+                await channel.delete(
+                    reason="Failed to send ticket message"
+                )
+            except:
+                pass
+
+            await interaction.response.send_message(
+                f"❌ تم إنشاء التذكرة لكن حدث خطأ أثناء إرسال رسالتها:\n`{e}`",
+                ephemeral=True
+            )
+            return
+
+        # تأكيد فتح التذكرة
+        await interaction.response.send_message(
+            f"✅ تم فتح تذكرتك بنجاح: {channel.mention}",
+            ephemeral=True
+        )
+
+
+class TicketDeleteView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="حذف",
+        style=discord.ButtonStyle.danger,
+        emoji="🗑️",
+        custom_id="persistent_ticket_delete"
+    )
+    async def delete_ticket(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        owner_role = interaction.guild.get_role(OWNER_ROLE_ID)
+
+        if owner_role is None or owner_role not in interaction.user.roles:
+            await interaction.response.send_message(
+                "❌ هذا الزر متاح للأونر فقط.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.send_message(
+            "🗑️ سيتم حذف التذكرة...",
+            ephemeral=True
+        )
+
+        try:
+            await interaction.channel.delete(
+                reason=f"Ticket deleted by {interaction.user}"
+            )
+        except discord.Forbidden:
+            pass
+        except Exception as e:
+            print(f"[TICKET DELETE ERROR] {e}")
+
+
+# ==========================================
+# أمر إنشاء لوحة التذاكر
+# ==========================================
+
+@bot.command(name="تكت", aliases=["ticket", "تذكرة"])
+@commands.has_role(OWNER_ROLE_ID)
+@in_channel(TICKET_CHANNEL_ID)
+async def ticket_command(ctx):
+
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+
+    embed = discord.Embed(
+        title="🎫 نظام التذاكر",
+        description=(
+            "• اضغط الزر أدناه لفتح تذكرة.\n"
+            "• فتح تكت بدون سبب يؤدي الى ميوت 1h."
+        ),
+        color=discord.Color.gold()
+    )
+
+    file = None
+
+    try:
+        ticket_image = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "ticket.png"
+        )
+
+        if os.path.exists(ticket_image):
+            file = discord.File(
+                ticket_image,
+                filename="ticket.png"
+            )
+
+            embed.set_image(
+                url="attachment://ticket.png"
+            )
+
+    except Exception as e:
+        print(f"[TICKET PANEL IMAGE ERROR] {e}")
+
+    view = TicketView()
+
+    if file:
+        await ctx.send(
+            embed=embed,
+            view=view,
+            file=file
+        )
+    else:
+        await ctx.send(
+            embed=embed,
+            view=view
+        )
+
+
+@ticket_command.error
+async def ticket_command_error(ctx, error):
+
+    if isinstance(error, commands.MissingRole):
+        try:
+            await ctx.message.delete()
+        except:
+            pass
+
+        await ctx.send(
+            "❌ هذا الأمر مخصص للأونر فقط.",
+            delete_after=3
+        )
+
+
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        await bot.process_commands(message)
+        return
+
+    # ===== الكود الجديد لتحميل الفيديوهات =====
+    # يعمل فقط في روم التسوق
+    if message.channel.id == SHOPPING_CHANNEL_ID:
+        # البحث عن روابط فيديو في الرسالة
+        urls = re.findall(r'https?://[^\s]+', message.content)
+        for url in urls:
+            # تحقق من أن الرابط من المواقع المدعومة
+            if any(domain in url for domain in ['youtube.com', 'youtu.be', 'instagram.com', 'tiktok.com']):
+                try:
+                    await message.channel.typing()  # إظهار حالة الكتابة أثناء التحميل
+                    # إنشاء ملف مؤقت
+                    with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp:
+                        tmp_path = tmp.name
+
+                    # إعدادات yt-dlp
+                    ydl_opts = {
+                        'outtmpl': tmp_path,
+                        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                        'quiet': True,
+                        'no_warnings': True,
+                    }
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([url])
+
+                    # إرسال الفيديو
+                    await message.channel.send(file=discord.File(tmp_path))
+
+                    # حذف الملف المؤقت
+                    os.unlink(tmp_path)
+                    break  # نكتفي بأول رابط فيديو تم العثور عليه
+
+                except Exception as e:
+                    await message.channel.send(f"❌ فشل تحميل الفيديو: {e}")
+                    # محاولة حذف الملف المؤقت في حال وجوده
+                    if os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
+                    break  # نوقف البحث عن روابط أخرى بعد الفشل
+
+    await bot.process_commands(message)
+
+
+# ==========================================
+# 🤖 نظام الردود التلقائية (للاونر فقط) – يدعم المنشن والكلمات
+# ==========================================
+
+REPLIES_FILE = os.path.join(BASE_DIR, "replies.json")
+_next_id = 1
+
+def load_replies():
+    """تحميل البيانات من الملف"""
+    if not os.path.exists(REPLIES_FILE):
+        return {"member": {}, "word": []}
+    try:
+        with open(REPLIES_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            # تأكد من وجود المفاتيح الأساسية
+            if "member" not in data:
+                data["member"] = {}
+            if "word" not in data:
+                data["word"] = []
+            # تأكد من أن كل قيمة تحت member هي قائمة
+            for uid, replies in data["member"].items():
+                if not isinstance(replies, list):
+                    data["member"][uid] = []
+            return data
+    except:
+        return {"member": {}, "word": []}
+
+def save_replies(data):
+    with open(REPLIES_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def generate_id():
+    global _next_id
+    max_id = 0
+    # نبحث في جميع الردود
+    for replies in replies_cache["member"].values():
+        for r in replies:
+            if r.get("id", 0) > max_id:
+                max_id = r["id"]
+    for r in replies_cache["word"]:
+        if r.get("id", 0) > max_id:
+            max_id = r["id"]
+    _next_id = max_id + 1
+    return _next_id
+
+# متغير عام
+replies_cache = load_replies()
+
+# ==========================================
+# نماذج الإدخال (Modals)
+# ==========================================
+
+class AddReplyModal(discord.ui.Modal, title="إضافة رد نصي (عند المنشن)"):
+    user_id = discord.ui.TextInput(
+        label="آيدي العضو",
+        placeholder="أدخل الرقم",
+        required=True,
+        style=discord.TextStyle.short
+    )
+    reply_text = discord.ui.TextInput(
+        label="النص الذي سيرده البوت",
+        placeholder="أكتب الرد",
+        required=True,
+        style=discord.TextStyle.paragraph
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            uid = int(self.user_id.value.strip())
+        except ValueError:
+            await interaction.response.send_message("❌ الآيدي يجب أن يكون رقماً.", ephemeral=True)
+            return
+        text = self.reply_text.value.strip()
+        if not text:
+            await interaction.response.send_message("❌ النص لا يمكن أن يكون فارغاً.", ephemeral=True)
+            return
+
+        uid_str = str(uid)
+        if uid_str not in replies_cache["member"]:
+            replies_cache["member"][uid_str] = []
+        new_reply = {"id": generate_id(), "type": "text", "value": text}
+        replies_cache["member"][uid_str].append(new_reply)
+        save_replies(replies_cache)
+        await interaction.response.send_message(
+            f"✅ تم إضافة رد نصي للعضو `{uid}` (الرد رقم {new_reply['id']})",
+            ephemeral=True
+        )
+
+class AddReactionModal(discord.ui.Modal, title="إضافة رد رياكشن (عند المنشن)"):
+    user_id = discord.ui.TextInput(
+        label="آيدي العضو",
+        placeholder="أدخل الرقم",
+        required=True,
+        style=discord.TextStyle.short
+    )
+    emoji_id = discord.ui.TextInput(
+        label="آيدي الإيموجي أو الإيموجي العادي",
+        placeholder="مثال: <:اسم الايموجي:ايدي الايموجي> أو 👍",
+        required=True,
+        style=discord.TextStyle.short
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            uid = int(self.user_id.value.strip())
+        except ValueError:
+            await interaction.response.send_message("❌ الآيدي يجب أن يكون رقماً.", ephemeral=True)
+            return
+        emoji = self.emoji_id.value.strip()
+        if not emoji:
+            await interaction.response.send_message("❌ الإيموجي لا يمكن أن يكون فارغاً.", ephemeral=True)
+            return
+
+        uid_str = str(uid)
+        if uid_str not in replies_cache["member"]:
+            replies_cache["member"][uid_str] = []
+        new_reply = {"id": generate_id(), "type": "reaction", "value": emoji}
+        replies_cache["member"][uid_str].append(new_reply)
+        save_replies(replies_cache)
+        await interaction.response.send_message(
+            f"✅ تم إضافة رد رياكشن للعضو `{uid}` (الرد رقم {new_reply['id']})",
+            ephemeral=True
+        )
+
+class AddWordReplyModal(discord.ui.Modal, title="إضافة رد كلمة (نصي)"):
+    trigger = discord.ui.TextInput(
+        label="الكلمة المطلوبة",
+        placeholder="مثال: محمد",
+        required=True,
+        style=discord.TextStyle.short
+    )
+    reply_text = discord.ui.TextInput(
+        label="الرد النصي",
+        placeholder="أكتب الرد",
+        required=True,
+        style=discord.TextStyle.paragraph
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        trigger = self.trigger.value.strip().lower()
+        reply = self.reply_text.value.strip()
+        if not trigger or not reply:
+            await interaction.response.send_message("❌ لا يمكن ترك أي حقل فارغاً.", ephemeral=True)
+            return
+        new_reply = {"id": generate_id(), "type": "text", "trigger": trigger, "value": reply}
+        replies_cache["word"].append(new_reply)
+        save_replies(replies_cache)
+        await interaction.response.send_message(
+            f"✅ تم إضافة رد كلمة نصي للكلمة `{trigger}` (الرد رقم {new_reply['id']})",
+            ephemeral=True
+        )
+
+class AddWordReactionModal(discord.ui.Modal, title="إضافة رد كلمة (رياكشن)"):
+    trigger = discord.ui.TextInput(
+        label="الكلمة المطلوبة",
+        placeholder="مثال: سلام",
+        required=True,
+        style=discord.TextStyle.short
+    )
+    emoji_id = discord.ui.TextInput(
+        label="الإيموجي (آيدي أو عادي)",
+        placeholder="مثال: <:اسم الايموجي:ايدي الايموجي> أو 👍",
+        required=True,
+        style=discord.TextStyle.short
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        trigger = self.trigger.value.strip().lower()
+        emoji = self.emoji_id.value.strip()
+        if not trigger or not emoji:
+            await interaction.response.send_message("❌ لا يمكن ترك أي حقل فارغاً.", ephemeral=True)
+            return
+        new_reply = {"id": generate_id(), "type": "reaction", "trigger": trigger, "value": emoji}
+        replies_cache["word"].append(new_reply)
+        save_replies(replies_cache)
+        await interaction.response.send_message(
+            f"✅ تم إضافة رد كلمة رياكشن للكلمة `{trigger}` (الرد رقم {new_reply['id']})",
+            ephemeral=True
+        )
+
+# ==========================================
+# تعديل / حذف الردود
+# ==========================================
+
+class EditReplyModal(discord.ui.Modal, title="تعديل الرد"):
+    def __init__(self, reply_id: int, current_value: str, reply_type: str, category: str, extra=None):
+        super().__init__()
+        self.reply_id = reply_id
+        self.category = category  # "member" أو "word"
+        self.extra = extra  # في حالة member نحتاج uid
+        self.reply_type = reply_type
+
+        if category == "word":
+            # نضيف حقل الكلمة أيضاً
+            self.trigger_input = discord.ui.TextInput(
+                label="الكلمة المطلوبة",
+                default=extra,
+                required=True,
+                style=discord.TextStyle.short
+            )
+            self.add_item(self.trigger_input)
+
+        self.new_value = discord.ui.TextInput(
+            label="القيمة الجديدة",
+            default=current_value,
+            required=True,
+            style=discord.TextStyle.paragraph if reply_type == "text" else discord.TextStyle.short
+        )
+        self.add_item(self.new_value)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        new_val = self.new_value.value.strip()
+        if not new_val:
+            await interaction.response.send_message("❌ القيمة لا يمكن أن تكون فارغة.", ephemeral=True)
+            return
+
+        if self.category == "member":
+            uid = self.extra
+            if uid in replies_cache["member"]:
+                for reply in replies_cache["member"][uid]:
+                    if reply["id"] == self.reply_id:
+                        reply["value"] = new_val
+                        save_replies(replies_cache)
+                        await interaction.response.send_message(f"✅ تم تحديث الرد رقم {self.reply_id} بنجاح.", ephemeral=True)
+                        return
+            await interaction.response.send_message("❌ لم يتم العثور على الرد.", ephemeral=True)
+        else:  # word
+            new_trigger = self.trigger_input.value.strip().lower() if hasattr(self, 'trigger_input') else None
+            for reply in replies_cache["word"]:
+                if reply["id"] == self.reply_id:
+                    reply["value"] = new_val
+                    if new_trigger:
+                        reply["trigger"] = new_trigger
+                    save_replies(replies_cache)
+                    await interaction.response.send_message(f"✅ تم تحديث الرد رقم {self.reply_id} بنجاح.", ephemeral=True)
+                    return
+            await interaction.response.send_message("❌ لم يتم العثور على الرد.", ephemeral=True)
+
+class DeleteReplyView(discord.ui.View):
+    def __init__(self, reply_id: int, category: str, extra=None):
+        super().__init__(timeout=60)
+        self.reply_id = reply_id
+        self.category = category
+        self.extra = extra
+
+    @discord.ui.button(label="نعم، احذف", style=discord.ButtonStyle.danger)
+    async def confirm_delete(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.category == "member":
+            uid = self.extra
+            if uid in replies_cache["member"]:
+                old_len = len(replies_cache["member"][uid])
+                replies_cache["member"][uid] = [r for r in replies_cache["member"][uid] if r["id"] != self.reply_id]
+                if len(replies_cache["member"][uid]) == 0:
+                    del replies_cache["member"][uid]
+                if len(replies_cache["member"][uid]) != old_len:
+                    save_replies(replies_cache)
+                    await interaction.response.send_message(f"✅ تم حذف الرد رقم {self.reply_id} بنجاح.", ephemeral=True)
+                    return
+        else:  # word
+            old_len = len(replies_cache["word"])
+            replies_cache["word"] = [r for r in replies_cache["word"] if r["id"] != self.reply_id]
+            if len(replies_cache["word"]) != old_len:
+                save_replies(replies_cache)
+                await interaction.response.send_message(f"✅ تم حذف الرد رقم {self.reply_id} بنجاح.", ephemeral=True)
+                return
+        await interaction.response.send_message("❌ لم يتم العثور على الرد.", ephemeral=True)
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+
+    @discord.ui.button(label="إلغاء", style=discord.ButtonStyle.secondary)
+    async def cancel_delete(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("تم الإلغاء.", ephemeral=True)
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+
+# ==========================================
+# القائمة المنسدلة لعرض جميع الردود
+# ==========================================
+
+class RepliesSelect(discord.ui.Select):
+    def __init__(self):
+        options = []
+        # ردود الأعضاء
+        for uid, replies in replies_cache["member"].items():
+            for reply in replies:
+                label = f"👤 عضو {uid}"
+                desc = f"{reply['type']}: {reply['value'][:30]} (id:{reply['id']})"
+                options.append(discord.SelectOption(
+                    label=label,
+                    value=f"member|{uid}|{reply['id']}",
+                    description=desc
+                ))
+        # ردود الكلمات
+        for reply in replies_cache["word"]:
+            label = f" كلمة: {reply['trigger']}"
+            desc = f"{reply['type']}: {reply['value'][:30]} (id:{reply['id']})"
+            options.append(discord.SelectOption(
+                label=label,
+                value=f"word|{reply['id']}",
+                description=desc
+            ))
+        if not options:
+            options.append(discord.SelectOption(
+                label="لا توجد ردود",
+                value="none",
+                description="أضف رداً جديداً"
+            ))
+        super().__init__(
+            placeholder="اختر رداً لتعديله أو حذفه...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.values[0] == "none":
+            await interaction.response.send_message("لا توجد ردود لعرضها.", ephemeral=True)
+            return
+
+        parts = self.values[0].split("|")
+        if parts[0] == "member":
+            _, uid, rid = parts
+            rid = int(rid)
+            reply = None
+            if uid in replies_cache["member"]:
+                for r in replies_cache["member"][uid]:
+                    if r["id"] == rid:
+                        reply = r
+                        break
+            if not reply:
+                await interaction.response.send_message("❌ هذا الرد غير موجود.", ephemeral=True)
+                return
+            embed = discord.Embed(
+                title=f"✏️ رد العضو {uid} - رقم {rid}",
+                description=f"**النوع:** {reply['type']}\n**القيمة:** {reply['value']}",
+                color=discord.Color.blue()
+            )
+            view = discord.ui.View()
+            view.add_item(EditReplyButton(rid, reply["value"], reply["type"], "member", extra=uid))
+            view.add_item(DeleteReplyButton(rid, "member", extra=uid))
+            await interaction.response.edit_message(embed=embed, view=view)
+
+        elif parts[0] == "word":
+            _, rid = parts
+            rid = int(rid)
+            reply = None
+            for r in replies_cache["word"]:
+                if r["id"] == rid:
+                    reply = r
+                    break
+            if not reply:
+                await interaction.response.send_message("❌ هذا الرد غير موجود.", ephemeral=True)
+                return
+            embed = discord.Embed(
+                title=f"✏️ رد كلمة: {reply['trigger']} - رقم {rid}",
+                description=f"**النوع:** {reply['type']}\n**القيمة:** {reply['value']}",
+                color=discord.Color.blue()
+            )
+            view = discord.ui.View()
+            view.add_item(EditReplyButton(rid, reply["value"], reply["type"], "word", extra=reply["trigger"]))
+            view.add_item(DeleteReplyButton(rid, "word"))
+            await interaction.response.edit_message(embed=embed, view=view)
+
+class EditReplyButton(discord.ui.Button):
+    def __init__(self, reply_id: int, current_value: str, reply_type: str, category: str, extra=None):
+        super().__init__(label="✏️ تعديل", style=discord.ButtonStyle.primary)
+        self.reply_id = reply_id
+        self.current_value = current_value
+        self.reply_type = reply_type
+        self.category = category
+        self.extra = extra
+
+    async def callback(self, interaction: discord.Interaction):
+        modal = EditReplyModal(self.reply_id, self.current_value, self.reply_type, self.category, self.extra)
+        await interaction.response.send_modal(modal)
+
+class DeleteReplyButton(discord.ui.Button):
+    def __init__(self, reply_id: int, category: str, extra=None):
+        super().__init__(label="🗑️ حذف", style=discord.ButtonStyle.danger)
+        self.reply_id = reply_id
+        self.category = category
+        self.extra = extra
+
+    async def callback(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="⚠️ تأكيد الحذف",
+            description=f"هل أنت متأكد من حذف الرد رقم {self.reply_id}؟",
+            color=discord.Color.red()
+        )
+        view = DeleteReplyView(self.reply_id, self.category, self.extra)
+        await interaction.response.edit_message(embed=embed, view=view)
+
+# ==========================================
+# اللوحة الرئيسية مع خيارات الإضافة
+# ==========================================
+
+class RepliesManagementView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=120)
+        self.add_item(RepliesSelect())
+
+    @discord.ui.button(label="➕ إضافة رد", style=discord.ButtonStyle.primary)
+    async def add_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="اختر نوع الرد",
+            description="اختر أحد الخيارات بالأسفل",
+            color=discord.Color.blue()
+        )
+        view = AddChoiceView()
+        await interaction.response.edit_message(embed=embed, view=view)
+
+class AddChoiceView(discord.ui.View):
+    @discord.ui.button(label="📝 رد نصي (عند المنشن)", style=discord.ButtonStyle.success)
+    async def text_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AddReplyModal())
+
+    @discord.ui.button(label="👍 رد رياكشن (عند المنشن)", style=discord.ButtonStyle.success)
+    async def reaction_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AddReactionModal())
+
+    @discord.ui.button(label="📝 رد كلمة (نصي)", style=discord.ButtonStyle.primary)
+    async def word_text_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AddWordReplyModal())
+
+    @discord.ui.button(label="👍 رد كلمة (رياكشن)", style=discord.ButtonStyle.primary)
+    async def word_reaction_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AddWordReactionModal())
+
+    @discord.ui.button(label="🔙 رجوع", style=discord.ButtonStyle.secondary)
+    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(
+            title="⚙️ لوحة إدارة الردود التلقائية",
+            description="• اختر رداً من القائمة المنسدلة لتعديله أو حذفه.\n• اضغط **إضافة رد** لإنشاء رد جديد.",
+            color=discord.Color.gold()
+        )
+        view = RepliesManagementView()
+        await interaction.response.edit_message(embed=embed, view=view)
+
+# ==========================================
+# الأمر الرئيسي
+# ==========================================
+
+@bot.command(name="تعديل")
+@commands.has_role(OWNER_ROLE_ID)
+@in_channel(AMENDMENTS_CHANNEL_ID)
+async def manage_replies(ctx):
+    embed = discord.Embed(
+        title="⚙️ لوحة إدارة الردود التلقائية",
+        description="• اختر رداً من القائمة المنسدلة لتعديله أو حذفه.\n• اضغط **إضافة رد** لإنشاء رد جديد.",
+        color=discord.Color.gold()
+    )
+    view = RepliesManagementView()
+    await ctx.send(embed=embed, view=view)
+
+# ==========================================
+# مستمع الرسائل – ينفذ الردود
+# ==========================================
+
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        await bot.process_commands(message)
+        return
+
+    # 1. ردود الكلمات
+    content = message.content.strip()
+    for reply in replies_cache["word"]:
+        if reply["trigger"].lower() in content.lower():
+            if reply["type"] == "text":
+                await message.reply(reply["value"])
+            elif reply["type"] == "reaction":
+                try:
+                    emoji = reply["value"]
+                    if emoji.isdigit():
+                        emoji = discord.PartialEmoji(id=int(emoji))
+                    await message.add_reaction(emoji)
+                except Exception:
+                    pass
+
+    # 2. ردود الأعضاء (عند المنشن)
+    if message.mentions:
+        for member in message.mentions:
+            uid = str(member.id)
+            if uid in replies_cache["member"]:
+                for reply in replies_cache["member"][uid]:
+                    if reply["type"] == "text":
+                        await message.reply(reply["value"])
+                    elif reply["type"] == "reaction":
+                        try:
+                            emoji = reply["value"]
+                            if emoji.isdigit():
+                                emoji = discord.PartialEmoji(id=int(emoji))
+                            await message.add_reaction(emoji)
+                        except Exception:
+                            pass
+                break  # نكتفي بأول عضو تم منشنته
+
+    await bot.process_commands(message)
+
+# تحديث الكاش عند الإطلاق
+@bot.event
+async def on_ready():
+    global replies_cache
+    replies_cache = load_replies()
+    print(f"✅ تم تحميل {len(replies_cache['member'])} عضو و {len(replies_cache['word'])} رد كلمة.")
 
 
 # تسجيل الأوامر والملفات المكملة عند جهوزية البوت

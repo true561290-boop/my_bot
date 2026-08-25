@@ -7,5 +7,4 @@ aiohttp
 pytz
 upstash-redis
 python-dotenv
-arabic-reshaper
-python-bidi
+yt-dlp
