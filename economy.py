@@ -36,10 +36,10 @@ def get_balance(user_id) -> int:
         return 0
     try:
         uid = _extract_id(user_id)
-        bal = redis.get(f"balance:{uid}")
+        bal = redis.get(f"bot2_balance:{uid}")
         return int(bal) if bal is not None else 0
     except Exception as e:
-        print(f"❌ خطأ في get_balance: {e}", flush=True)
+        print(f"❌ خطأ في get_bot2_balance: {e}", flush=True)
         return 0
 
 def add_balance(user_id, amount: int) -> int:
@@ -48,11 +48,11 @@ def add_balance(user_id, amount: int) -> int:
         return 0
     try:
         uid = _extract_id(user_id)
-        new_bal = redis.incrby(f"balance:{uid}", int(amount))
+        new_bal = redis.incrby(f"bot2_balance:{uid}", int(amount))
         print(f"✅ تم إضافة {amount} للمستخدم {uid}. الرصيد الجديد: {new_bal}", flush=True)
         return int(new_bal)
     except Exception as e:
-        print(f"❌ خطأ في add_balance: {e}", flush=True)
+        print(f"❌ خطأ في add_bot2_balance: {e}", flush=True)
         return 0
 
 def remove_balance(user_id, amount: int) -> int:
@@ -61,11 +61,11 @@ def remove_balance(user_id, amount: int) -> int:
         return 0
     try:
         uid = _extract_id(user_id)
-        new_bal = redis.decrby(f"balance:{uid}", int(amount))
+        new_bal = redis.decrby(f"bot2_balance:{uid}", int(amount))
         print(f"✅ تم خصم {amount} من المستخدم {uid}. الرصيد الجديد: {new_bal}", flush=True)
         return int(new_bal)
     except Exception as e:
-        print(f"❌ خطأ في remove_balance: {e}", flush=True)
+        print(f"❌ خطأ في remove_bot2_balance: {e}", flush=True)
         return 0
 
 def fetch_latest_balances_from_github():

@@ -7,4 +7,3 @@ aiohttp
 pytz
 upstash-redis
 python-dotenv
-yt-dlp

@@ -1,0 +1,1352 @@
+[
+  {
+    "id": "rm_1",
+    "name": "Rick Sanchez",
+    "answers": [
+      "Rick Sanchez"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/1.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/1"
+  },
+  {
+    "id": "rm_2",
+    "name": "Morty Smith",
+    "answers": [
+      "Morty Smith"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/2.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/2"
+  },
+  {
+    "id": "rm_3",
+    "name": "Summer Smith",
+    "answers": [
+      "Summer Smith"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/3.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/3"
+  },
+  {
+    "id": "rm_4",
+    "name": "Beth Smith",
+    "answers": [
+      "Beth Smith"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/4.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/4"
+  },
+  {
+    "id": "rm_5",
+    "name": "Jerry Smith",
+    "answers": [
+      "Jerry Smith"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/5.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/5"
+  },
+  {
+    "id": "rm_6",
+    "name": "Abadango Cluster Princess",
+    "answers": [
+      "Abadango Cluster Princess"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/6.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/6"
+  },
+  {
+    "id": "rm_7",
+    "name": "Abradolf Lincler",
+    "answers": [
+      "Abradolf Lincler"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/7.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/7"
+  },
+  {
+    "id": "rm_8",
+    "name": "Adjudicator Rick",
+    "answers": [
+      "Adjudicator Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/8.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/8"
+  },
+  {
+    "id": "rm_9",
+    "name": "Agency Director",
+    "answers": [
+      "Agency Director"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/9.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/9"
+  },
+  {
+    "id": "rm_10",
+    "name": "Alan Rails",
+    "answers": [
+      "Alan Rails"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/10.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/10"
+  },
+  {
+    "id": "rm_11",
+    "name": "Albert Einstein",
+    "answers": [
+      "Albert Einstein"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/11.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/11"
+  },
+  {
+    "id": "rm_12",
+    "name": "Alexander",
+    "answers": [
+      "Alexander"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/12.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/12"
+  },
+  {
+    "id": "rm_13",
+    "name": "Alien Googah",
+    "answers": [
+      "Alien Googah"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/13.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/13"
+  },
+  {
+    "id": "rm_14",
+    "name": "Alien Morty",
+    "answers": [
+      "Alien Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/14.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/14"
+  },
+  {
+    "id": "rm_15",
+    "name": "Alien Rick",
+    "answers": [
+      "Alien Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/15.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/15"
+  },
+  {
+    "id": "rm_16",
+    "name": "Amish Cyborg",
+    "answers": [
+      "Amish Cyborg"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/16.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/16"
+  },
+  {
+    "id": "rm_17",
+    "name": "Annie",
+    "answers": [
+      "Annie"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/17.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/17"
+  },
+  {
+    "id": "rm_18",
+    "name": "Antenna Morty",
+    "answers": [
+      "Antenna Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/18.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/18"
+  },
+  {
+    "id": "rm_19",
+    "name": "Antenna Rick",
+    "answers": [
+      "Antenna Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/19.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/19"
+  },
+  {
+    "id": "rm_20",
+    "name": "Ants in my Eyes Johnson",
+    "answers": [
+      "Ants in my Eyes Johnson"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/20.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/20"
+  },
+  {
+    "id": "rm_21",
+    "name": "Aqua Morty",
+    "answers": [
+      "Aqua Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/21.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/21"
+  },
+  {
+    "id": "rm_22",
+    "name": "Aqua Rick",
+    "answers": [
+      "Aqua Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/22.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/22"
+  },
+  {
+    "id": "rm_23",
+    "name": "Arcade Alien",
+    "answers": [
+      "Arcade Alien"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/23.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/23"
+  },
+  {
+    "id": "rm_24",
+    "name": "Armagheadon",
+    "answers": [
+      "Armagheadon"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/24.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/24"
+  },
+  {
+    "id": "rm_25",
+    "name": "Armothy",
+    "answers": [
+      "Armothy"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/25.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/25"
+  },
+  {
+    "id": "rm_26",
+    "name": "Arthricia",
+    "answers": [
+      "Arthricia"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/26.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/26"
+  },
+  {
+    "id": "rm_27",
+    "name": "Artist Morty",
+    "answers": [
+      "Artist Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/27.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/27"
+  },
+  {
+    "id": "rm_28",
+    "name": "Attila Starwar",
+    "answers": [
+      "Attila Starwar"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/28.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/28"
+  },
+  {
+    "id": "rm_29",
+    "name": "Baby Legs",
+    "answers": [
+      "Baby Legs"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/29.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/29"
+  },
+  {
+    "id": "rm_30",
+    "name": "Baby Poopybutthole",
+    "answers": [
+      "Baby Poopybutthole"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/30.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/30"
+  },
+  {
+    "id": "rm_31",
+    "name": "Baby Wizard",
+    "answers": [
+      "Baby Wizard"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/31.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/31"
+  },
+  {
+    "id": "rm_32",
+    "name": "Bearded Lady",
+    "answers": [
+      "Bearded Lady"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/32.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/32"
+  },
+  {
+    "id": "rm_33",
+    "name": "Beebo",
+    "answers": [
+      "Beebo"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/33.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/33"
+  },
+  {
+    "id": "rm_34",
+    "name": "Benjamin",
+    "answers": [
+      "Benjamin"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/34.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/34"
+  },
+  {
+    "id": "rm_35",
+    "name": "Bepisian",
+    "answers": [
+      "Bepisian"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/35.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/35"
+  },
+  {
+    "id": "rm_36",
+    "name": "Beta-Seven",
+    "answers": [
+      "Beta-Seven"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/36.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/36"
+  },
+  {
+    "id": "rm_37",
+    "name": "Beth Sanchez",
+    "answers": [
+      "Beth Sanchez"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/37.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/37"
+  },
+  {
+    "id": "rm_38",
+    "name": "Beth Smith",
+    "answers": [
+      "Beth Smith"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/38.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/38"
+  },
+  {
+    "id": "rm_39",
+    "name": "Beth Smith",
+    "answers": [
+      "Beth Smith"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/39.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/39"
+  },
+  {
+    "id": "rm_40",
+    "name": "Beth's Mytholog",
+    "answers": [
+      "Beth's Mytholog"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/40.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/40"
+  },
+  {
+    "id": "rm_41",
+    "name": "Big Boobed Waitress",
+    "answers": [
+      "Big Boobed Waitress"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/41.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/41"
+  },
+  {
+    "id": "rm_42",
+    "name": "Big Head Morty",
+    "answers": [
+      "Big Head Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/42.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/42"
+  },
+  {
+    "id": "rm_43",
+    "name": "Big Morty",
+    "answers": [
+      "Big Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/43.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/43"
+  },
+  {
+    "id": "rm_44",
+    "name": "Body Guard Morty",
+    "answers": [
+      "Body Guard Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/44.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/44"
+  },
+  {
+    "id": "rm_45",
+    "name": "Bill",
+    "answers": [
+      "Bill"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/45.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/45"
+  },
+  {
+    "id": "rm_46",
+    "name": "Bill",
+    "answers": [
+      "Bill"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/46.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/46"
+  },
+  {
+    "id": "rm_47",
+    "name": "Birdperson",
+    "answers": [
+      "Birdperson"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/47.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/47"
+  },
+  {
+    "id": "rm_48",
+    "name": "Black Rick",
+    "answers": [
+      "Black Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/48.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/48"
+  },
+  {
+    "id": "rm_49",
+    "name": "Blamph",
+    "answers": [
+      "Blamph"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/49.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/49"
+  },
+  {
+    "id": "rm_50",
+    "name": "Blim Blam",
+    "answers": [
+      "Blim Blam"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/50.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/50"
+  },
+  {
+    "id": "rm_51",
+    "name": "Blue Diplomat",
+    "answers": [
+      "Blue Diplomat"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/51.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/51"
+  },
+  {
+    "id": "rm_52",
+    "name": "Blue Footprint Guy",
+    "answers": [
+      "Blue Footprint Guy"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/52.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/52"
+  },
+  {
+    "id": "rm_53",
+    "name": "Blue Shirt Morty",
+    "answers": [
+      "Blue Shirt Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/53.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/53"
+  },
+  {
+    "id": "rm_54",
+    "name": "Bobby Moynihan",
+    "answers": [
+      "Bobby Moynihan"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/54.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/54"
+  },
+  {
+    "id": "rm_55",
+    "name": "Boobloosian",
+    "answers": [
+      "Boobloosian"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/55.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/55"
+  },
+  {
+    "id": "rm_56",
+    "name": "Bootleg Portal Chemist Rick",
+    "answers": [
+      "Bootleg Portal Chemist Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/56.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/56"
+  },
+  {
+    "id": "rm_57",
+    "name": "Borpocian",
+    "answers": [
+      "Borpocian"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/57.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/57"
+  },
+  {
+    "id": "rm_58",
+    "name": "Brad",
+    "answers": [
+      "Brad"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/58.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/58"
+  },
+  {
+    "id": "rm_59",
+    "name": "Brad Anderson",
+    "answers": [
+      "Brad Anderson"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/59.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/59"
+  },
+  {
+    "id": "rm_60",
+    "name": "Calypso",
+    "answers": [
+      "Calypso"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/60.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/60"
+  },
+  {
+    "id": "rm_61",
+    "name": "Campaign Manager Morty",
+    "answers": [
+      "Campaign Manager Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/61.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/61"
+  },
+  {
+    "id": "rm_62",
+    "name": "Canklanker Thom",
+    "answers": [
+      "Canklanker Thom"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/62.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/62"
+  },
+  {
+    "id": "rm_63",
+    "name": "Centaur",
+    "answers": [
+      "Centaur"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/63.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/63"
+  },
+  {
+    "id": "rm_64",
+    "name": "Chris",
+    "answers": [
+      "Chris"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/64.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/64"
+  },
+  {
+    "id": "rm_65",
+    "name": "Chris",
+    "answers": [
+      "Chris"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/65.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/65"
+  },
+  {
+    "id": "rm_66",
+    "name": "Coach Feratu (Balik Alistane)",
+    "answers": [
+      "Coach Feratu (Balik Alistane)"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/66.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/66"
+  },
+  {
+    "id": "rm_67",
+    "name": "Collector",
+    "answers": [
+      "Collector"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/67.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/67"
+  },
+  {
+    "id": "rm_68",
+    "name": "Colossus",
+    "answers": [
+      "Colossus"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/68.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/68"
+  },
+  {
+    "id": "rm_69",
+    "name": "Commander Rick",
+    "answers": [
+      "Commander Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/69.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/69"
+  },
+  {
+    "id": "rm_70",
+    "name": "Concerto",
+    "answers": [
+      "Concerto"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/70.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/70"
+  },
+  {
+    "id": "rm_71",
+    "name": "Conroy",
+    "answers": [
+      "Conroy"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/71.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/71"
+  },
+  {
+    "id": "rm_72",
+    "name": "Cool Rick",
+    "answers": [
+      "Cool Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/72.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/72"
+  },
+  {
+    "id": "rm_73",
+    "name": "Cop Morty",
+    "answers": [
+      "Cop Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/73.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/73"
+  },
+  {
+    "id": "rm_74",
+    "name": "Cop Rick",
+    "answers": [
+      "Cop Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/74.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/74"
+  },
+  {
+    "id": "rm_75",
+    "name": "Courier Flap",
+    "answers": [
+      "Courier Flap"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/75.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/75"
+  },
+  {
+    "id": "rm_76",
+    "name": "Cousin Nicky",
+    "answers": [
+      "Cousin Nicky"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/76.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/76"
+  },
+  {
+    "id": "rm_77",
+    "name": "Cowboy Morty",
+    "answers": [
+      "Cowboy Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/77.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/77"
+  },
+  {
+    "id": "rm_78",
+    "name": "Cowboy Rick",
+    "answers": [
+      "Cowboy Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/78.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/78"
+  },
+  {
+    "id": "rm_79",
+    "name": "Crab Spider",
+    "answers": [
+      "Crab Spider"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/79.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/79"
+  },
+  {
+    "id": "rm_80",
+    "name": "Creepy Little Girl",
+    "answers": [
+      "Creepy Little Girl"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/80.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/80"
+  },
+  {
+    "id": "rm_81",
+    "name": "Crocubot",
+    "answers": [
+      "Crocubot"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/81.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/81"
+  },
+  {
+    "id": "rm_82",
+    "name": "Cronenberg Rick",
+    "answers": [
+      "Cronenberg Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/82.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/82"
+  },
+  {
+    "id": "rm_83",
+    "name": "Cronenberg Morty",
+    "answers": [
+      "Cronenberg Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/83.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/83"
+  },
+  {
+    "id": "rm_84",
+    "name": "Cult Leader Morty",
+    "answers": [
+      "Cult Leader Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/84.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/84"
+  },
+  {
+    "id": "rm_85",
+    "name": "Cyclops Morty",
+    "answers": [
+      "Cyclops Morty"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/85.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/85"
+  },
+  {
+    "id": "rm_86",
+    "name": "Cyclops Rick",
+    "answers": [
+      "Cyclops Rick"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/86.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/86"
+  },
+  {
+    "id": "rm_87",
+    "name": "Cynthia",
+    "answers": [
+      "Cynthia"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/87.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/87"
+  },
+  {
+    "id": "rm_88",
+    "name": "Cynthia",
+    "answers": [
+      "Cynthia"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/88.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/88"
+  },
+  {
+    "id": "rm_89",
+    "name": "Dale",
+    "answers": [
+      "Dale"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/89.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/89"
+  },
+  {
+    "id": "rm_90",
+    "name": "Daron Jefferson",
+    "answers": [
+      "Daron Jefferson"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/90.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/90"
+  },
+  {
+    "id": "rm_91",
+    "name": "David Letterman",
+    "answers": [
+      "David Letterman"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/91.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/91"
+  },
+  {
+    "id": "rm_92",
+    "name": "Davin",
+    "answers": [
+      "Davin"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/92.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/92"
+  },
+  {
+    "id": "rm_93",
+    "name": "Diablo Verde",
+    "answers": [
+      "Diablo Verde"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/93.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/93"
+  },
+  {
+    "id": "rm_94",
+    "name": "Diane Sanchez",
+    "answers": [
+      "Diane Sanchez"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/94.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/94"
+  },
+  {
+    "id": "rm_95",
+    "name": "Dipper and Mabel Mortys",
+    "answers": [
+      "Dipper and Mabel Mortys"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/95.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/95"
+  },
+  {
+    "id": "rm_96",
+    "name": "Tuberculosis",
+    "answers": [
+      "Tuberculosis"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/96.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/96"
+  },
+  {
+    "id": "rm_97",
+    "name": "Gonorrhea",
+    "answers": [
+      "Gonorrhea"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/97.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/97"
+  },
+  {
+    "id": "rm_98",
+    "name": "Hepatitis A",
+    "answers": [
+      "Hepatitis A"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/98.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/98"
+  },
+  {
+    "id": "rm_99",
+    "name": "Hepatitis C",
+    "answers": [
+      "Hepatitis C"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/99.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/99"
+  },
+  {
+    "id": "rm_100",
+    "name": "Bubonic Plague",
+    "answers": [
+      "Bubonic Plague"
+    ],
+    "image_url": "https://rickandmortyapi.com/api/character/avatar/100.jpeg",
+    "source_url": "https://rickandmortyapi.com/api/character/100"
+  },
+  {
+    "id": "ani_1084",
+    "name": "Shinji Hirako",
+    "answers": [
+      "Shinji Hirako"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b1084-36qzqGdvxVLI.jpg",
+    "source_url": "https://anilist.co/character/1084"
+  },
+  {
+    "id": "ani_54151",
+    "name": "Renge Miyauchi",
+    "answers": [
+      "Renge Miyauchi"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b54151-V8Qh2l2gTxvH.jpg",
+    "source_url": "https://anilist.co/character/54151"
+  },
+  {
+    "id": "ani_158448",
+    "name": "Laurent Thierry",
+    "answers": [
+      "Laurent Thierry"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b158448-4ayIN90zJJnp.png",
+    "source_url": "https://anilist.co/character/158448"
+  },
+  {
+    "id": "ani_89426",
+    "name": "Chizuru Hishiro",
+    "answers": [
+      "Chizuru Hishiro"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b89426-9VS3dWDKDs4v.jpg",
+    "source_url": "https://anilist.co/character/89426"
+  },
+  {
+    "id": "ani_126893",
+    "name": "Togata",
+    "answers": [
+      "Togata"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b126893-K5JlGa9DxPUE.png",
+    "source_url": "https://anilist.co/character/126893"
+  },
+  {
+    "id": "ani_66",
+    "name": "Scar",
+    "answers": [
+      "Scar"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b66-bLbGWXrmDqfV.png",
+    "source_url": "https://anilist.co/character/66"
+  },
+  {
+    "id": "ani_70733",
+    "name": "Satan Jacob",
+    "answers": [
+      "Satan Jacob"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b70733-d564H7iUj7Y2.png",
+    "source_url": "https://anilist.co/character/70733"
+  },
+  {
+    "id": "ani_87",
+    "name": "Kino",
+    "answers": [
+      "Kino"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b87-1sKGYKWY8EHQ.jpg",
+    "source_url": "https://anilist.co/character/87"
+  },
+  {
+    "id": "ani_89276",
+    "name": "Kayo Hinazuki",
+    "answers": [
+      "Kayo Hinazuki"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/89276-LjlYvXfOnjHB.jpg",
+    "source_url": "https://anilist.co/character/89276"
+  },
+  {
+    "id": "ani_67323",
+    "name": "Daichi Sawamura",
+    "answers": [
+      "Daichi Sawamura"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b67323-yFbLDAfJ5ysG.png",
+    "source_url": "https://anilist.co/character/67323"
+  },
+  {
+    "id": "ani_135020",
+    "name": "Ameri Azazel",
+    "answers": [
+      "Ameri Azazel"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b135020-4ARYfbKjwAbA.jpg",
+    "source_url": "https://anilist.co/character/135020"
+  },
+  {
+    "id": "ani_120652",
+    "name": "Yunyun",
+    "answers": [
+      "Yunyun"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b120652-YxrBBPbmJno2.png",
+    "source_url": "https://anilist.co/character/120652"
+  },
+  {
+    "id": "ani_14957",
+    "name": "Undertaker",
+    "answers": [
+      "Undertaker"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b14957-OUduj1a2m4eC.png",
+    "source_url": "https://anilist.co/character/14957"
+  },
+  {
+    "id": "ani_2450",
+    "name": "Yasushi Takagi",
+    "answers": [
+      "Yasushi Takagi"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b2450-fybfLw3SlimN.jpg",
+    "source_url": "https://anilist.co/character/2450"
+  },
+  {
+    "id": "ani_136842",
+    "name": "Akihiko Kaji",
+    "answers": [
+      "Akihiko Kaji"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b136842-Ip5LDrd7qwE1.png",
+    "source_url": "https://anilist.co/character/136842"
+  },
+  {
+    "id": "ani_127449",
+    "name": "Rumiko Manbagi",
+    "answers": [
+      "Rumiko Manbagi"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b127449-E0m9AYQPclwq.png",
+    "source_url": "https://anilist.co/character/127449"
+  },
+  {
+    "id": "ani_51343",
+    "name": "Koneko Toujou",
+    "answers": [
+      "Koneko Toujou"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b51343-pt1UDTRvAXfY.png",
+    "source_url": "https://anilist.co/character/51343"
+  },
+  {
+    "id": "ani_120890",
+    "name": "Yuuri",
+    "answers": [
+      "Yuuri"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b120890-pu5qO3xxvvcx.png",
+    "source_url": "https://anilist.co/character/120890"
+  },
+  {
+    "id": "ani_137809",
+    "name": "Sabito",
+    "answers": [
+      "Sabito"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b137809-6Tkle99lCBl8.png",
+    "source_url": "https://anilist.co/character/137809"
+  },
+  {
+    "id": "ani_89621",
+    "name": "Teruki Hanazawa",
+    "answers": [
+      "Teruki Hanazawa"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b89621-3uLnmhFOGYFv.png",
+    "source_url": "https://anilist.co/character/89621"
+  },
+  {
+    "id": "ani_32893",
+    "name": "Sabo",
+    "answers": [
+      "Sabo"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b32893-3weZS61cdwLD.png",
+    "source_url": "https://anilist.co/character/32893"
+  },
+  {
+    "id": "ani_129840",
+    "name": "Coco",
+    "answers": [
+      "Coco"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b129840-B2CVE0TIcKpT.png",
+    "source_url": "https://anilist.co/character/129840"
+  },
+  {
+    "id": "ani_20594",
+    "name": "Kite",
+    "answers": [
+      "Kite"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b20594-QQJBR3LYobbv.jpg",
+    "source_url": "https://anilist.co/character/20594"
+  },
+  {
+    "id": "ani_41311",
+    "name": "Gin",
+    "answers": [
+      "Gin"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b41311-QbW9aecoguFX.png",
+    "source_url": "https://anilist.co/character/41311"
+  },
+  {
+    "id": "ani_13021",
+    "name": "Thors Snorresson",
+    "answers": [
+      "Thors Snorresson"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b13021-XJAVDHwMWek2.png",
+    "source_url": "https://anilist.co/character/13021"
+  },
+  {
+    "id": "ani_243404",
+    "name": "Yuki Suou",
+    "answers": [
+      "Yuki Suou"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b243404-X1fmwpqHPdyb.jpg",
+    "source_url": "https://anilist.co/character/243404"
+  },
+  {
+    "id": "ani_88946",
+    "name": "Kishou Arima",
+    "answers": [
+      "Kishou Arima"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b88946-YbTQAGJAdpoH.jpg",
+    "source_url": "https://anilist.co/character/88946"
+  },
+  {
+    "id": "ani_88750",
+    "name": "Utaha Kasumigaoka",
+    "answers": [
+      "Utaha Kasumigaoka"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b88750-s7ZxVssLyP0p.png",
+    "source_url": "https://anilist.co/character/88750"
+  },
+  {
+    "id": "ani_266438",
+    "name": "Enjin",
+    "answers": [
+      "Enjin"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b266438-3Veykti1lXgg.png",
+    "source_url": "https://anilist.co/character/266438"
+  },
+  {
+    "id": "ani_2865",
+    "name": "Kusuriuri",
+    "answers": [
+      "Kusuriuri"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b2865-n2zjwVfgOHZq.jpg",
+    "source_url": "https://anilist.co/character/2865"
+  },
+  {
+    "id": "ani_17675",
+    "name": "Weather Report",
+    "answers": [
+      "Weather Report"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b17675-rrayRQnq2awa.png",
+    "source_url": "https://anilist.co/character/17675"
+  },
+  {
+    "id": "ani_157232",
+    "name": "Beam",
+    "answers": [
+      "Beam"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b157232-5GuWeqoFN9Kq.jpg",
+    "source_url": "https://anilist.co/character/157232"
+  },
+  {
+    "id": "ani_122464",
+    "name": "Ouzen",
+    "answers": [
+      "Ouzen"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b122464-xnYajKbuEa29.jpg",
+    "source_url": "https://anilist.co/character/122464"
+  },
+  {
+    "id": "ani_89836",
+    "name": "Jeanne",
+    "answers": [
+      "Jeanne"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b89836-xLr4mkxojjc3.png",
+    "source_url": "https://anilist.co/character/89836"
+  },
+  {
+    "id": "ani_131033",
+    "name": "Diablo",
+    "answers": [
+      "Diablo"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b131033-0LguIALHCBEH.jpg",
+    "source_url": "https://anilist.co/character/131033"
+  },
+  {
+    "id": "ani_124380",
+    "name": "Hiro",
+    "answers": [
+      "Hiro"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b124380-ct1wJHIl9BY1.jpg",
+    "source_url": "https://anilist.co/character/124380"
+  },
+  {
+    "id": "ani_18323",
+    "name": "Shirayuki",
+    "answers": [
+      "Shirayuki"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b18323-yDl2JX1vF19h.png",
+    "source_url": "https://anilist.co/character/18323"
+  },
+  {
+    "id": "ani_3934",
+    "name": "Olivier Mira Armstrong",
+    "answers": [
+      "Olivier Mira Armstrong"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/n3934-MKTV6tQeP8T3.png",
+    "source_url": "https://anilist.co/character/3934"
+  },
+  {
+    "id": "ani_89029",
+    "name": "Rory Mercury",
+    "answers": [
+      "Rory Mercury"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/89029-dkTeY6564JNP.png",
+    "source_url": "https://anilist.co/character/89029"
+  },
+  {
+    "id": "ani_43280",
+    "name": "Inori Yuzuriha",
+    "answers": [
+      "Inori Yuzuriha"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b43280-dxRTpIioqSg7.png",
+    "source_url": "https://anilist.co/character/43280"
+  },
+  {
+    "id": "ani_13531",
+    "name": "Shouta Kazehaya",
+    "answers": [
+      "Shouta Kazehaya"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/n13531-z66ipM6nJioi.png",
+    "source_url": "https://anilist.co/character/13531"
+  },
+  {
+    "id": "ani_64573",
+    "name": "Xin Li",
+    "answers": [
+      "Xin Li"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b64573-Lketo3ID6eNl.jpg",
+    "source_url": "https://anilist.co/character/64573"
+  },
+  {
+    "id": "ani_559",
+    "name": "Suzaku Kururugi",
+    "answers": [
+      "Suzaku Kururugi"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b559-KRvTdc6zdCuU.jpg",
+    "source_url": "https://anilist.co/character/559"
+  },
+  {
+    "id": "ani_65523",
+    "name": "Junko Enoshima",
+    "answers": [
+      "Junko Enoshima"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b65523-OztiX9PhydrG.png",
+    "source_url": "https://anilist.co/character/65523"
+  },
+  {
+    "id": "ani_83027",
+    "name": "Makoto Tachibana",
+    "answers": [
+      "Makoto Tachibana"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b83027-SpFq12qbN0Dr.png",
+    "source_url": "https://anilist.co/character/83027"
+  },
+  {
+    "id": "ani_197173",
+    "name": "Akito Yamada",
+    "answers": [
+      "Akito Yamada"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b197173-t2KNplNgpQV6.png",
+    "source_url": "https://anilist.co/character/197173"
+  },
+  {
+    "id": "ani_137270",
+    "name": "Yuzuriha",
+    "answers": [
+      "Yuzuriha"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b137270-PTFen9fxyo4H.png",
+    "source_url": "https://anilist.co/character/137270"
+  },
+  {
+    "id": "ani_3066",
+    "name": "Reinhard von Lohengramm",
+    "answers": [
+      "Reinhard von Lohengramm"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b3066-bq8s1DooZyTJ.png",
+    "source_url": "https://anilist.co/character/3066"
+  },
+  {
+    "id": "ani_74167",
+    "name": "Onsoku no Sonic",
+    "answers": [
+      "Onsoku no Sonic"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b74167-FE8EtGtHUM77.png",
+    "source_url": "https://anilist.co/character/74167"
+  },
+  {
+    "id": "ani_10498",
+    "name": "Baki Hanma",
+    "answers": [
+      "Baki Hanma"
+    ],
+    "image_url": "https://s4.anilist.co/file/anilistcdn/character/large/b10498-Ep1aY2liGmIA.png",
+    "source_url": "https://anilist.co/character/10498"
+  }
+]
