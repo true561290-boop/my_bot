@@ -167,6 +167,14 @@ SHOPPING_CHANNEL_ID = 1532645480373420142
 AMENDMENTS_CHANNEL_ID = 1541143390224130209
 TICKET_CHANNEL_ID =1515709356723798177
 
+
+# تقييد الأوامر بقناة Discord محددة.
+# يجب تعريف هذا الـ decorator قبل أول استخدام له في الأوامر.
+def in_channel(channel_id: int):
+    async def predicate(ctx):
+        return ctx.channel.id == int(channel_id)
+    return commands.check(predicate)
+
 BACKGROUND_IMAGE_URL = "https://i.ibb.co/6R2N29S/vintage-paper-bg.png"
 fetch_latest_balances_from_github()
 
