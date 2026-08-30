@@ -168,8 +168,6 @@ AMENDMENTS_CHANNEL_ID = 1541143390224130209
 TICKET_CHANNEL_ID =1515709356723798177
 
 
-# تقييد الأوامر بقناة Discord محددة.
-# يجب تعريف هذا الـ decorator قبل أول استخدام له في الأوامر.
 def in_channel(channel_id: int):
     async def predicate(ctx):
         return ctx.channel.id == int(channel_id)
@@ -1729,7 +1727,7 @@ RIDDLES = [
 ]
 
 
-@bot.command(name="quiz", aliases=["quiz", "questions"])
+@bot.command(name="quiz", aliases=["questions"])
 @in_channel(GAMES_CHANNEL_ID)
 async def quiz_game(ctx, rounds: int = 1):
     if rounds < 1 or rounds > 10:
@@ -1780,7 +1778,7 @@ async def quiz_game(ctx, rounds: int = 1):
             await asyncio.sleep(1)
 
 
-@bot.command(name="riddle", aliases=["riddle"])
+@bot.command(name="riddle")
 @in_channel(GAMES_CHANNEL_ID)
 async def riddle_game(ctx, rounds: int = 1):
     if rounds < 1 or rounds > 10:
@@ -1972,7 +1970,7 @@ class RPSView(discord.ui.View):
         await self.process_player_choice(interaction, "مقص")
 
 
-@bot.command(name="rps", aliases=["rpsة", "rps"])
+@bot.command(name="rps", aliases=["rpsة"])
 @in_channel(GAMES_CHANNEL_ID)
 async def rps_game(ctx, opponent: discord.Member = None):
     if opponent and opponent.bot:
@@ -2195,7 +2193,7 @@ class XOView(discord.ui.View):
         return random.choice(empty_indices)
 
 
-@bot.command(name="xo", aliases=["xo", "tictactoe"])
+@bot.command(name="xo", aliases=["tictactoe"])
 @in_channel(GAMES_CHANNEL_ID)
 async def xo_game(ctx, opponent: discord.Member = None):
     if opponent and opponent.bot:
@@ -2547,7 +2545,7 @@ class Connect4View(discord.ui.View):
         return best_col, row
 
 
-@bot.command(name="connect4", aliases=["connect4"])
+@bot.command(name="connect4")
 @in_channel(GAMES_CHANNEL_ID)
 async def connect4_game(ctx, opponent: discord.Member = None):
     if opponent and opponent.bot:
@@ -2909,7 +2907,7 @@ async def remove_money_error(ctx, error):
         await ctx.send("❌ Please منشن عaddو صحيح وكtransferابة Amount بالأرقام.")
 
 
-@bot.command(name="pay", aliases=["transfer", "pay"])
+@bot.command(name="pay", aliases=["transfer"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def transfer_money(
     ctx, member: discord.Member = None, amount: int = None
@@ -2969,7 +2967,7 @@ class BetCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="bet", aliases=["bet", "عجلة_المصير"])
+    @commands.command(name="bet", aliases=["عجلة_المصير"])
     @in_channel(SHOPPING_CHANNEL_ID)
     async def bet_game(
         self,
@@ -3158,7 +3156,7 @@ async def get_id(
     await ctx.send("❌ لم يtransferم العثور على عaddو أو رtransferبة بهذا المنشن/الاسم.")
 
 
-@bot.command(name="clear", aliases=["clear", "clear_الرسائل"])
+@bot.command(name="clear", aliases=["clear_الرسائل"])
 @commands.has_role(OWNER_ROLE_ID)
 async def clear_messages(ctx, amount: int = None):
     if amount is None or amount <= 0:
@@ -3187,7 +3185,7 @@ async def clear_messages_error(ctx, error):
         )
 
 
-@bot.command(name="avatar", aliases=["avatar", "avatarي"])
+@bot.command(name="avatar", aliases=["avatarي"])
 @in_channel(AVATAR_CHANNEL_ID)
 async def show_avatar(ctx, member: discord.Member = None):
     target = member or ctx.author
@@ -3199,7 +3197,7 @@ async def show_avatar(ctx, member: discord.Member = None):
     await ctx.send(embed=embed)
 
 
-@bot.command(name="banner", aliases=["banner", "bannerي"])
+@bot.command(name="banner", aliases=["bannerي"])
 @in_channel(AVATAR_CHANNEL_ID)
 async def show_banner(ctx, member: discord.Member = None):
     target = member or ctx.author
@@ -3456,7 +3454,7 @@ async def help_command(ctx):
 
 # --- 10. أوامر الإدارة ---
 
-@bot.command(name="ban", aliases=["حظر", "ban"])
+@bot.command(name="ban", aliases=["حظر", "حظر_بالمنشن"])
 @commands.has_role(OWNER_ROLE_ID)
 async def ban_member(
     ctx, member: discord.Member = None, *, reason: str = "لم يtransferم ذكر Reason"
@@ -3496,7 +3494,7 @@ async def ban_member_error(ctx, error):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
 
-@bot.command(name="mute", aliases=["كtransferم", "mute"])
+@bot.command(name="mute", aliases=["كtransferم"])
 @commands.has_role(OWNER_ROLE_ID)
 async def mute_member(
     ctx,
@@ -3546,7 +3544,7 @@ async def mute_member_error(ctx, error):
         await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
 
 
-@bot.command(name="unmute", aliases=["فك_الكtransferم", "unmute"])
+@bot.command(name="unmute", aliases=["فك_الكtransferم"])
 @commands.has_role(OWNER_ROLE_ID)
 async def unmute_member(ctx, member: discord.Member):
     if not member:
@@ -3598,45 +3596,7 @@ async def send_embed_with_image(ctx, title, description, image_path, color=disco
         await ctx.send(embed=embed)
 
 
-@bot.command(name="ban", aliases=["حظر_بالمنشن"])
-@commands.has_role(OWNER_ROLE_ID)
-async def ban_member_by_mention(ctx, member: discord.Member = None, *, reason: str = "لم يtransferم ذكر Reason"):
-    """يحظر عaddواً باسtransferخدام منشن، ويرسل Embed مع صورة محلية."""
-    if not member:
-        await ctx.send(
-            "⚠️ **Please منشن العaddو المراد حظره**\nمثال: `-ban @User Reason`",
-            delete_after=3,
-        )
-        return
-    if member == ctx.author:
-        await ctx.send("❌ You cannot ban yourself")
-        return
-    if member.id == ctx.guild.owner_id:
-        await ctx.send("❌ You cannot ban the server owner")
-        return
-
-    try:
-        await member.ban(reason=f"بواسطة {ctx.author.name} - Reason: {reason}")
-        title = "🚫 transferم حظر العaddو"
-        description = (
-            f"**العaddو:** {member.mention} (`{member.id}`)\n"
-            f"**Reason:** {reason}\n"
-            f"**بواسطة:** {ctx.author.mention}"
-        )
-        await send_embed_with_image(ctx, title, description, BAN_IMAGE_PATH, color=discord.Color.red())
-    except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحياtransfer كافية لحظر هذا العaddو (transferأكد من رtransferبة البوtransfer أعلى من رtransferبة العaddو).")
-    except Exception as e:
-        await ctx.send(f"❌ An error occurred أثناء الحظر: {e}")
-
-
-@ban_member_by_mention.error
-async def ban_member_by_mention_error(ctx, error):
-    if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للأونر فقط.", delete_after=3)
-
-
-@bot.command(name="unban", aliases=["unban"])
+@bot.command(name="unban")
 @commands.has_role(OWNER_ROLE_ID)
 async def unban_member(ctx, user: discord.User = None, *, reason: str = "لم يtransferم ذكر Reason"):
     """يفك حظر عaddو ويعيده عبر رابط دعوة."""
@@ -3959,7 +3919,7 @@ class TicketDeleteView(discord.ui.View):
 # أمر إنشاء لوحة الtransferذاكر
 # ==========================================
 
-@bot.command(name="ticket", aliases=["ticket", "transferذكرة"])
+@bot.command(name="ticket", aliases=["transferذكرة"])
 @commands.has_role(OWNER_ROLE_ID)
 @in_channel(TICKET_CHANNEL_ID)
 async def ticket_command(ctx):
