@@ -19,6 +19,7 @@ from collections import OrderedDict
 from difflib import SequenceMatcher
 import typing
 import gc
+from pathlib import Path
 import aiohttp
 import discord
 from discord.ext import commands
@@ -26,13 +27,13 @@ from flask import Flask
 from PIL import Image, ImageDraw, ImageFont
 import requests
 
-# تشغيل عمليات PIL/الاقتصاد المتزامنة خارج event loop لتجنب تجميد البوت
+# Run PIL/economy heavy operations in a separate thread to avoid blocking the event loop
 async def _run_bg(func, *args):
     return await asyncio.to_thread(func, *args)
 
 
 # ==========================================
-# ⚡ كاش سريع مع TTL وحد أقصى للحجم
+# ⚡ Fast in‑memory cache with TTL and max size
 # ==========================================
 class _TTLCache:
     def __init__(self, maxsize=256, ttl=300):
@@ -74,8 +75,8 @@ class _TTLCache:
                 self._data.pop(key, None)
 
 
-# لا نخزن الرصيد نفسه لفترة طويلة حتى لا يظهر للمستخدم رصيد قديم.
-# الكاش هنا للصور ونتائج الرسم فقط، مع TTL قصير للنتيجة النهائية.
+# We don't cache balances for long to avoid showing old balances.
+# The cache here is for images and drawing results, with a short TTL for final results.
 _SHOP_HOME_CACHE = _TTLCache(maxsize=1, ttl=1800)
 _SHOP_CATEGORY_CACHE = _TTLCache(maxsize=64, ttl=300)
 _BALANCE_AVATAR_CACHE = _TTLCache(maxsize=512, ttl=300)
@@ -85,10 +86,10 @@ _ROULETTE_WHEEL_CACHE = _TTLCache(maxsize=256, ttl=300)
 
 
 async def _cache_cleanup_loop():
-    """تنظيف الكاشات المنتهية بشكل دوري بدون إيقاف event loop."""
+    """Periodically clean expired caches without blocking the event loop."""
     while True:
         try:
-            await asyncio.sleep(300)  # كل 5 دقائق
+            await asyncio.sleep(300)  # every 5 minutes
             for cache in (
                 _SHOP_HOME_CACHE,
                 _SHOP_CATEGORY_CACHE,
@@ -97,10 +98,10 @@ async def _cache_cleanup_loop():
             ):
                 cache.cleanup()
 
-            # كاش صور الرتب عبارة عن dict عادي؛ نحذفه فقط إذا تضخم بشكل غير طبيعي.
+            # The role icon cache is a plain dict; only clear if it grows abnormally.
             visual_cache = globals().get("_SHOP_VISUAL_CACHE")
             if isinstance(visual_cache, dict) and len(visual_cache) > 512:
-                # نحتفظ بآخر 512 عنصرًا تقريبًا بدل مسح الكاش كاملًا.
+                # keep the most recent 512 entries instead of clearing everything
                 for key in list(visual_cache)[:-512]:
                     visual_cache.pop(key, None)
 
@@ -108,9 +109,9 @@ async def _cache_cleanup_loop():
         except asyncio.CancelledError:
             break
         except Exception as e:
-            print(f"⚠️ خطأ في تنظيف الكاش: {e}")
+            print(f"⚠️ Cache cleanup error: {e}")
 
-# استيراد نظام الأرصدة المنفصل
+# Import the separate economy system
 from economy import (
     add_balance,
     fetch_latest_balances_from_github,
@@ -118,7 +119,7 @@ from economy import (
     remove_balance,
 )
 
-# --- 1. خادم الويب للحفاظ على استمرار التشغيل 24/7 ---
+# --- 1. Web server to keep the bot alive 24/7 ---
 app = Flask("")
 
 
@@ -140,7 +141,7 @@ def keep_alive():
 
 keep_alive()
 
-# --- 2. إعدادات البوت والبيانات ---
+# --- 2. Bot configuration and data ---
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -154,7 +155,7 @@ class BILBot(commands.Bot):
         self._cache_cleanup_task = asyncio.create_task(_cache_cleanup_loop())
 
 
-bot = BILBot(command_prefix="-", intents=intents, max_messages=None)
+bot = BILBot(command_prefix="", intents=intents, max_messages=None)
 bot.remove_command("help")
 
 WELCOME_CHANNEL_ID = 1515396548392128670
@@ -165,7 +166,7 @@ GAMES_CHANNEL_ID = 1515416733102379100
 THEFT_CHANNEL_ID = 1532648660997771335
 SHOPPING_CHANNEL_ID = 1532645480373420142
 AMENDMENTS_CHANNEL_ID = 1541143390224130209
-TICKET_CHANNEL_ID =1515709356723798177
+TICKET_CHANNEL_ID = 1515709356723798177
 
 BACKGROUND_IMAGE_URL = "https://i.ibb.co/6R2N29S/vintage-paper-bg.png"
 FONT_PATH = "arabic_font.ttf"
@@ -179,7 +180,7 @@ def in_channel(channel_id: int):
             except Exception:
                 pass
             await ctx.send(
-                f"This only works in this room: <#{channel_id}>",
+                f"❌ This command only works in the designated channel: <#{channel_id}>",
                 delete_after=3,
             )
             return False
@@ -196,33 +197,175 @@ def ensure_arabic_font():
             if r.status_code == 200:
                 with open(FONT_PATH, "wb") as f:
                     f.write(r.content)
-                print("✅ تم تحميل الخط العربي بنجاح!")
+                print("✅ Arabic font downloaded successfully!")
         except Exception as e:
-            print(f"❌ فشل تنزيل الخط العربي: {e}")
+            print(f"❌ Failed to download Arabic font: {e}")
 
 
 ensure_arabic_font()
 fetch_latest_balances_from_github()
 
-# --- 3. المتجر التفاعلي ورسم الصور ---
+# ==========================================
+# 🎬 Direct Instagram / TikTok video download
+# ==========================================
+# Uses yt‑dlp to download the video itself, not just change the link.
+# Make sure to add yt‑dlp to requirements.txt on the host.
+try:
+    import yt_dlp
+    YTDLP_AVAILABLE = True
+except ImportError:
+    yt_dlp = None
+    YTDLP_AVAILABLE = False
+    print("⚠️ yt‑dlp is not installed. Add yt‑dlp to requirements.txt and restart the bot.")
+
+_SOCIAL_VIDEO_RE = re.compile(
+    r"https?://(?:www\.)?(?:"
+    r"instagram\.com/(?:reel|reels|p|tv|stories)/[^\s<>]+"
+    r"|tiktok\.com/[^\s<>]+"
+    r"|vm\.tiktok\.com/[^\s<>]+"
+    r"|vt\.tiktok\.com/[^\s<>]+"
+    r")",
+    re.IGNORECASE,
+)
+
+_VIDEO_DOWNLOAD_SEMAPHORE = asyncio.Semaphore(2)
+_VIDEO_CACHE = _TTLCache(maxsize=24, ttl=180)
+
+
+def _clean_social_url(url: str) -> str:
+    """Clean the URL from punctuation that the user may have added."""
+    return url.strip().strip("<>").rstrip(".,!?؛،")
+
+
+def _download_social_video(url: str):
+    """Download a single video in a thread to avoid freezing the Discord event loop."""
+    if not YTDLP_AVAILABLE:
+        raise RuntimeError("yt‑dlp not installed")
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="social_video_") as tmp:
+        output_template = os.path.join(tmp, "%(id)s.%(ext)s")
+
+        ydl_opts = {
+            "outtmpl": output_template,
+            "noplaylist": True,
+            "quiet": True,
+            "no_warnings": True,
+            "restrictfilenames": True,
+            "socket_timeout": 20,
+            "retries": 3,
+            "fragment_retries": 3,
+            "concurrent_fragment_downloads": 4,
+            "nocheckcertificate": True,
+            "geo_bypass": True,
+            "http_headers": {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/145.0.0.0 Safari/537.36"
+                ),
+                "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
+            },
+            # Choose a single ready‑to‑use file to avoid ffmpeg dependency.
+            # 720p is usually enough for quick delivery to Discord.
+            "format": (
+                "best[ext=mp4][height<=720]/"
+                "best[height<=720]/"
+                "best[ext=mp4]/best"
+            ),
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+
+            # Some sites may change the extension after format selection.
+            if not os.path.isfile(filename):
+                base = os.path.splitext(filename)[0]
+                candidates = [
+                    filename,
+                    base + ".mp4",
+                    base + ".webm",
+                    base + ".mkv",
+                    base + ".mov",
+                ]
+                filename = next(
+                    (candidate for candidate in candidates if os.path.isfile(candidate)),
+                    None,
+                )
+
+            if not filename:
+                files = [p for p in Path(tmp).glob("*") if p.is_file()]
+                filename = str(files[0]) if files else None
+
+            if not filename:
+                raise FileNotFoundError("yt‑dlp finished without creating a video file")
+
+            data = Path(filename).read_bytes()
+            if len(data) > 24 * 1024 * 1024:
+                raise ValueError("Video is larger than 24MB")
+
+            ext = Path(filename).suffix.lower().lstrip(".") or "mp4"
+            return data, ext
+
+
+async def _download_and_send_social_video(message: discord.Message, url: str) -> bool:
+    """Download the video and upload it to Discord."""
+    if not YTDLP_AVAILABLE:
+        await message.reply(
+            "❌ Instagram/TikTok download feature is not enabled because yt‑dlp is not installed.",
+            mention_author=False,
+        )
+        return False
+
+    url = _clean_social_url(url)
+
+    try:
+        async with _VIDEO_DOWNLOAD_SEMAPHORE:
+            cached = _VIDEO_CACHE.get(url)
+            if cached is None:
+                cached = await asyncio.to_thread(_download_social_video, url)
+                _VIDEO_CACHE.set(url, cached)
+
+        data, ext = cached
+        buf = io.BytesIO(data)
+        await message.reply(
+            file=discord.File(buf, filename=f"social_video.{ext}"),
+            mention_author=False,
+        )
+        return True
+
+    except Exception as e:
+        # Log the real reason to the console so we know if it's Instagram,
+        # TikTok, file size, or yt‑dlp version.
+        print(f"[SOCIAL VIDEO ERROR] {type(e).__name__}: {e}")
+        await message.reply(
+            "❌ Failed to download the video. If the video is public and the issue persists, "
+            "check the Render console for the specific error.",
+            mention_author=False,
+        )
+        return False
+
+# --- 3. Interactive shop and image drawing ---
 
 SHOP_DATA_FILE = os.path.join(BASE_DIR if "BASE_DIR" in globals() else os.path.dirname(os.path.abspath(__file__)), "shop_data.json")
 DEFAULT_COLOR_PRICE = 800
 DEFAULT_VIP_PRICE = 1000
 
-# القيم الافتراضية الموجودة في المتجر حالياً. تُحفظ لاحقاً في shop_data.json
+# Default values currently in the shop. They will be saved later in shop_data.json
 _DEFAULT_SHOP_VIP_ROLES = {}
 _DEFAULT_SHOP_COLOR_ROLES = {}
 
-# إصدار بيانات المتجر. رفع الإصدار هنا يؤدي إلى تصفير عناصر المتجر القديمة مرة واحدة،
-# بدون حذف الرتب نفسها من السيرفر.
+# Shop data version. Incrementing this will reset the shop items once,
+# without deleting the roles themselves from the server.
 SHOP_DATA_VERSION = 2
 
 
 SHOP_REDIS_KEY = "shop_data"
 
 def _redis_command(command, *args):
-    """تنفيذ أمر Upstash REST لحفظ بيانات المتجر بشكل دائم."""
+    """Execute an Upstash REST command to persistently store shop data."""
     if not UPSTASH_REDIS_REST_URL or not UPSTASH_REDIS_REST_TOKEN:
         return None
     try:
@@ -242,7 +385,7 @@ def _redis_command(command, *args):
 
 
 def _load_shop_data():
-    # أي بيانات قديمة لا تحمل الإصدار الحالي يتم تجاهلها حتى يبدأ المتجر فارغاً.
+    # Any old data without the current version is ignored, so the shop starts empty.
     def _normalize(data):
         if not isinstance(data, dict):
             return None
@@ -254,7 +397,7 @@ def _load_shop_data():
             return vip, colors
         return None
 
-    # المصدر الدائم أولاً: Upstash Redis.
+    # Primary source: Upstash Redis.
     try:
         result = _redis_command("GET", SHOP_REDIS_KEY)
         if result:
@@ -262,9 +405,9 @@ def _load_shop_data():
             if loaded is not None:
                 return loaded
     except Exception as e:
-        print(f"❌ تعذر تحميل بيانات المتجر من Redis: {e}")
+        print(f"❌ Failed to load shop data from Redis: {e}")
 
-    # توافق مع الملف المحلي القديم، لكن لا نستعيد العناصر القديمة بعد تغيير الإصدار.
+    # Fallback to the local file for compatibility, but we don't restore old items after a version change.
     if os.path.exists(SHOP_DATA_FILE):
         try:
             with open(SHOP_DATA_FILE, "r", encoding="utf-8") as f:
@@ -273,9 +416,9 @@ def _load_shop_data():
             if loaded is not None:
                 return loaded
         except Exception as e:
-            print(f"❌ تعذر تحميل shop_data.json: {e}")
+            print(f"❌ Failed to load shop_data.json: {e}")
 
-    # يبدأ المتجر فارغاً، والإضافة تتم فقط من خلال تحكم_متجر.
+    # Start with an empty shop; items are added only through manage_shop.
     vip, colors = {}, {}
     _save_shop_data(vip, colors)
     return vip, colors
@@ -285,16 +428,16 @@ def _save_shop_data(vip=None, colors=None):
     colors = SHOP_COLOR_ROLES if colors is None else colors
     payload = json.dumps({"version": SHOP_DATA_VERSION, "vip": vip, "colors": colors}, ensure_ascii=False, indent=4)
 
-    # نحفظ في Redis أولاً لأنه التخزين الدائم على الاستضافة.
+    # Save to Redis first because it's the persistent storage on the host.
     redis_saved = _redis_command("SET", SHOP_REDIS_KEY, payload)
 
-    # نحفظ نسخة محلية أيضاً للاستفادة منها في حال تشغيل البوت محلياً.
+    # Also save a local copy for when the bot is run locally.
     try:
         with open(SHOP_DATA_FILE, "w", encoding="utf-8") as f:
             f.write(payload)
         local_saved = True
     except Exception as e:
-        print(f"❌ تعذر حفظ بيانات المتجر محلياً: {e}")
+        print(f"❌ Failed to save shop data locally: {e}")
         local_saved = False
 
     return redis_saved == "OK" or local_saved
@@ -332,7 +475,7 @@ def _open_shop_background():
                     .resize(SHOP_IMAGE_SIZE, Image.Resampling.LANCZOS)
                 )
             except Exception as e:
-                print(f"❌ تعذر فتح صورة المتجر mtgr.png: {e}")
+                print(f"❌ Failed to open shop background mtgr.png: {e}")
                 _SHOP_BACKGROUND_CACHE = Image.new("RGBA", SHOP_IMAGE_SIZE, (38, 31, 24, 255))
         return _SHOP_BACKGROUND_CACHE.copy()
 
@@ -359,12 +502,12 @@ def draw_shop_home():
     base = _open_shop_background()
     draw = ImageDraw.Draw(base)
 
-    # العنوان داخل المربع الأحمر الكبير.
-    _shop_text(draw, (683, 112), " Royal Store", 58, fill=(242, 205, 126, 255), max_width=650)
+    # Title inside the big red box.
+    _shop_text(draw, (683, 112), "Royal Shop", 58, fill=(242, 205, 126, 255), max_width=650)
 
-    # أسماء القسمين داخل المربعين الأصليين في التصميم.
-    _shop_text(draw, (458, 260), "Ranks", 43, fill=(74, 43, 27, 255), max_width=430)
-    _shop_text(draw, (980, 260), "Wavy Colors ", 38, fill=(74, 43, 27, 255), max_width=470)
+    # Section names inside the two original boxes.
+    _shop_text(draw, (458, 260), "Roles", 43, fill=(74, 43, 27, 255), max_width=430)
+    _shop_text(draw, (980, 260), "Wavy Colors", 38, fill=(74, 43, 27, 255), max_width=470)
 
     out = io.BytesIO()
     base.save(out, format="PNG", optimize=False, compress_level=3)
@@ -376,7 +519,7 @@ def draw_shop_home():
 
 
 def _draw_wavy_swatch(draw, box, rgb):
-    # مستطيل أكبر قليلاً لعرض لون الرتبة بدون الخطوط/التموجات الخارجية.
+    # A slightly larger rectangle to display the role color without the outer wavy lines.
     draw.rounded_rectangle(
         box,
         radius=12,
@@ -396,21 +539,22 @@ def _paste_role_badge(base, badge_bytes, center, size=74):
         y = center[1] - badge.height // 2
         base.paste(badge, (x, y), badge)
     except Exception as e:
-        print(f"❌ تعذر رسم بادج الرتبة: {e}")
+        print(f"❌ Failed to draw role badge: {e}")
 
 
 def draw_shop_category(kind, items, page=0, per_page=6):
     base = _open_shop_background()
     draw = ImageDraw.Draw(base)
 
-    title = "Ranks" if kind == "vip" else "Wavy Colors"
+    title = "Roles" if kind == "vip" else "Wavy Colors"
     _shop_text(draw, (683, 112), title, 52, fill=(242, 205, 126, 255), max_width=650)
 
-    # طبقة داكنة خفيفة فوق منطقة البطاقات للمحافظة على وضوحها مع الخلفية الأصلية.
+    # A dark overlay over the card area to keep them readable against the background.
     draw.rounded_rectangle((45, 185, 1320, 735), radius=28, fill=(28, 23, 18, 120), outline=(205, 159, 86, 150), width=3)
 
-    start = page * per_page
-    visible = items[start:start + per_page]
+    # _render_shop_category passes only the items for the current page,
+    # so we don't slice again here. Reusing 'page' here would make page 2+ empty.
+    visible = items
     card_w, card_h = 585, 145
     positions = []
     for row in range(3):
@@ -425,7 +569,7 @@ def draw_shop_category(kind, items, page=0, per_page=6):
         center_y = (y1 + y2) // 2
 
         if kind == "vip":
-            # البادج يظهر داخل البطاقة إن كانت الرتبة تملكه.
+            # The badge appears inside the card if the role has one.
             _paste_role_badge(base, visual.get("badge"), (x1 + 72, center_y), 82)
             name_x = x1 + 330
         else:
@@ -434,10 +578,10 @@ def draw_shop_category(kind, items, page=0, per_page=6):
             name_x = x1 + 330
 
         _shop_text(draw, (name_x, center_y - 19), item["name"], 31, fill=(69, 42, 27, 255), max_width=360)
-        _shop_text(draw, (name_x, center_y + 34), f"{int(item['price']):,} mora", 25, fill=(100, 60, 31, 255), max_width=330)
+        _shop_text(draw, (name_x, center_y + 34), f"{int(item['price']):,} Tolar", 25, fill=(100, 60, 31, 255), max_width=330)
 
     if not visible:
-        _shop_text(draw, (683, 450), " There are no items added at the moment", 38, fill=(242, 205, 126, 255))
+        _shop_text(draw, (683, 450), "No items added yet", 38, fill=(242, 205, 126, 255))
 
     out = io.BytesIO()
     base.save(out, format="PNG", optimize=False, compress_level=3)
@@ -446,8 +590,8 @@ def draw_shop_category(kind, items, page=0, per_page=6):
     return out
 
 
-# كاش لأيقونات الرتب لتجنب إعادة تحميلها عند التنقل بين صفحات المتجر.
-# القيمة: (رابط الأيقونة الحالي، بيانات الصورة أو None)
+# Cache for role icons to avoid reloading them when navigating shop pages.
+# Value: (current icon URL, image data or None)
 _SHOP_VISUAL_CACHE = {}
 
 
@@ -468,28 +612,28 @@ async def _fetch_one_shop_visual(session, guild, item):
     icon_url = str(icon.url) if icon else None
     cache_key = role.id
 
-    # إذا كانت الأيقونة موجودة في الكاش ولم تتغير، نستخدمها مباشرة.
+    # If the icon is already cached and hasn't changed, use it directly.
     cached = _SHOP_VISUAL_CACHE.get(cache_key)
     if cached is not None and cached[0] == icon_url:
         return {"badge": cached[1], "rgb": rgb}
 
     if icon_url:
         try:
-            # 3 ثوانٍ كافية لطلب صورة صغيرة؛ والأهم ألا ننتظر 8 ثوانٍ لكل رتبة.
+            # 3 seconds is enough for a small image; we don't want to wait 8 seconds per role.
             timeout = aiohttp.ClientTimeout(total=3)
             async with session.get(icon_url, timeout=timeout) as resp:
                 if resp.status == 200:
                     badge = await resp.read()
         except Exception as e:
-            print(f"⚠️ تعذر تحميل بادج الرتبة {role.id}: {e}")
+            print(f"⚠️ Failed to load badge for role {role.id}: {e}")
 
-    # نخزن حتى نتيجة عدم وجود الأيقونة، حتى لا نكرر الطلب في كل ضغطة.
+    # Store even the failure so we don't repeat the request on every click.
     _SHOP_VISUAL_CACHE[cache_key] = (icon_url, badge)
     return {"badge": badge, "rgb": rgb}
 
 
 async def _fetch_shop_visuals(guild, items):
-    # تحميل صور الرتب بالتوازي بدل الانتظار لكل رتبة على حدة.
+    # Load role images in parallel instead of waiting for each one sequentially.
     async with aiohttp.ClientSession() as session:
         return await asyncio.gather(
             *(_fetch_one_shop_visual(session, guild, item) for item in items)
@@ -502,7 +646,7 @@ async def _render_shop_category(guild, kind, page=0):
     start = page * 6
     page_items = items[start:start + 6]
 
-    # المفتاح يتغير تلقائياً عند تغيير اسم/سعر/رتبة/لون أحد العناصر.
+    # The cache key automatically changes when a role's name/price/id/color changes.
     signature = tuple(
         (str(item.get("id")), str(item.get("name")), int(item.get("price", 0)))
         for item in page_items
@@ -524,22 +668,22 @@ async def _render_shop_category(guild, kind, page=0):
 
 
 # ==========================================
-# 🎨 أدوات المعالجة والتصميم (PIL Helper Functions) - أمر الرهان المحدث
+# 🎨 PIL helpers – updated bet command
 # ==========================================
 
-# خلفيات نظام الرهان — تُقرأ من نفس مجلد ملف البوت حتى تعمل سواء شغّلته محلياً أو على الاستضافة
+# Bet system backgrounds – read from the same folder as the bot so it works both locally and on the host
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CHALLENGE_BASE_IMG = os.path.join(BASE_DIR, "bet_challenge_2.jpg")
 RESULT_BASE_IMG = os.path.join(BASE_DIR, "bet_result_2.jpg")
 
-# ملفات لعبة الروليت الروسي
+# Russian roulette game files
 RUSSIAN_ROULETTE_GUN_GIF = os.path.join(BASE_DIR, "gun.gif")
 RUSSIAN_ROULETTE_RESULT_GIF = os.path.join(BASE_DIR, "rolet2.gif")
 RUSSIAN_ROULETTE_BACKGROUND = os.path.join(BASE_DIR, "roulette_background.jpg")
 RUSSIAN_ROULETTE_STEP = 50
 RUSSIAN_ROULETTE_CHAMBERS = 6
 
-# خلفية بطاقة أمر طولاري
+# Balance card background
 BALANCE_BASE_IMG = os.path.join(BASE_DIR, "mora-card-Dragon.jpg")
 
 _BALANCE_BACKGROUND_CACHE = None
@@ -557,7 +701,7 @@ def _open_base(path, size):
                     _BALANCE_BACKGROUND_CACHE = image.copy()
         return image
     except Exception as e:
-        print(f"[BET] تعذر فتح الخلفية {path}: {e}")
+        print(f"[BET] Failed to open background {path}: {e}")
         return Image.new("RGBA", size, (16, 19, 27, 255))
 
 def get_circle_avatar(avatar_bytes, size=(200, 200)):
@@ -598,7 +742,7 @@ def _font(size):
     return font
 
 def _fit_font(text, max_width, start_size=28, min_size=14):
-    """اختيار أكبر حجم خط يسمح ببقاء النص داخل العرض المحدد."""
+    """Choose the largest font size that allows the text to fit within the given width."""
     size = start_size
     while size > min_size:
         font = _font(size)
@@ -611,24 +755,24 @@ def _fit_font(text, max_width, start_size=28, min_size=14):
 
 def draw_balance_card(avatar_bytes, member_name, balance):
     """
-    يرسم بطاقة طولاري على دقة الخلفية الأصلية 1640x656:
-    - الأفاتار متمركز داخل الدائرة السوداء بدون تغطية الإطار الزخرفي.
-    - الرصيد متمركز داخل المستطيل الموجود في التصميم.
-    - اسم العضو داخل مستطيل الاسم فوق الأفاتار.
+    Draws a balance card at the original background resolution 1640x656:
+    - Avatar centered inside the black circle without covering the decorative frame.
+    - Balance centered inside the rectangle provided in the design.
+    - Member name inside the name box above the avatar.
     """
-    # الخلفية الأصلية 1640x656، لذلك نستخدم إحداثياتها مباشرة
+    # Original background 1640x656, so we use its coordinates directly
     base = _open_base(BALANCE_BASE_IMG, (1640, 656)).resize(
         (1640, 656), Image.Resampling.LANCZOS
     )
     draw = ImageDraw.Draw(base)
 
     # =========================
-    # الأفاتار — مركز الدائرة الحقيقي في الخلفية
+    # Avatar – real circle center in the background
     # =========================
     avatar_size = 296
     avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
 
-    # قص مربع من منتصف الأفاتار حتى لا يتم تشويه الصورة
+    # Crop a square from the middle of the avatar to avoid distortion
     side = min(avatar.width, avatar.height)
     left = (avatar.width - side) // 2
     top = (avatar.height - side) // 2
@@ -640,14 +784,14 @@ def draw_balance_card(avatar_bytes, member_name, balance):
         (0, 0, avatar_size - 1, avatar_size - 1), fill=255
     )
 
-    # مركز الدائرة السوداء في mora-card-Dragon.jpg
+    # Center of the black circle in mora-card-Dragon.jpg
     circle_center = (291, 328)
     avatar_x = circle_center[0] - avatar_size // 2
     avatar_y = circle_center[1] - avatar_size // 2
     base.paste(avatar, (avatar_x, avatar_y), avatar_mask)
 
     # =========================
-    # صندوق اسم العضو
+    # Member name box
     # =========================
     box_outline = (117, 91, 35, 190)
     box_fill = (8, 8, 8, 65)
@@ -665,7 +809,7 @@ def draw_balance_card(avatar_bytes, member_name, balance):
     base = Image.alpha_composite(base, overlay)
     draw = ImageDraw.Draw(base)
 
-    clean_name = str(member_name).strip() or "member"
+    clean_name = str(member_name).strip() or "Member"
     name_font = _fit_font(clean_name, 350, start_size=42, min_size=22)
     draw.text(
         ((name_box[0] + name_box[2]) // 2, (name_box[1] + name_box[3]) // 2),
@@ -676,12 +820,12 @@ def draw_balance_card(avatar_bytes, member_name, balance):
     )
 
     # =========================
-    # الرصيد — داخل المستطيل الأصلي
+    # Balance – inside the original rectangle
     # =========================
-    balance_text = f"{balance:,} mora"
+    balance_text = f"{balance:,} Tolar"
     balance_font = _fit_font(balance_text, 500, start_size=43, min_size=22)
 
-    # مركز المستطيل الموجود في التصميم تقريباً: (968, 274)
+    # Approximate center of the rectangle in the design: (968, 274)
     draw.text(
         (968, 274),
         balance_text,
@@ -701,7 +845,7 @@ def draw_challenge_card(p1_avatar_bytes, p2_avatar_bytes, p1_name, p2_name, amou
     av_size = (198, 198)
     av1 = get_circle_avatar(p1_avatar_bytes, av_size)
     av2 = get_circle_avatar(p2_avatar_bytes, av_size)
-    # مراكز الدوائر في bet_challenge_2.jpg
+    # Circle centers in bet_challenge_2.jpg
     base.paste(av1, (104, 116), av1)
     base.paste(av2, (719, 116), av2)
     draw = ImageDraw.Draw(base)
@@ -709,7 +853,7 @@ def draw_challenge_card(p1_avatar_bytes, p2_avatar_bytes, p1_name, p2_name, amou
     amount_font = _font(25)
     draw.text((203, 337), p1_name[:18], fill="white", font=name_font, anchor="mm")
     draw.text((818, 337), p2_name[:18], fill="white", font=name_font, anchor="mm")
-    draw.text((512, 345), f"gamboge: {amount:,} mora", fill="#E8C66A", font=amount_font, anchor="mm")
+    draw.text((512, 345), f"Bet: {amount:,} Tolar", fill="#E8C66A", font=amount_font, anchor="mm")
     out = io.BytesIO()
     base.save(out, format="PNG")
     out.seek(0)
@@ -727,13 +871,13 @@ def draw_result_card(winner_avatar_bytes, loser_avatar_bytes, winner_name, loser
     info_font = _font(20)
     title_font = _font(27)
     box_font = _font(22)
-    draw.text((503, 74), "End of bet ", fill="white", font=box_font, anchor="mm")
-    draw.text((801, 118), "winner", fill="#E8C66A", font=box_font, anchor="mm")
+    draw.text((503, 74), "Bet Result", fill="white", font=box_font, anchor="mm")
+    draw.text((801, 118), "Winner", fill="#E8C66A", font=box_font, anchor="mm")
     draw.text((193, 337), loser_name[:18], fill="white", font=name_font, anchor="mm")
     draw.text((801, 337), winner_name[:18], fill="#E8C66A", font=name_font, anchor="mm")
-    draw.text((512, 262), f"prize: {prize:,} mora", fill="#E8C66A", font=title_font, anchor="mm")
-    draw.text((193, 399), f"mora: {loser_bal:,}", fill="#E57373", font=info_font, anchor="mm")
-    draw.text((801, 399), f"mora: {winner_bal:,}", fill="#81C784", font=info_font, anchor="mm")
+    draw.text((512, 262), f"Prize: {prize:,} Tolar", fill="#E8C66A", font=title_font, anchor="mm")
+    draw.text((193, 399), f"Balance: {loser_bal:,}", fill="#E57373", font=info_font, anchor="mm")
+    draw.text((801, 399), f"Balance: {winner_bal:,}", fill="#81C784", font=info_font, anchor="mm")
     out = io.BytesIO()
     base.save(out, format="PNG")
     out.seek(0)
@@ -741,14 +885,14 @@ def draw_result_card(winner_avatar_bytes, loser_avatar_bytes, winner_name, loser
     return out
 
 def generate_wheel_gif(p1_name, p2_name, winner_index):
-    # عجلة مستقلة بالكامل: نصف أزرق ونصف أحمر، دون الاعتماد على صورة خارجية.
+    # Fully self‑contained wheel: half blue, half red, no external image.
     size = 600
     center = (300, 300)
     radius = 245
     frames = []
     total_frames = 20
-    # مؤشر ثابت في الأعلى؛ نحرّك قطاعي العجلة تحته.
-    # PIL: 270 درجة = الأعلى. نضع مركز القطاع الفائز تحت المؤشر.
+    # Fixed pointer at the top; we rotate the two wedges beneath it.
+    # PIL: 270° = top. Place the winner wedge centre under the pointer.
     winner_center = 270 if winner_index == 0 else 90
     start_target = winner_center - 90
     total_angle = 4 * 360 + start_target
@@ -764,16 +908,16 @@ def generate_wheel_gif(p1_name, p2_name, winner_index):
         box = (center[0]-radius, center[1]-radius, center[0]+radius, center[1]+radius)
         d.pieslice(box, a, a + 180, fill="#1976D2", outline="#E8C66A", width=4)
         d.pieslice(box, a + 180, a + 360, fill="#D32F4F", outline="#E8C66A", width=4)
-        # مركز العجلة
+        # Wheel centre
         d.ellipse((245,245,355,355), fill="#151922", outline="#E8C66A", width=5)
         d.text(center, "VS", fill="#E8C66A", font=_font(34), anchor="mm")
-        # أسماء ثابتة داخل القطاعين، تدور مع العجلة
+        # Fixed names inside the wedges, rotating with the wheel
         for text, mid, fill in ((p1_name[:14], a+90, "white"), (p2_name[:14], a+270, "white")):
             rad = math.radians(mid)
             x = center[0] + 145 * math.cos(rad)
             y = center[1] + 145 * math.sin(rad)
             d.text((x, y), text, fill=fill, font=name_font, anchor="mm")
-        # المؤشر العلوي
+        # Top pointer
         d.polygon([(284,18),(316,18),(300,48)], fill="#E8C66A")
         frames.append(frame.convert("P", palette=Image.Palette.ADAPTIVE))
 
@@ -782,14 +926,14 @@ def generate_wheel_gif(p1_name, p2_name, winner_index):
 save_all=True, append_images=frames[1:], duration=50, loop=0, disposal=2)
     out.seek(0)
     
-    # تفريغ جميع الإطارات من الرام
+    # Free all frames from RAM
     for f in frames:
         f.close()
         
     return out
 
 # ==========================================
-# 🎮 واجهة أزرار التحدي (Interactive View)
+# 🎮 Interactive challenge buttons (View)
 # ==========================================
 
 class ChallengeView(discord.ui.View):
@@ -803,21 +947,21 @@ class ChallengeView(discord.ui.View):
     @discord.ui.button(label="Accept Challenge ⚔️", style=discord.ButtonStyle.green)
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.opponent.id:
-            return await interaction.response.send_message("❌ This challenge is not directed at you.", ephemeral=True)
+            return await interaction.response.send_message("❌ This challenge is not for you", ephemeral=True)
 
         self.accepted = True
-        # لا نحذف الرسالة هنا؛ أمر الرهان سيحوّل نفس الرسالة إلى العجلة.
-        # حذفها من callback كان يجعل msg.edit يفشل بعد قبول التحدي.
+        # We don't delete the message here; the bet command will turn the same message into the wheel.
+        # Deleting it here would cause msg.edit to fail after acceptance.
         await interaction.response.defer()
         self.stop()
 
-    @discord.ui.button(label="Rejection ✖️", style=discord.ButtonStyle.red)
+    @discord.ui.button(label="Decline ✖️", style=discord.ButtonStyle.red)
     async def decline(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.opponent.id:
-            return await interaction.response.send_message("❌ This challenge is not directed at you.", ephemeral=True)
+            return await interaction.response.send_message("❌ This challenge is not for you", ephemeral=True)
         self.accepted = False
         self.stop()
-        await interaction.response.send_message(f"❌ Reject {self.opponent.mention} Challenge .")
+        await interaction.response.send_message(f"❌ {self.opponent.mention} declined the challenge.")
 
 
 class TimedSubView(discord.ui.View):
@@ -837,7 +981,7 @@ class TimedSubView(discord.ui.View):
 
 class BackToMainButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label="return to shop", style=discord.ButtonStyle.secondary, emoji="🔙")
+        super().__init__(label="Back to Shop", style=discord.ButtonStyle.secondary, emoji="🔙")
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
@@ -858,36 +1002,36 @@ class ColorSelect(discord.ui.Select):
     def __init__(self, page=0):
         self.page = page
         items = list(SHOP_COLOR_ROLES.items())
-        start = page * 25
-        page_items = items[start:start + 25]
+        start = page * 6
+        page_items = items[start:start + 6]
         options = [
             discord.SelectOption(
                 label=str(item["name"])[:100],
                 value=key,
-                description=f"price: {int(item['price']):,} mora",
+                description=f"Price: {int(item['price']):,} Tolar",
             )
             for key, item in page_items
         ]
         if not options:
             options = [discord.SelectOption(label="No colors added", value="none")]
-        super().__init__(placeholder="  Choose a color to buy...", min_values=1, max_values=1, options=options, disabled=not page_items)
+        super().__init__(placeholder="Choose a color to buy...", min_values=1, max_values=1, options=options, disabled=not page_items)
 
     async def callback(self, interaction: discord.Interaction):
         selected_key = self.values[0]
         if selected_key == "none":
-            return await interaction.response.send_message("ℹ️ There are no colors added at the moment.", ephemeral=True)
+            return await interaction.response.send_message("ℹ️ No colors are currently available.", ephemeral=True)
         item = SHOP_COLOR_ROLES.get(selected_key)
         if not item:
-            return await interaction.response.send_message("❌ هذا اللون لم يعد موجوداً في المتجر.", ephemeral=True)
+            return await interaction.response.send_message("❌ This color is no longer in the shop.", ephemeral=True)
         user = interaction.user
         guild = interaction.guild
         role = guild.get_role(int(item["id"]))
         if not role:
-            return await interaction.response.send_message("❌ الرتبة غير موجودة في السيرفر، يرجى مراجعة الإدارة.", ephemeral=True)
+            return await interaction.response.send_message("❌ The role does not exist on the server, please contact an admin.", ephemeral=True)
         if role in user.roles:
-            return await interaction.response.send_message(f"⚠️ You already have a rank**{role.name}** ", ephemeral=True)
+            return await interaction.response.send_message(f"⚠️ You already have the **{role.name}** role.", ephemeral=True)
         if get_balance(user.id) < item["price"]:
-            return await interaction.response.send_message(f"❌Your balance is insufficient You need to **{item['price']}** mora.", ephemeral=True)
+            return await interaction.response.send_message(f"❌ You don't have enough Tolar, you need **{item['price']}** Tolar.", ephemeral=True)
 
         all_color_ids = [int(c["id"]) for c in SHOP_COLOR_ROLES.values()]
         roles_to_remove = [r for r in user.roles if r.id in all_color_ids and r.id != role.id]
@@ -900,7 +1044,7 @@ class ColorSelect(discord.ui.Select):
             child.disabled = True
         await interaction.message.edit(view=self.view)
         await interaction.response.send_message(
-            f"✅ **Purchase Successful،**You have been awarded the rank of **{role.name}** amount **{item['price']}** mora.\n*(Store closed)*",
+            f"✅ **Purchase successful!** You received the **{role.name}** role for **{item['price']}** Tolar.\n*(The shop has been closed)*",
             ephemeral=True,
         )
 
@@ -909,43 +1053,43 @@ class VIPSelect(discord.ui.Select):
     def __init__(self, page=0):
         self.page = page
         items = list(SHOP_VIP_ROLES.items())
-        start = page * 25
-        page_items = items[start:start + 25]
+        start = page * 6
+        page_items = items[start:start + 6]
         options = [
             discord.SelectOption(
                 label=str(item["name"])[:100],
                 value=key,
-                description=f"price: {int(item['price']):,} mora",
+                description=f"Price: {int(item['price']):,} Tolar",
             )
             for key, item in page_items
         ]
         if not options:
-            options = [discord.SelectOption(label="No Ranks Added", value="none")]
-        super().__init__(placeholder="  Select a Rank to Buy...", min_values=1, max_values=1, options=options, disabled=not page_items)
+            options = [discord.SelectOption(label="No roles added", value="none")]
+        super().__init__(placeholder="Choose a role to buy...", min_values=1, max_values=1, options=options, disabled=not page_items)
 
     async def callback(self, interaction: discord.Interaction):
         selected_key = self.values[0]
         if selected_key == "none":
-            return await interaction.response.send_message("ℹ️ There are no added ranks at the moment.", ephemeral=True)
+            return await interaction.response.send_message("ℹ️ No roles are currently available.", ephemeral=True)
         item = SHOP_VIP_ROLES.get(selected_key)
         if not item:
-            return await interaction.response.send_message("❌ هذه الرتبة لم تعد موجودة في المتجر.", ephemeral=True)
+            return await interaction.response.send_message("❌ This role is no longer in the shop.", ephemeral=True)
         user = interaction.user
         guild = interaction.guild
         role = guild.get_role(int(item["id"]))
         if not role:
-            return await interaction.response.send_message("❌ الرتبة غير موجودة في السيرفر، يرجى مراجعة الإدارة.", ephemeral=True)
+            return await interaction.response.send_message("❌ The role does not exist on the server, please contact an admin.", ephemeral=True)
         if role in user.roles:
-            return await interaction.response.send_message(f"⚠️ You already have a rank**{role.name}** ", ephemeral=True)
+            return await interaction.response.send_message(f"⚠️ You already have the **{role.name}** role.", ephemeral=True)
         if get_balance(user.id) < item["price"]:
-            return await interaction.response.send_message(f"❌،  Your balance is insufficient You need to **{item['price']}** mora.", ephemeral=True)
+            return await interaction.response.send_message(f"❌ You don't have enough Tolar, you need **{item['price']}** Tolar.", ephemeral=True)
         remove_balance(user.id, item["price"])
         await user.add_roles(role)
         for child in self.view.children:
             child.disabled = True
         await interaction.message.edit(view=self.view)
         await interaction.response.send_message(
-            f"✅ **Purchase Successful،**You have been awarded the rank of،** تم منحك رتبة **{role.name}** بمبلغ **{item['price']}** طولار.\n*(تم إغلاق المتجر)*",
+            f"✅ **Purchase successful!** You received the **{role.name}** role for **{item['price']}** Tolar.\n*(The shop has been closed)*",
             ephemeral=True,
         )
 
@@ -967,8 +1111,8 @@ class ShopCategoryView(TimedSubView):
 
         total_pages = max(1, (len(SHOP_VIP_ROLES if self.kind == "vip" else SHOP_COLOR_ROLES) + 5) // 6)
         if total_pages > 1:
-            prev = discord.ui.Button(label="السابق", style=discord.ButtonStyle.secondary, emoji="◀️", disabled=self.page <= 0, row=1)
-            next_btn = discord.ui.Button(label="التالي", style=discord.ButtonStyle.secondary, emoji="▶️", disabled=self.page >= total_pages - 1, row=1)
+            prev = discord.ui.Button(label="Previous", style=discord.ButtonStyle.secondary, emoji="◀️", disabled=self.page <= 0, row=1)
+            next_btn = discord.ui.Button(label="Next", style=discord.ButtonStyle.secondary, emoji="▶️", disabled=self.page >= total_pages - 1, row=1)
 
             async def prev_callback(interaction: discord.Interaction):
                 await interaction.response.defer()
@@ -1012,14 +1156,14 @@ class ShopCategoryView(TimedSubView):
 class MainCategorySelect(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(label="الرتب", value="cat_vip", description="عرض الرتب المضافة للمتجر"),
-            discord.SelectOption(label="الالوان المموجة", value="cat_colors", description="عرض الالوان المموجة المضافة"),
+            discord.SelectOption(label="Roles", value="cat_vip", description="View roles added to the shop"),
+            discord.SelectOption(label="Wavy Colors", value="cat_colors", description="View wavy colors added to the shop"),
         ]
-        super().__init__(placeholder="اختر قسم المتجر...", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="Choose a shop section...", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        # يجب تأكيد الـ Interaction خلال ثوانٍ قليلة.
-        # defer() يمنع ظهور "didn't respond in time" أثناء تجهيز صورة المتجر.
+        # We must acknowledge the interaction within seconds.
+        # defer() prevents the "didn't respond in time" error while the shop image is being prepared.
         await interaction.response.defer()
 
         kind = "vip" if self.values[0] == "cat_vip" else "color"
@@ -1037,7 +1181,7 @@ class MainCategorySelect(discord.ui.Select):
 
 
 # ==========================================
-# 🛠️ التحكم الديناميكي بالمتجر
+# 🛠️ Dynamic shop management
 # ==========================================
 
 def _shop_item_key(role_id: int, kind: str) -> str:
@@ -1055,21 +1199,21 @@ def _shop_items():
 
 def _shop_management_embed(guild):
     embed = discord.Embed(
-        title="🛠️ التحكم بالمتجر",
-        description="أضف الرتب للمتجر ثم ستظهر تلقائياً داخل بطاقات المتجر مع السعر والبادج/اللون.",
+        title="🛠️ Shop Management",
+        description="Add roles to the shop and they will automatically appear in the shop cards with price and badge/color.",
         color=discord.Color.gold(),
     )
     vip_lines = []
     for item in SHOP_VIP_ROLES.values():
         role = guild.get_role(int(item["id"]))
-        vip_lines.append(f"{role.mention if role else '❌ رتبة محذوفة'} — **{int(item['price']):,}** طولار")
+        vip_lines.append(f"{role.mention if role else '❌ Deleted role'} — **{int(item['price']):,}** Tolar")
     color_lines = []
     for item in SHOP_COLOR_ROLES.values():
         role = guild.get_role(int(item["id"]))
-        color_lines.append(f"{role.mention if role else '❌ رتبة محذوفة'} — **{int(item['price']):,}** طولار")
-    embed.add_field(name=f"👑 الرتب ({len(SHOP_VIP_ROLES)})", value="\n".join(vip_lines)[:1024] or "لا توجد رتب في المتجر.", inline=False)
-    embed.add_field(name=f"🎨 الالوان المموجة ({len(SHOP_COLOR_ROLES)})", value="\n".join(color_lines)[:1024] or "لا توجد ألوان في المتجر.", inline=False)
-    embed.set_footer(text="زر الإضافة يطلب منشن الرتبة والسعر. لا يتم حذف الرتبة من السيرفر، بل تُحذف من المتجر فقط.")
+        color_lines.append(f"{role.mention if role else '❌ Deleted role'} — **{int(item['price']):,}** Tolar")
+    embed.add_field(name=f"👑 Roles ({len(SHOP_VIP_ROLES)})", value="\n".join(vip_lines)[:1024] or "No roles in the shop.", inline=False)
+    embed.add_field(name=f"🎨 Wavy Colors ({len(SHOP_COLOR_ROLES)})", value="\n".join(color_lines)[:1024] or "No colors in the shop.", inline=False)
+    embed.set_footer(text="The add button asks for a role mention and price. Roles are not deleted from the server, only removed from the shop.")
     return embed
 
 
@@ -1082,28 +1226,28 @@ class ShopDeleteSelect(discord.ui.Select):
         page_items = items[start:start + 25]
         options = []
         for kind, key, item in page_items:
-            role_type = "لون" if kind == "color" else "رتبة"
-            options.append(discord.SelectOption(label=str(item["name"])[:100], value=f"{kind}|{key}", description=f"{role_type} • {int(item['price']):,} طولار"[:100]))
+            role_type = "Color" if kind == "color" else "Role"
+            options.append(discord.SelectOption(label=str(item["name"])[:100], value=f"{kind}|{key}", description=f"{role_type} • {int(item['price']):,} Tolar"[:100]))
         if not options:
-            options = [discord.SelectOption(label="لا توجد عناصر للحذف", value="none")]
-        super().__init__(placeholder="اختر رتبة أو لوناً لحذفه...", min_values=1, max_values=1, options=options, disabled=not page_items)
+            options = [discord.SelectOption(label="No items to delete", value="none")]
+        super().__init__(placeholder="Choose a role or color to delete...", min_values=1, max_values=1, options=options, disabled=not page_items)
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.manager_id:
-            return await interaction.response.send_message("❌ هذه القائمة ليست لك.", ephemeral=True)
+            return await interaction.response.send_message("❌ This menu is not for you.", ephemeral=True)
         value = self.values[0]
         if value == "none":
-            return await interaction.response.send_message("ℹ️ لا توجد عناصر في المتجر لحذفها.", ephemeral=True)
+            return await interaction.response.send_message("ℹ️ There are no items in the shop to delete.", ephemeral=True)
         kind, key = value.split("|", 1)
         data = SHOP_COLOR_ROLES if kind == "color" else SHOP_VIP_ROLES
         item = data.get(key)
         if not item:
-            return await interaction.response.send_message("❌ هذا العنصر لم يعد موجوداً في المتجر.", ephemeral=True)
+            return await interaction.response.send_message("❌ This item no longer exists in the shop.", ephemeral=True)
         role = interaction.guild.get_role(int(item["id"]))
-        type_name = "اللون" if kind == "color" else "الرتبة"
+        type_name = "color" if kind == "color" else "role"
         role_name = role.mention if role else f"**{item['name']}**"
         view = ShopDeleteConfirmView(self.manager_id, kind, key, role_name, item["name"], type_name, self.page)
-        embed = discord.Embed(title="⚠️ تأكيد الحذف", description=f"هل أنت متأكد من حذف {type_name} {role_name} من المتجر؟\n\n**لن يتم حذف الرتبة من السيرفر.**", color=discord.Color.red())
+        embed = discord.Embed(title="⚠️ Confirm Deletion", description=f"Are you sure you want to delete the {type_name} {role_name} from the shop?\n\n**The role will not be deleted from the server.**", color=discord.Color.red())
         await interaction.response.edit_message(embed=embed, view=view)
 
 
@@ -1115,12 +1259,12 @@ class ShopAddTypeView(discord.ui.View):
 
     async def _start_add(self, interaction: discord.Interaction, kind: str):
         if interaction.user.id != self.manager_id:
-            return await interaction.response.send_message("❌ هذا الزر ليس لك.", ephemeral=True)
-        type_name = "الرتبة" if kind == "vip" else "اللون المموج"
+            return await interaction.response.send_message("❌ This button is not for you.", ephemeral=True)
+        type_name = "role" if kind == "vip" else "wavy color"
         await interaction.response.send_message(
-            f"📌 **منشن {type_name} واكتب السعر في نفس الرسالة.**\n"
-            f"مثال: `@{type_name} 2000`\n"
-            f"سيتم حفظها ضمن قسم **{type_name}**. إذا كانت رتبة Discord تحتوي على Badge/Role Icon فسيظهر تلقائياً في بطاقة المتجر.",
+            f"📌 **Mention the {type_name} and write the price in the same message.**\n"
+            f"Example: `@{type_name} 2000`\n"
+            f"It will be saved in the **{type_name}** section. If the Discord role has a Badge/Role Icon, it will automatically appear in the shop card.",
             ephemeral=True,
         )
 
@@ -1140,49 +1284,49 @@ class ShopAddTypeView(discord.ui.View):
             price_text = message.content.split()[1].replace(",", "").replace("٬", "").strip()
             price = int(price_text)
             if price <= 0:
-                return await interaction.followup.send("❌ يجب أن يكون السعر أكبر من صفر.", ephemeral=True)
+                return await interaction.followup.send("❌ The price must be greater than zero.", ephemeral=True)
             if role.is_default():
-                return await interaction.followup.send("❌ لا يمكن إضافة رتبة @everyone إلى المتجر.", ephemeral=True)
+                return await interaction.followup.send("❌ Cannot add the @everyone role to the shop.", ephemeral=True)
             if role.managed:
-                return await interaction.followup.send("❌ لا يمكن إضافة رتبة Managed إلى المتجر.", ephemeral=True)
+                return await interaction.followup.send("❌ Cannot add a Managed role to the shop.", ephemeral=True)
             for data in (SHOP_VIP_ROLES, SHOP_COLOR_ROLES):
                 if any(int(x["id"]) == role.id for x in data.values()):
-                    return await interaction.followup.send(f"⚠️ الرتبة {role.mention} موجودة بالفعل في المتجر.", ephemeral=True)
+                    return await interaction.followup.send(f"⚠️ The role {role.mention} is already in the shop.", ephemeral=True)
 
             data = SHOP_COLOR_ROLES if kind == "color" else SHOP_VIP_ROLES
             key = _shop_item_key(role.id, kind)
             data[key] = {"name": role.name, "price": price, "id": role.id}
             if not _save_shop_data():
                 data.pop(key, None)
-                return await interaction.followup.send("❌ تعذر حفظ بيانات المتجر.", ephemeral=True)
+                return await interaction.followup.send("❌ Failed to save shop data.", ephemeral=True)
             try:
                 await message.delete()
             except Exception:
                 pass
-            await interaction.followup.send(f"✅ تم حفظ {type_name} {role.mention} في قسم المتجر بسعر **{price:,}** طولار.", ephemeral=True)
+            await interaction.followup.send(f"✅ Saved {type_name} {role.mention} in the shop for **{price:,}** Tolar.", ephemeral=True)
             if self.message:
                 view = ShopManagementView(self.manager_id)
                 await self.message.edit(embed=_shop_management_embed(interaction.guild), view=view)
                 view.message = self.message
         except asyncio.TimeoutError:
-            await interaction.followup.send("⏰ انتهى الوقت. لم تتم إضافة أي عنصر.", ephemeral=True)
+            await interaction.followup.send("⏰ Time expired. No item was added.", ephemeral=True)
             if self.message:
                 view = ShopManagementView(self.manager_id)
                 await self.message.edit(embed=_shop_management_embed(interaction.guild), view=view)
                 view.message = self.message
 
-    @discord.ui.button(label="رتبة", style=discord.ButtonStyle.primary, emoji="👑")
+    @discord.ui.button(label="Role", style=discord.ButtonStyle.primary, emoji="👑")
     async def add_vip(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._start_add(interaction, "vip")
 
-    @discord.ui.button(label="لون مموج", style=discord.ButtonStyle.primary, emoji="🎨")
+    @discord.ui.button(label="Wavy Color", style=discord.ButtonStyle.primary, emoji="🎨")
     async def add_color(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._start_add(interaction, "color")
 
-    @discord.ui.button(label="إلغاء", style=discord.ButtonStyle.secondary, emoji="↩️", row=1)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="↩️", row=1)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.manager_id:
-            return await interaction.response.send_message("❌ هذا الزر ليس لك.", ephemeral=True)
+            return await interaction.response.send_message("❌ This button is not for you.", ephemeral=True)
         view = ShopManagementView(self.manager_id)
         await interaction.response.edit_message(embed=_shop_management_embed(interaction.guild), view=view)
         view.message = interaction.message
@@ -1200,13 +1344,13 @@ class ShopAddTypeView(discord.ui.View):
 class ShopAddButton(discord.ui.Button):
     def __init__(self, manager_id: int):
         self.manager_id = manager_id
-        super().__init__(label="إضافة رتبة / لون مموج", style=discord.ButtonStyle.success, emoji="➕")
+        super().__init__(label="Add Role / Wavy Color", style=discord.ButtonStyle.success, emoji="➕")
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.manager_id:
-            return await interaction.response.send_message("❌ هذا الزر ليس لك.", ephemeral=True)
-        embed = discord.Embed(title="➕ إضافة إلى المتجر", description="اختر القسم الذي تريد إضافة الرتبة إليه.\n\n👑 **رتبة** — تظهر مع اسمها وسعرها والبادج إن وجد.\n🎨 **لون مموج** — يظهر داخل بطاقة خاصة مع مربع اللون المطابق للرتبة.", color=discord.Color.gold())
-        embed.set_footer(text="بعد اختيار القسم، منشن الرتبة واكتب السعر في نفس الرسالة.")
+            return await interaction.response.send_message("❌ This button is not for you.", ephemeral=True)
+        embed = discord.Embed(title="➕ Add to Shop", description="Choose the section to add the role to.\n\n👑 **Role** – appears with its name, price, and badge if available.\n🎨 **Wavy Color** – appears in a special card with a matching color box.", color=discord.Color.gold())
+        embed.set_footer(text="After choosing the section, mention the role and write the price in the same message.")
         view = ShopAddTypeView(self.manager_id)
         await interaction.response.edit_message(embed=embed, view=view)
         view.message = interaction.message
@@ -1222,30 +1366,30 @@ class ShopDeleteConfirmView(discord.ui.View):
         self.item_name = item_name
         self.type_name = type_name
         self.page = page
-        delete_button = discord.ui.Button(label=f"حذف {type_name}", style=discord.ButtonStyle.danger, emoji="🗑️")
+        delete_button = discord.ui.Button(label=f"Delete {type_name}", style=discord.ButtonStyle.danger, emoji="🗑️")
         delete_button.callback = self.delete_callback
         self.add_item(delete_button)
-        back_button = discord.ui.Button(label="إلغاء", style=discord.ButtonStyle.secondary, emoji="↩️")
+        back_button = discord.ui.Button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="↩️")
         back_button.callback = self.back_callback
         self.add_item(back_button)
 
     async def delete_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.manager_id:
-            return await interaction.response.send_message("❌ هذا الزر ليس لك.", ephemeral=True)
+            return await interaction.response.send_message("❌ This button is not for you.", ephemeral=True)
         data = SHOP_COLOR_ROLES if self.kind == "color" else SHOP_VIP_ROLES
         item = data.pop(self.key, None)
         if not item:
-            return await interaction.response.send_message("❌ العنصر غير موجود أصلاً في المتجر.", ephemeral=True)
+            return await interaction.response.send_message("❌ The item no longer exists in the shop.", ephemeral=True)
         if not _save_shop_data():
             data[self.key] = item
-            return await interaction.response.send_message("❌ تعذر حفظ عملية الحذف.", ephemeral=True)
+            return await interaction.response.send_message("❌ Failed to save deletion.", ephemeral=True)
         view = ShopManagementView(self.manager_id, page=self.page)
         await interaction.response.edit_message(embed=_shop_management_embed(interaction.guild), view=view)
         view.message = interaction.message
 
     async def back_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.manager_id:
-            return await interaction.response.send_message("❌ هذا الزر ليس لك.", ephemeral=True)
+            return await interaction.response.send_message("❌ This button is not for you.", ephemeral=True)
         view = ShopManagementView(self.manager_id, page=self.page)
         await interaction.response.edit_message(embed=_shop_management_embed(interaction.guild), view=view)
         view.message = interaction.message
@@ -1261,17 +1405,17 @@ class ShopManagementView(discord.ui.View):
         self.add_item(ShopDeleteSelect(manager_id, page))
         total_pages = max(1, (len(_shop_items()) + 24) // 25)
         if total_pages > 1:
-            prev = discord.ui.Button(label="السابق", style=discord.ButtonStyle.secondary, emoji="◀️", disabled=page <= 0)
-            next_btn = discord.ui.Button(label="التالي", style=discord.ButtonStyle.secondary, emoji="▶️", disabled=page >= total_pages - 1)
+            prev = discord.ui.Button(label="Previous", style=discord.ButtonStyle.secondary, emoji="◀️", disabled=page <= 0)
+            next_btn = discord.ui.Button(label="Next", style=discord.ButtonStyle.secondary, emoji="▶️", disabled=page >= total_pages - 1)
             async def prev_callback(interaction):
                 if interaction.user.id != self.manager_id:
-                    return await interaction.response.send_message("❌ هذه القائمة ليست لك.", ephemeral=True)
+                    return await interaction.response.send_message("❌ This menu is not for you.", ephemeral=True)
                 new_view = ShopManagementView(self.manager_id, self.page - 1)
                 await interaction.response.edit_message(embed=_shop_management_embed(interaction.guild), view=new_view)
                 new_view.message = interaction.message
             async def next_callback(interaction):
                 if interaction.user.id != self.manager_id:
-                    return await interaction.response.send_message("❌ هذه القائمة ليست لك.", ephemeral=True)
+                    return await interaction.response.send_message("❌ This menu is not for you.", ephemeral=True)
                 new_view = ShopManagementView(self.manager_id, self.page + 1)
                 await interaction.response.edit_message(embed=_shop_management_embed(interaction.guild), view=new_view)
                 new_view.message = interaction.message
@@ -1290,7 +1434,7 @@ class ShopManagementView(discord.ui.View):
                 pass
 
 
-@bot.command(name="تحكم_متجر")
+@bot.command(name="manage_shop")
 @commands.has_role(OWNER_ROLE_ID)
 @in_channel(AMENDMENTS_CHANNEL_ID)
 async def shop_management(ctx):
@@ -1303,7 +1447,7 @@ async def shop_management(ctx):
 @shop_management.error
 async def shop_management_error(ctx, error):
     if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص لصاحب رتبة الاونر فقط.", delete_after=3)
+        await ctx.send("❌ This command is only for the Owner role.", delete_after=3)
 
 
 class MainShopView(discord.ui.View):
@@ -1322,7 +1466,7 @@ class MainShopView(discord.ui.View):
                 pass
 
 
-@bot.command(name="متجر", aliases=["اقتصاد"])
+@bot.command(name="shop", aliases=["economy"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def shop_command(ctx):
     img_buf = await _run_bg(draw_shop_home)
@@ -1335,558 +1479,35 @@ async def shop_command(ctx):
         img_buf.close()
 
 
-# --- 5. نظام الألعاب والأسئلة ---
-
-QUESTIONS = [
-    {"q": "ما هي عاصمة أستراليا؟", "a": ["كانبرا", "كانبيرا"]},
-    {"q": "ما هي أصغر دولة في العالم من حيث المساحة؟", "a": ["الفاتيكان"]},
-    {"q": "ما هو العنصر الكيميائي الذي رمزه 'Fe'؟", "a": ["الحديد", "حديد"]},
-    {"q": "ما هي أكبر صحراء في العالم؟", "a": ["الصحراء الكبرى"]},
-    {"q": "في أي عام وقعت معركة حطين؟", "a": ["1187", "١١٨٧", "1187m"]},
-    {"q": "ما هو أطول نهر في العالم؟", "a": ["النيل", "نهر النيل"]},
-    {"q": "ما هي عاصمة كندا؟", "a": ["أوتاوا", "اوتاوا"]},
-    {
-        "q": "من هو الملقب بـ 'سيف الله المسلول'؟",
-        "a": ["خالد بن الوليد", "خالد ابن الوليد"],
-    },
-    {
-        "q": "ما هو أثقل كوكب في المجموعة الشمسية؟",
-        "a": ["المشتري", "كوكب المشتري"],
-    },
-    {
-        "q": "ما هو الغاز الأكثر وجوداً في الغلاف الجوي؟",
-        "a": ["النيتروجين", "نيتروجين"],
-    },
-    {"q": "ما هي الدولة الأكثر سكاناً في العالم؟", "a": ["الهند"]},
-    {"q": "ما هي أكبر قارة في العالم من حيث المساحة؟", "a": ["آسيا", "اسيا"]},
-    {"q": "ما هو اسم أسرع حيوان بري في العالم؟", "a": ["الفهد", "فهد"]},
-    {
-        "q": "ما هو أصلح معركة حدثت في التاريخ الإسلامي وكانت فتحاً مبيناً؟",
-        "a": ["فتح مكة"],
-    },
-    {
-        "q": "من هو القائد المسلم الذي فتح الأندلس؟",
-        "a": ["طارق بن زياد", "طارق ابن زياد"],
-    },
-    {"q": "ما هي عاصمة اليابان؟", "a": ["طوكيو"]},
-    {
-        "q": "ما هي الوحدة المستخدمة لقياس الشدة الصوتية؟",
-        "a": ["ديسيبل", "الديسيبل"],
-    },
-    {
-        "q": "ما هو الكوكب الملقب بالكوكب الأحمر؟",
-        "a": ["المريخ", "كوكب المريخ"],
-    },
-    {"q": "ما هي عاصمة البرازيل؟", "a": ["برازيليا"]},
-    {"q": "كم عدد قلوب الأخطبوط؟", "a": ["3", "ثلاثة", "٣"]},
-    {
-        "q": "من هو مخترع المصباح الكهربائي؟",
-        "a": ["توماس أديسون", "اديسون", "أديسون"],
-    },
-    {"q": "ما هي أصغر عظمة في جسم الإنسان؟", "a": ["الركاب", "عظمة الركاب"]},
-    {"q": "ما هي عاصمة فرنسا؟", "a": ["باريس"]},
-    {"q": "في أي قارة تقع مصر؟", "a": ["أفريقيا", "افريقيا"]},
-    {
-        "q": "ما هو أكبر محيط في العالم؟",
-        "a": ["المحيط الهادي", "المحيط الهادئ"],
-    },
-    {"q": "كم عدد أضلاع المثلث؟", "a": ["3", "ثلاثة", "٣"]},
-    {"q": "ما هو المكون الرئيسي للزجاج؟", "a": ["الرمل", "الريمال"]},
-    {"q": "ما هي عاصمة ألمانيا؟", "a": ["برلين"]},
-    {
-        "q": "من هو الشاعر الملقب بـ 'أمير الشعراء'؟",
-        "a": ["أحمد شوقي", "احمد شوقي"],
-    },
-    {"q": "ما هي أكبر عضلة في جسم الإنسان؟", "a": ["عضلة الأرداف", "الأرداف"]},
-    {"q": "ما هي عاصمة روسيا؟", "a": ["موسكو"]},
-    {"q": "كم عدد العظام في جسم الإنسان البالغ؟", "a": ["206", "٢٠٦"]},
-    {
-        "q": "ما هو المكون الأساسي للشمس؟",
-        "a": ["الهيدروجين", "غاز الهيدروجين"],
-    },
-    {"q": "ما هي عاصمة إيطاليا؟", "a": ["روما"]},
-    {"q": "في أي مدينة توجد منظمة اليونسكو؟", "a": ["باريس"]},
-    {"q": "ما هي أكبر بحيرة في العالم؟", "a": ["بحر قزوين"]},
-    {
-        "q": "من هو عالم الفيزياء صاحب نظريّة النسبية؟",
-        "a": ["أينشتاين", "اينشتاين"],
-    },
-    {"q": "ما هي عاصمة إسبانيا؟", "a": ["مدريد"]},
-    {"q": "ما هو الحيوان الذي يُسمى 'سفينة الصحراء'؟", "a": ["الجمل", "جمل"]},
-    {
-        "q": "ما هي المادة الأكثرصلابة في طبيعة الأرض؟",
-        "a": ["الألماس", "الماس"],
-    },
-    {
-        "q": "ما هي الدولة المفترض بها الموطن الأصلي للبيتزا؟",
-        "a": ["إيطاليا", "ايطاليا"],
-    },
-    {"q": "ما هي عاصمة تركيا؟", "a": ["أنقرة", "انقرة"]},
-    {"q": "كم عدد الألوان في قوس قزح؟", "a": ["7", "سبعة", "٧"]},
-    {"q": "ما هي أطول سلسة جبلية في العالم؟", "a": ["الأنديز", "جبال الأنديز"]},
-    {"q": "ما هي عاصمة الأرجنتين؟", "a": ["بوينس آيرس", "بوينس ايرس"]},
-    {
-        "q": "ما هو الغاز الذي يستعمله النبات في البناء الضوئي؟",
-        "a": ["ثاني أكسيد الكربون", "ثاني اكسيد الكربون"],
-    },
-    {"q": "ما هي عاصمة المغرب؟", "a": ["الرباط"]},
-    {"q": "ما هي السورة التي تُسمى 'قلب القرآن'؟", "a": ["يس", "يسن"]},
-    {
-        "q": "ما هو العلم الذي يهتم بدراسة الأحافير والحيوانات القديمة؟",
-        "a": ["الفرع الأحفوري", "الإحاثة", "علم الأحافير"],
-    },
-    {"q": "ما هي عاصمة السويد؟", "a": ["ستوكهولم"]},
-    {"q": "ما هو اسم أعمق نقطة في محيطات الأرض؟", "a": ["خندق ماريانا"]},
-    {"q": "ما هي عاصمة مصر؟", "a": ["القاهرة"]},
-    {"q": "كم طابق يوجد في برج خليفة تقريباً؟", "a": ["163", "١٦٣"]},
-    {
-        "q": "ما هو الهرمون المسؤول عن تنظيم مستوى السكر في الدم؟",
-        "a": ["الأنسولين", "الانسولين"],
-    },
-    {"q": "ما هي عاصمة المملكة العربية السعودية؟", "a": ["الرياض"]},
-    {"q": "ما هي عاصمة الصين؟", "a": ["بكين"]},
-    {
-        "q": "ما هو معدن السيولة العالية الفضي السائل في حرارة الغرفة؟",
-        "a": ["الزئبق"],
-    },
-    {"q": "ما هي عاصمة العراق؟", "a": ["بغداد"]},
-    {"q": "من هو أول إنسان صعد إلى الفضاء؟", "a": ["يوري جاجارين", "جاجارين"]},
-    {"q": "ما هي الدولة التي تمتلك أطول خط ساحلي في العالم؟", "a": ["كندا"]},
-    {"q": "ما هي عاصمة الأردن؟", "a": ["عمان", "عمّان"]},
-    {"q": "ما هي السورة التي لا تبدأ بالبسملة؟", "a": ["التوبة", "سورة التوبة"]},
-    {"q": "ما هو اسم أطول بناء في العالم حالياً؟", "a": ["برج خليفة"]},
-    {"q": "ما هي عاصمة اليونان؟", "a": ["أثينا", "اثينا"]},
-    {"q": "كم عدد طبقات الغلاف الجوي الرئيسيّة؟", "a": ["5", "خمسة", "٥"]},
-    {"q": "ما هو أصل لغة إسبانيا؟", "a": ["اللاتينية"]},
-    {"q": "ما هي عاصمة كوريا الجنوبية؟", "a": ["سيول", "سول"]},
-    {
-        "q": "من هو مكتشف البنسلين؟",
-        "a": ["ألكسندر فلمنج", "فلمنج", "الكسندر فلمنج"],
-    },
-    {"q": "ما هي عاصمة هولندا؟", "a": ["أمستردام", "امستردام"]},
-    {"q": "ما هي أكبر جزيرة في العالم؟", "a": ["جرينلاند"]},
-    {"q": "ما هي عاصمة الجزائر؟", "a": ["الجزائر"]},
-    {"q": "كم عدد صمامات قلب الإنسان؟", "a": ["4", "أربعة", "arba'a", "٤"]},
-    {"q": "ما هو أطول نهر في أوروبا؟", "a": ["الفولغا", "نهر الفولغا"]},
-    {"q": "ما هي عاصمة الهند؟", "a": ["نيودلهي", "دلهي"]},
-    {"q": "من هو مؤسس علم الجبر؟", "a": ["الخوارزمي", "الخوارزمي حاسب"]},
-    {"q": "ما هي عاصمة النرويج؟", "a": ["أوسلو", "وسلو"]},
-    {"q": "ما هو اسم الكوكب الأقرب إلى الأرض؟", "a": ["الزهرة", "كوكب الزهرة"]},
-    {"q": "ما هي عاصمة المكسيك؟", "a": ["مكسيكو سيتي", "مكسيكو"]},
-    {
-        "q": "ما هي السورة التي ذكرت فيها البسملة مرتين؟",
-        "a": ["النمل", "سورة النمل"],
-    },
-    {"q": "ما هي عاصمة السودان؟", "a": ["الخرطوم"]},
-    {"q": "كم عدد أحرف اللغة العربية؟", "a": ["28", "٢٨"]},
-    {"q": "ما هو اسم طائر لا يستطيع الطيران ويستمتع بالثلج؟", "a": ["البطريق"]},
-    {"q": "ما هي عاصمة الدنمارك؟", "a": ["كوبنهاجن"]},
-    {
-        "q": "ما هي السلسلة الجبلية الفاصلة بين قارتي آسيا وأوروبا؟",
-        "a": ["أورال", "جبال الأورال"],
-    },
-    {"q": "ما هي عاصمة سوريا؟", "a": ["دمشق"]},
-    {"q": "ما هي أسرع سمكة في البحر؟", "a": ["سمكة الشراع", "الشراع"]},
-    {"q": "ما هي عاصمة بلجيكا؟", "a": ["بروكسل"]},
-    {"q": "ما هي الدولة العربية التي يمر بها خط الاستواء؟", "a": ["الصومال"]},
-    {"q": "ما هي عاصمة تونس؟", "a": ["تونس"]},
-    {
-        "q": "ما هو اسم النهر الوحيد الذي يمر بالعديد من الدول الأوربية؟",
-        "a": ["الدانوب", "نهر الدانوب"],
-    },
-    {"q": "ما هي عاصمة البرتغال؟", "a": ["لشبونة"]},
-    {
-        "q": "من هو الصحابي الجليل الملقب بـ 'ترجمان القرآن'؟",
-        "a": ["عبدالله بن عباس", "عبد الله بن عباس"],
-    },
-    {"q": "ما هي عاصمة النمسا؟", "a": ["فيينا"]},
-    {"q": "ما هو اسم أطول حيوان في العالم؟", "a": ["الزرافة", "زرافة"]},
-    {"q": "ما هي عاصمة اليمن؟", "a": ["صنعاء"]},
-    {"q": "ما هو أصل لعبة الشطرنج؟", "a": ["الهند"]},
-    {"q": "ما هي عاصمة سويسرا؟", "a": ["برن"]},
-    {
-        "q": "ما هو الغاز الذي ينبعث من أشجار الغابات ليلةً؟",
-        "a": ["ثاني أكسيد الكربون"],
-    },
-    {"q": "ما هي عاصمة قطر؟", "a": ["الدوحة"]},
-]
-
-RIDDLES = [
-    {"q": "شيء كلما أخذت منه كبر، فما هو؟", "a": ["الحفرة", "حفرة"]},
-    {
-        "q": "يمشي بلا أرجل ويدخل الأذنين فقط، فما هو؟",
-        "a": ["الصوت", "صوت"],
-    },
-    {"q": "ما هو الشيء الذي يكتب ولا يقرأ؟", "a": ["القلم", "قلم"]},
-    {"q": "ما هو البيت الذي لا توجد فيه أبواب ولا نوافذ؟", "a": ["بيت الشعر"]},
-    {"q": "ما هو الشيء الذي كلما زاد نقص؟", "a": ["العمر", "عمر"]},
-    {
-        "q": "ما هو الشيء الذي يمكنك إمساكه بدون لمسه؟",
-        "a": ["الأعصاب", "أعصابك"],
-    },
-    {
-        "q": "ما هو القفص الذي لا يحبس فيه طائر أو حيوان؟",
-        "a": ["القفص الصدري"],
-    },
-    {"q": "شيء يحترق لكي يضيء للآخرين؟", "a": ["الشمعة", "شمعة"]},
-    {"q": "يمشي ويقف وليس له أرجل؟", "a": ["الظلال", "الظل", "الساعة"]},
-    {"q": "ما هو الشيء الذي يبرد بالحرارة؟", "a": ["الفلفل", "البيض"]},
-    {
-        "q": "أنا ذو ثقوب عديدة ولكني أحتفظ بالماء، فمن أنا؟",
-        "a": ["الإسفنج", "اسفنج"],
-    },
-    {"q": "ما هو الشيء الذي إذا صببت عليه الماء لا يبتل؟", "a": ["الظل", "ظلك"]},
-    {
-        "q": "ما هو الشارع الذي لم يسير فيه أحد؟",
-        "a": ["شارع الرسم", "الشارع على الخريطة", "الخريطة"],
-    },
-    {
-        "q": "ما هو الشيء الذي يقرأ كل الأوراق وبلا عيون؟",
-        "a": ["المسح الضوئي", "الضوء"],
-    },
-    {
-        "q": "ما هو الذي يمر عبر الزجاج ولكن لا يكسره؟",
-        "a": ["الضوء", "ضوء"],
-    },
-    {
-        "q": "له رأس واحد وله أربعة أرجل ولكن لا يسير؟",
-        "a": ["السرير", "سرير"],
-    },
-    {"q": "شيء يأكل ولا يشبع، وإذا شرب الماء يموت؟", "a": ["النار"]},
-    {
-        "q": "تراه في الليل ثلاث مرات وفي النهار مرة واحدة، فما هو؟",
-        "a": ["حرف اللام"],
-    },
-    {"q": "ما هو الشيء الذي ينبض بلا قلب؟", "a": ["الساعة", "ساعة"]},
-    {"q": "ما هو الباب الذي لا يمكن فتحه؟", "a": ["الباب المفتوح"]},
-    {
-        "q": "هو ابن أمك وأبيك وليس بأخيك ولا أختك، فمن هو؟",
-        "a": ["أنت", "انت"],
-    },
-    {
-        "q": "تكون طويلة في شبابها وقصيرة في كبر سنها، فما هي؟",
-        "a": ["الشمعة"],
-    },
-    {
-        "q": "ماهي الأشياء التي تسير بلا قدمين وتصيح بلا فم؟",
-        "a": ["الرياح", "رياح"],
-    },
-    {"q": "له أسنان كثيرة ولكنه لا يعض، فما هو؟", "a": ["المشط", "مشط"]},
-    {
-        "q": "يحبها الجميع ويعطونها للآخرين ولكن لا أحد يستطيع الاحتفاظ بها؟",
-        "a": ["الكلمة", "الوعد"],
-    },
-    {
-        "q": "ما هو الشيء الذي تسمعه ولا تراه، وإذا رأيته لا تسمعه؟",
-        "a": ["الطلقة النارية", "الرعد"],
-    },
-    {"q": "شيء يسير في السماء ويستريح في الأرض؟", "a": ["المطر", "مطر"]},
-    {
-        "q": "تطير بدون أجنحة وتبكي بدون عيون، فما هي؟",
-        "a": ["السحابة", "السحاب"],
-    },
-    {
-        "q": "ما هو الشيء الذي يحتوي على المدن ولكن ليس به بيوت؟",
-        "a": ["الخريطة"],
-    },
-    {"q": "شيء إذا قطعت رأسه طار؟", "a": ["قطار", "القطار"]},
-    {"q": "ما هي التي تملك عيوناً ولا ترى؟", "a": ["الإبرة", "إبرة"]},
-    {"q": "له أوراق كثيرة ولكنه ليس بشجرة؟", "a": ["الكتاب", "كتاب"]},
-    {
-        "q": "أسود عندما تشتريه، وأحمر عندما تستخدمه، وأبيض عندما ترميه؟",
-        "a": ["الفحم"],
-    },
-    {
-        "q": "ما هو الشيء الذي يجري ولكن لا يستطيع المشي؟",
-        "a": ["الماء", "النهر"],
-    },
-    {
-        "q": "يمتلك كل مفاتيح العالم ولكنه لا يستطيع فتح أي باب؟",
-        "a": ["البيانو"],
-    },
-    {"q": "ما هو الشيء الذي ينكسر بمجرد تسميته؟", "a": ["الصمت"]},
-    {"q": "يتحدث كل لغات العالم بدون أن يتكلم؟", "a": ["الصدى"]},
-    {
-        "q": "ما هو الشيء الذي تصنعه ولكن لا تراه؟",
-        "a": ["الضوضاء", "الرقام"],
-    },
-    {"q": "إذا أطعمته ينمو، وإذا سقيته يموت؟", "a": ["النار"]},
-    {"q": "يمتلك رقبة ولكن ليس له رأس؟", "a": ["الزجاجة", "قميص"]},
-    {
-        "q": "ما هو الذي يستطيع الضوء اختراقه والماء المضيء فيه؟",
-        "a": ["الزجاج"],
-    },
-    {"q": "شيء بينك وبين السماء، فما هو؟", "a": ["الكاف", "حرف الكاف"]},
-    {
-        "q": "ما هو الشارع الذي يمشي فيه الناس بلا أقدام؟",
-        "a": ["شارع الخريطة"],
-    },
-    {
-        "q": "ما هو العضو الوحيد الذي لا يصله الدم؟",
-        "a": ["قرنية العين", "القرنية"],
-    },
-    {"q": "ما هي الشيء الذي يولد كبيراً ويموت صغيراً؟", "a": ["الشمعة"]},
-    {"q": "يوجد في منتصف باريس فما هو؟", "a": ["حرف الراء"]},
-    {
-        "q": "ما هو الشيء الذي إذا أكلته كله استفدت منه، وإذا أكلت نصفه مِت؟",
-        "a": ["سمسم"],
-    },
-    {"q": "ما هو الذي يملك عين واحدة ولكنه لا يرى بها؟", "a": ["الإبرة"]},
-    {"q": "ما هو الشيء الذي إذا نام لا يستيقظ؟", "a": ["الرماد"]},
-    {"q": "له يد ولكن لا يستطيع التصفيق؟", "a": ["الساعة"]},
-    {"q": "ما هو الشيء الذي يصعد ولا ينزل أبداً؟", "a": ["العمر"]},
-    {"q": "أخت خالتك وليست خالتك فمن تكون؟", "a": ["أمك", "امي"]},
-    {"q": "يمشي بدون قدمين ولا يدخل إلا بالأذنين؟", "a": ["الصوت"]},
-    {"q": "تأكل منه ولكن لا يمكنك أن تأكله؟", "a": ["الصحن", "الطبق"]},
-    {
-        "q": "يحتاج دائماً إلى إجابة ولكنه لا يطرح أي سؤال؟",
-        "a": ["الهاتف", "الجرس"],
-    },
-    {
-        "q": "ما هو الشيء الذي يسير أمامك ولا تستطيع الوصول إليه؟",
-        "a": ["المستقبل"],
-    },
-    {
-        "q": "ما هو الشيء الذي يملك أقداماً ثلاث ولا يمشي؟",
-        "a": ["المنصة", "الطاولة"],
-    },
-    {"q": "إذا أردت أن تستخدمه يجب عليك رميه أولاً؟", "a": ["شبكة الصيد"]},
-    {"q": "ما هو الشيء الذي لا يتكلم وإذا جاع كذب؟", "a": ["الساعة"]},
-    {"q": "أين يقع البحر الذي ليس به ماء؟", "a": ["على الخريطة"]},
-    {
-        "q": "يمتلك كل العيون ولكنه لا يرى شيئاً؟",
-        "a": ["شاطئ البطاطس", "البطاطس"],
-    },
-    {"q": "ما هو الشهر الذي فيه 28 يوماً؟", "a": ["كل الشهور", "جميع الشهور"]},
-    {"q": "ما هو أصلح شيء للرؤية في الظلام التام؟", "a": ["لا شيء"]},
-    {
-        "q": "ما هو الشيء الذي يملك ذراعين وليس لديه أصابع؟",
-        "a": ["الكرسي"],
-    },
-    {
-        "q": "أين يمكنك إيجاد الجمعة قبل الخميس؟",
-        "a": ["في المعجم", "القاموس"],
-    },
-    {
-        "q": "إذا كان هناك 3 تفاحات وأخذت 2، فكم تفاحة لديك؟",
-        "a": ["2", "تفاحتان"],
-    },
-    {"q": "ما هو القادم الذي لا يصل أبداً؟", "a": ["غداً", "الغد"]},
-    {
-        "q": "أنا بداية النهاية ونهاية الزمان والمكان فمن أنا؟",
-        "a": ["حرف النون"],
-    },
-    {"q": "ما هو الشيء الذي إذا غسلت به يظل متسخاً؟", "a": ["الماء"]},
-    {
-        "q": "ما هو الشيء الذي يطير بدون أجنحة ويدخل العيون بدون استئذان؟",
-        "a": ["الغبار"],
-    },
-    {"q": "يتحرك باستمرار وبلا توقف ولكن لا يتعب؟", "a": ["القلب"]},
-    {
-        "q": "ما هي المادة التي يفرزها الجسم وتصلح لبناء العظام؟",
-        "a": ["الكالسيوم"],
-    },
-    {"q": "ما هو الشيء الذي ينقص كلما أخذت منه أكثر؟", "a": ["الحفرة"]},
-    {
-        "q": "ما هي الشجرة التي ليس لها ظل وليس لها أوراق؟",
-        "a": ["شجرة العائلة"],
-    },
-    {
-        "q": "ما هو أصلح مكان لبناء بيت بدون جدران؟",
-        "a": ["الإنترنت", "العقل"],
-    },
-    {
-        "q": "ما هي الكلمة التي تُنطق دائماً بشكل غير صحيح؟",
-        "a": ["غير صحيح"],
-    },
-    {
-        "q": "يمتلك ريشاً ولكنه لا يطير ولديه أرقام فقط؟",
-        "a": ["سهم الدرجات", "القلم"],
-    },
-    {"q": "ما هي العروس التي لا تبكي عند زفافها؟", "a": ["عروس البحر"]},
-    {"q": "ما هو القماش الذي لا يمكنك ارتداؤه؟", "a": ["قماش العنكبوت"]},
-    {"q": "شيء إذا لمسته صرخ؟", "a": ["جرس الباب", "الجرس"]},
-    {"q": "ما هو العقرب الذي لا يلذغ؟", "a": ["عقرب الساعة"]},
-    {
-        "q": "ما هو العضو الذي يستمر في النمو طوال حياة الإنسان؟",
-        "a": ["الأنف والأذن", "الأنف"],
-    },
-    {
-        "q": "ما هو السؤال الذي لا يمكنك الإجابة عليه بنعم أبداً؟",
-        "a": ["هل أنت نائم؟"],
-    },
-    {"q": "ما هي الكلمة الوحيدة في القاموس التي كُتبت خطأ؟", "a": ["خطأ"]},
-    {"q": "من هو الشخص الذي يرى عدوه وصديقه بعين واحدة؟", "a": ["الأعور"]},
-    {
-        "q": "ما هو الشيء الذي لا يبتل حتى لو نزل في أغزر مياه؟",
-        "a": ["الظل"],
-    },
-    {"q": "له أسنان عديدة لكنه لا يستطيع العض بها؟", "a": ["المشط"]},
-    {
-        "q": "يمتلك زجاجاً ولكنه ليس بنوافذ، ويتصل بالشبكة؟",
-        "a": ["الهاتف الذكي"],
-    },
-    {
-        "q": "ما هو الماء الذي لا يخرج من الأرض ولا ينزل من السماء؟",
-        "a": ["العرق", "دموع العين"],
-    },
-    {
-        "q": "من هو الشخص الذي يقتل مئات الأشخاص يومياً بدون أن يعاقبه أحد؟",
-        "a": ["الحلاق"],
-    },
-    {
-        "q": "ما هي العروس التي لا يراها أحد إلا زوجها؟",
-        "a": ["عروسة اللعبة"],
-    },
-    {
-        "q": "يمتلك شوكة واحدة وأحياناً أربعة ولا يأكل أبداً؟",
-        "a": ["شوكة الطعام"],
-    },
-    {"q": "ما هو السلم الذي لا يصعد عليه أحد؟", "a": ["سلم الرواتب"]},
-    {"q": "تسير في كل أرجاء الغرفة لكنها لا تتحرك أبداً؟", "a": ["الجدران"]},
-    {"q": "تلبس الثوب بالكامل لكنها تظل عارية؟", "a": ["إبرة الخياطة"]},
-    {
-        "q": "ما هو الشيء الذي يسير بلا أقدام ولا يرجع للخلف أبداً؟",
-        "a": ["الوقت", "العمر"],
-    },
-    {"q": "إذاوضعتني في ماء حار أصبح صلباً؟", "a": ["البيض", "بيضة"]},
-    {"q": "ما هو الشيء الذي يحك أذنه بأنفه؟", "a": ["الفيل"]},
-    {"q": "ما هو الشيء الذي تحمله ويحملك في نفس الوقت؟", "a": ["الحذاء"]},
-]
-
-
-@bot.command(name="سؤال", aliases=["quiz", "اسئلة"])
-@in_channel(GAMES_CHANNEL_ID)
-async def quiz_game(ctx, rounds: int = 1):
-    if rounds < 1 or rounds > 10:
-        await ctx.send(
-            "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط", delete_after=3
-        )
-        return
-
-    for round_num in range(1, rounds + 1):
-        q_data = random.choice(QUESTIONS)
-
-        embed = discord.Embed(
-            title=f"❓ الجولة {round_num}",
-            description=(
-                f"يا {ctx.author.mention}، أجب عن السؤال التالي كسباً لـ **40**"
-                f" طولار:\n\n❓ **{q_data['q']}**"
-            ),
-            color=discord.Color.blue(),
-        )
-        embed.set_footer(text="⏱️ لديك 10 ثوانٍ للإجابة على هذا السؤال")
-
-        await ctx.send(
-            embed=embed, allowed_mentions=discord.AllowedMentions(users=False)
-        )
-
-        def check(m):
-            return m.author == ctx.author and m.channel == ctx.channel
-
-        try:
-            msg = await bot.wait_for("message", timeout=10.0, check=check)
-            if msg.content.strip().lower() in [ans.lower() for ans in q_data["a"]]:
-                add_balance(ctx.author.id, 40)
-                await ctx.send(
-                    f"🎉 **إجابة صحيحة،** تم إضافة 40 طولار إلى حسابك يا"
-                    f" {ctx.author.mention}",
-                    allowed_mentions=discord.AllowedMentions(users=False),
-                )
-            else:
-                await ctx.send(
-                    f"❌ **إجابة خاطئة،** الإجابة الصحيحة هي: **{q_data['a'][0]}**"
-                )
-        except asyncio.TimeoutError:
-            await ctx.send(
-                f"⏰ **انتهى الوقت** الإجابة الصحيحة كانت: **{q_data['a'][0]}**"
-            )
-
-        if round_num < rounds:
-            await asyncio.sleep(1)
-
-
-@bot.command(name="لغز", aliases=["الغاز", "riddle"])
-@in_channel(GAMES_CHANNEL_ID)
-async def riddle_game(ctx, rounds: int = 1):
-    if rounds < 1 or rounds > 10:
-        await ctx.send(
-            "❌ يرجى تحديد عدد جولات بين **1** و **10** فقط", delete_after=3
-        )
-        return
-
-    for round_num in range(1, rounds + 1):
-        riddle = random.choice(RIDDLES)
-
-        embed = discord.Embed(
-            title=f"🧩 الجولة {round_num}",
-            description=(
-                f"يا {ctx.author.mention}، حل اللغز التالي كسباً لـ **40**"
-                f" طولار:\n\n🧩 **{riddle['q']}**"
-            ),
-            color=discord.Color.gold(),
-        )
-        embed.set_footer(text="⏱️ لديك 15 ثانية للإجابة على هذا اللغز")
-
-        await ctx.send(
-            embed=embed, allowed_mentions=discord.AllowedMentions(users=False)
-        )
-
-        def check(m):
-            return m.author == ctx.author and m.channel == ctx.channel
-
-        try:
-            msg = await bot.wait_for("message", timeout=15.0, check=check)
-            if msg.content.strip().lower() in [ans.lower() for ans in riddle["a"]]:
-                add_balance(ctx.author.id, 40)
-                await ctx.send(
-                    f"🎉 **إجابة صحيحة،** تم إضافة 40 طولار إلى حسابك يا"
-                    f" {ctx.author.mention}",
-                    allowed_mentions=discord.AllowedMentions(users=False),
-                )
-            else:
-                await ctx.send(
-                    f"❌ **إجابة خاطئة** الإجابة الصحيحة كانت:"
-                    f" **{riddle['a'][0]}**.",
-                    allowed_mentions=discord.AllowedMentions(users=False),
-                )
-        except asyncio.TimeoutError:
-            await ctx.send(
-                f"⏰ **انتهى الوقت** الإجابة الصحيحة كانت: **{riddle['a'][0]}**",
-                allowed_mentions=discord.AllowedMentions(users=False),
-            )
-
-        if round_num < rounds:
-            await asyncio.sleep(1)
-
+# --- 5. Games and quizzes ---
 
 class RPSView(discord.ui.View):
 
     def __init__(self, player1: discord.Member, player2: discord.Member = None):
-        super().__init__(timeout=10)  # ⏱️ 1. تغيير الوقت إلى 10 ثوانٍ
+        super().__init__(timeout=10)  # ⏱️ 1. Changed timeout to 10 seconds
         self.player1 = player1
         self.player2 = player2
         self.p1_choice = None
         self.p2_choice = None
         self.is_vs_bot = player2 is None
-        self.message = None  # 📌 حفظ الرسالة لتحديثها عند التايم أوت
+        self.message = None  # 📌 Save the message to update on timeout
 
     async def on_timeout(self):
-        # ⏱️ 2. ماذا يحدث عند انتهاء الـ 10 ثوانٍ دون اختيار؟
+        # ⏱️ 2. What happens after 10 seconds without a choice?
         for item in self.children:
             item.disabled = True
 
         if self.message:
             embed = discord.Embed(
-                title="⏰ انتهى الوقت",
-                description="انتهت اللعبة لعدم إدخال الاختيار خلال 10 ثوانٍ.",
+                title="⏰ Time expired",
+                description="Game ended because no choice was made within 10 seconds.",
                 color=discord.Color.red(),
             )
             await self.message.edit(content=None, embed=embed, view=self)
 
     async def check_choices(self, interaction: discord.Interaction):
         if self.is_vs_bot:
-            self.p2_choice = random.choice(["حجرة", "ورقة", "مقص"])
+            self.p2_choice = random.choice(["Rock", "Paper", "Scissors"])
             await self.end_game(interaction)
             return
 
@@ -1901,8 +1522,8 @@ class RPSView(discord.ui.View):
             )
             await interaction.message.edit(
                 content=(
-                    f"🎮 **لعبة حجرة ورقة مقص**\n"
-                    f"✅ اختار {who_chose} حركته بنجاح، وفي انتظار اختيار {who_waiting}..."
+                    f"🎮 **Rock Paper Scissors**\n"
+                    f"✅ {who_chose} has chosen, waiting for {who_waiting}..."
                 )
             )
 
@@ -1910,42 +1531,42 @@ class RPSView(discord.ui.View):
         c1, c2 = self.p1_choice, self.p2_choice
 
         if c1 == c2:
-            result = "🤝 **تعادل** لم يفز أحد."
+            result = "🤝 **Draw** – no winner."
             color = discord.Color.gold()
         elif (
-            (c1 == "حجرة" and c2 == "مقص")
-            or (c1 == "ورقة" and c2 == "حجرة")
-            or (c1 == "مقص" and c2 == "ورقة")
+            (c1 == "Rock" and c2 == "Scissors")
+            or (c1 == "Paper" and c2 == "Rock")
+            or (c1 == "Scissors" and c2 == "Paper")
         ):
             add_balance(self.player1.id, 40)
-            p2_name = "البوت" if self.is_vs_bot else self.player2.mention
-            result = f"🎉 **فاز {self.player1.mention} على {p2_name} وحصل على 40 طولار**"
+            p2_name = "the bot" if self.is_vs_bot else self.player2.mention
+            result = f"🎉 **{self.player1.mention} wins against {p2_name} and earns 40 Tolar**"
             color = discord.Color.green()
         else:
             if not self.is_vs_bot:
                 add_balance(self.player2.id, 40)
-                result = f"🎉 **فاز {self.player2.mention} على {self.player1.mention} وحصل على 40 طولار**"
+                result = f"🎉 **{self.player2.mention} wins against {self.player1.mention} and earns 40 Tolar**"
                 color = discord.Color.green()
             else:
-                result = "❌ **خسرت، فاز البوت عليك**"
+                result = "❌ **You lost – the bot wins.**"
                 color = discord.Color.red()
 
-        embed = discord.Embed(title="🎮 نتيجة لعبة حجرة ورقة مقص", color=color)
+        embed = discord.Embed(title="🎮 Rock Paper Scissors Result", color=color)
         embed.add_field(
-            name=f"اختيار {self.player1.display_name}", value=c1, inline=True
+            name=f"{self.player1.display_name}'s choice", value=c1, inline=True
         )
         embed.add_field(
-            name=f"اختيار {'البوت' if self.is_vs_bot else self.player2.display_name}",
+            name=f"{'Bot' if self.is_vs_bot else self.player2.display_name}'s choice",
             value=c2,
             inline=True,
         )
-        embed.add_field(name="النتيجة", value=result, inline=False)
+        embed.add_field(name="Result", value=result, inline=False)
 
         for item in self.children:
             item.disabled = True
 
         await interaction.message.edit(content=None, embed=embed, view=self)
-        self.stop()  # لإيقاف الـ timeout بعد انتهاء اللعبة طبيعياً
+        self.stop()  # Stop the timeout after a normal end
 
     async def process_player_choice(
         self, interaction: discord.Interaction, choice: str
@@ -1954,83 +1575,83 @@ class RPSView(discord.ui.View):
             self.is_vs_bot or interaction.user != self.player2
         ):
             return await interaction.response.send_message(
-                "❌ هذه اللعبة ليست لك", ephemeral=True
+                "❌ This game is not for you", ephemeral=True
             )
 
         if interaction.user == self.player1:
             if self.p1_choice:
                 return await interaction.response.send_message(
-                    "⚠️ لقد اخترت بالفعل", ephemeral=True
+                    "⚠️ You have already chosen", ephemeral=True
                 )
             self.p1_choice = choice
             await interaction.response.send_message(
-                f"✅ تم تسجيل اختيارك: **{choice}**", ephemeral=True
+                f"✅ Your choice: **{choice}**", ephemeral=True
             )
 
         elif interaction.user == self.player2:
             if self.p2_choice:
                 return await interaction.response.send_message(
-                    "⚠️ لقد اخترت بالفعل", ephemeral=True
+                    "⚠️ You have already chosen", ephemeral=True
                 )
             self.p2_choice = choice
             await interaction.response.send_message(
-                f"✅ تم تسجيل اختيارك : **{choice}**", ephemeral=True
+                f"✅ Your choice: **{choice}**", ephemeral=True
             )
 
         await self.check_choices(interaction)
 
-    @discord.ui.button(label="حجرة 🪨", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Rock 🪨", style=discord.ButtonStyle.primary)
     async def rock_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
-        await self.process_player_choice(interaction, "حجرة")
+        await self.process_player_choice(interaction, "Rock")
 
-    @discord.ui.button(label="ورقة 📄", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Paper 📄", style=discord.ButtonStyle.primary)
     async def paper_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
-        await self.process_player_choice(interaction, "ورقة")
+        await self.process_player_choice(interaction, "Paper")
 
-    @discord.ui.button(label="مقص ✂️", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Scissors ✂️", style=discord.ButtonStyle.primary)
     async def scissors_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
-        await self.process_player_choice(interaction, "مقص")
+        await self.process_player_choice(interaction, "Scissors")
 
 
-@bot.command(name="حجر", aliases=["حجرة", "rps"])
+@bot.command(name="rps", aliases=["rockpaperscissors"])
 @in_channel(GAMES_CHANNEL_ID)
 async def rps_game(ctx, opponent: discord.Member = None):
     if opponent and opponent.bot:
         return await ctx.send(
-            "❌ لا يمكنك تحدي البوتات بهذه الطريقة، استخدم `.حجر` بدون منشن للعب ضد البوت."
+            "❌ You cannot challenge bots this way; use `.rps` without a mention to play against the bot."
         )
 
     if opponent and opponent == ctx.author:
-        return await ctx.send("❌ لا يمكنك تحدي نفسك")
+        return await ctx.send("❌ You cannot challenge yourself")
 
     if opponent:
         embed = discord.Embed(
-            title="🎮 لعبة حجرة ورقة مقص (تحدي)",
+            title="🎮 Rock Paper Scissors (Challenge)",
             description=(
-                f"المواجهة بين {ctx.author.mention} و {opponent.mention}!\n\n"
-                "⏱️ **معكما 10 ثوانٍ للاختيار!**\n"
-                "اضغطوا على الأزرار بالأسفل لاختيار الحركة."
+                f"Match between {ctx.author.mention} and {opponent.mention}!\n\n"
+                "⏱️ **You both have 10 seconds to choose!**\n"
+                "Press the buttons below to make your move."
             ),
             color=discord.Color.blue(),
         )
     else:
         embed = discord.Embed(
-            title="🎮 لعبة حجرة ورقة مقص (ضد البوت)",
+            title="🎮 Rock Paper Scissors (vs Bot)",
             description=(
-                f"يا {ctx.author.mention}، اختر أحد الأزرار خلال 10 ثوانٍ\n"
-                "إذا فزت ستكسب **40 طولار** 💵"
+                f"{ctx.author.mention}, choose one of the buttons within 10 seconds.\n"
+                "If you win, you earn **40 Tolar** 💵"
             ),
             color=discord.Color.blue(),
         )
 
     view = RPSView(player1=ctx.author, player2=opponent)
-    # 📌 3. ربط الرسالة المرسلة بالـ view
+    # 📌 3. Bind the sent message to the view
     msg = await ctx.send(
         embed=embed,
         view=view,
@@ -2039,7 +1660,7 @@ async def rps_game(ctx, opponent: discord.Member = None):
     view.message = msg
 
 
-# --- 6. لعبة إكس أو التفاعلية ---
+# --- 6. Interactive Tic‑Tac‑Toe game ---
 class XOButton(discord.ui.Button):
     def __init__(self, x: int, y: int):
         super().__init__(
@@ -2052,14 +1673,14 @@ class XOButton(discord.ui.Button):
         view: XOView = self.view
         if interaction.user != view.current_player:
             await interaction.response.send_message(
-                "❌ ليس دورك الآن", ephemeral=True
+                "❌ It's not your turn", ephemeral=True
             )
             return
 
         idx = self.y * 3 + self.x
         if view.board[idx] != " ":
             await interaction.response.send_message(
-                "❌ هذا المربع مشغول بالفعل", ephemeral=True
+                "❌ This square is already taken", ephemeral=True
             )
             return
 
@@ -2079,8 +1700,8 @@ class XOButton(discord.ui.Button):
             add_balance(view.current_player.id, 50)
             await interaction.response.edit_message(
                 content=(
-                    f"**فاز {view.current_player.mention} ({view.current_mark}) في لعبة إكس أو**\n"
-                    f"💵 تم إضافة **50 طولار** لرصيده"
+                    f"**{view.current_player.mention} ({view.current_mark}) wins the Tic‑Tac‑Toe game!**\n"
+                    f"💵 **50 Tolar** added to their balance"
                 ),
                 view=view,
             )
@@ -2091,7 +1712,7 @@ class XOButton(discord.ui.Button):
             for child in view.children:
                 child.disabled = True
             await interaction.response.edit_message(
-                content=" **تعادل، انتهت اللعبة بدون فائز.**", view=view
+                content=" **Draw – game ended with no winner.**", view=view
             )
             view.stop()
             return
@@ -2105,9 +1726,9 @@ class XOButton(discord.ui.Button):
             view.current_mark = "⭕" if view.current_mark == "❌" else "❌"
             await interaction.response.edit_message(
                 content=(
-                    f"❌⭕ **لعبة إكس أو (XO)**\n"
-                    f"الدور الحالى: {view.current_player.mention} ({view.current_mark})\n"
-                    f"الجائزة: **50 طولار** للفائز"
+                    f"❌⭕ **Tic‑Tac‑Toe (XO)**\n"
+                    f"Current turn: {view.current_player.mention} ({view.current_mark})\n"
+                    f"Prize: **50 Tolar** for the winner"
                 ),
                 view=view,
             )
@@ -2125,7 +1746,7 @@ class XOButton(discord.ui.Button):
                     for child in view.children:
                         child.disabled = True
                     await interaction.response.edit_message(
-                        content="🤖 **فاز البوت عليك في لعبة إكس أو.**",
+                        content="🤖 **The bot won the Tic‑Tac‑Toe game.**",
                         view=view,
                     )
                     view.stop()
@@ -2135,16 +1756,16 @@ class XOButton(discord.ui.Button):
                     for child in view.children:
                         child.disabled = True
                     await interaction.response.edit_message(
-                        content=" **تعادل، انتهت اللعبة بدون فائز.**", view=view
+                        content=" **Draw – game ended with no winner.**", view=view
                     )
                     view.stop()
                     return
 
             await interaction.response.edit_message(
                 content=(
-                    f"❌⭕ **لعبة إكس أو (XO)**\n"
-                    f"لعب البوت دوره، حان دورك يا {view.player1.mention} (❌)\n"
-                    f"الجائزة: **50 طولار** عند الفوز"
+                    f"❌⭕ **Tic‑Tac‑Toe (XO)**\n"
+                    f"The bot played its turn. Your turn, {view.player1.mention} (❌)\n"
+                    f"Prize: **50 Tolar** if you win"
                 ),
                 view=view,
             )
@@ -2171,7 +1792,7 @@ class XOView(discord.ui.View):
         if self.message:
             try:
                 await self.message.edit(
-                    content="⏰ **انتهت اللعبة لعدم التفاعل.**", view=self
+                    content="⏰ **Game ended due to inactivity.**", view=self
                 )
             except Exception:
                 pass
@@ -2221,26 +1842,26 @@ class XOView(discord.ui.View):
         return random.choice(empty_indices)
 
 
-@bot.command(name="اكس", aliases=["اكس_او", "xo", "tictactoe"])
+@bot.command(name="tictactoe", aliases=["xo"])
 @in_channel(GAMES_CHANNEL_ID)
 async def xo_game(ctx, opponent: discord.Member = None):
     if opponent and opponent.bot:
         await ctx.send(
-            "❌ لا يمكنك تحدي بوت آخر، استخدم الأمر بدون منشن للعب ضد البوت الحالي."
+            "❌ You cannot challenge another bot; use the command without a mention to play against this bot."
         )
         return
 
     if opponent and opponent == ctx.author:
-        await ctx.send("❌ لا يمكنك تحدي نفسك")
+        await ctx.send("❌ You cannot challenge yourself")
         return
 
     if opponent:
         view = XOView(player1=ctx.author, player2=opponent)
         msg = await ctx.send(
-            f"❌⭕ **بدأت لعبة إكس أو (XO)**\n"
-            f"المنافسة بين {ctx.author.mention} (❌) و {opponent.mention} (⭕)\n"
-            f"الدور الحالى: {ctx.author.mention}\n"
-            f"الجائزة: **50 طولار** للفائز",
+            f"❌⭕ **Tic‑Tac‑Toe (XO) started**\n"
+            f"Match between {ctx.author.mention} (❌) and {opponent.mention} (⭕)\n"
+            f"Current turn: {ctx.author.mention}\n"
+            f"Prize: **50 Tolar** for the winner",
             view=view,
             allowed_mentions=discord.AllowedMentions(users=False),
         )
@@ -2248,17 +1869,17 @@ async def xo_game(ctx, opponent: discord.Member = None):
     else:
         view = XOView(player1=ctx.author)
         msg = await ctx.send(
-            f"❌⭕ **بدأت لعبة إكس أو (XO) ضد البوت**\n"
-            f"أنت تلعب بـ (❌) والبوت يلعب بـ (⭕)\n"
-            f"الدور الحالى: {ctx.author.mention}\n"
-            f"الجائزة: **50 طولار** عند الفوز",
+            f"❌⭕ **Tic‑Tac‑Toe (XO) vs Bot**\n"
+            f"You play as (❌), the bot plays as (⭕)\n"
+            f"Current turn: {ctx.author.mention}\n"
+            f"Prize: **50 Tolar** if you win",
             view=view,
             allowed_mentions=discord.AllowedMentions(users=False),
         )
         view.message = msg
 
 
-# --- 7. لعبة توصيل الكرات 4 التفاعلية ---
+# --- 7. Connect 4 game ---
 class Connect4Button(discord.ui.Button):
     def __init__(self, col: int, row_idx: int):
         super().__init__(
@@ -2273,13 +1894,13 @@ class Connect4Button(discord.ui.Button):
         view: Connect4View = self.view
 
         if interaction.user != view.current_player:
-            await interaction.response.send_message("❌ ليس دورك الآن", ephemeral=True)
+            await interaction.response.send_message("❌ It's not your turn", ephemeral=True)
             return
 
         placed_row = view.drop_piece(self.col, view.current_emoji)
         if placed_row == -1:
             await interaction.response.send_message(
-                " هذا العامود ممتلئ، اختر عاموداً آخر.", ephemeral=True
+                " This column is full, choose another column.", ephemeral=True
             )
             return
 
@@ -2290,8 +1911,7 @@ class Connect4Button(discord.ui.Button):
                 child.disabled = True
             await interaction.response.edit_message(
                 content=(
-                    f"🎉 ** {winner.mention}** لقد فزت في لعبة **توصيل الكرات"
-                    " 4** وحصلت على **60 طولار**💵\n\n"
+                    f"🎉 **{winner.mention}** won the **Connect 4** game and earned **60 Tolar**💵\n\n"
                     + view.get_board_string()
                 ),
                 view=view,
@@ -2304,7 +1924,7 @@ class Connect4Button(discord.ui.Button):
                 child.disabled = True
             await interaction.response.edit_message(
                 content=(
-                    "🤝 **تعادل** امتلأت اللوحة دون فائز.\n\n"
+                    "🤝 **Draw** – the board is full without a winner.\n\n"
                     + view.get_board_string()
                 ),
                 view=view,
@@ -2321,8 +1941,8 @@ class Connect4Button(discord.ui.Button):
             view.current_emoji = "🟡" if view.current_emoji == "🔴" else "🔴"
             await interaction.response.edit_message(
                 content=(
-                    f" **لعبة توصيل الكرات 4**\nدور: {view.current_player.mention}"
-                    f" ({view.current_emoji})\nالجائزة: **60 طولار** للفائز\n\n"
+                    f" **Connect 4**\nTurn: {view.current_player.mention}"
+                    f" ({view.current_emoji})\nPrize: **60 Tolar** for the winner\n\n"
                     + view.get_board_string()
                 ),
                 view=view,
@@ -2334,8 +1954,7 @@ class Connect4Button(discord.ui.Button):
                     child.disabled = True
                 await interaction.response.edit_message(
                     content=(
-                        f"🤖 ** لعب البوت رقم {bot_col + 1} وفاز في توصيل الكرات"
-                        " 4**\n\n"
+                        f"🤖 **The bot played column {bot_col + 1} and won the Connect 4 game**\n\n"
                         + view.get_board_string()
                     ),
                     view=view,
@@ -2348,7 +1967,7 @@ class Connect4Button(discord.ui.Button):
                     child.disabled = True
                 await interaction.response.edit_message(
                     content=(
-                        " **تعادل** امتلأت اللوحة دون فائز.\n\n"
+                        " **Draw** – the board is full without a winner.\n\n"
                         + view.get_board_string()
                     ),
                     view=view,
@@ -2358,8 +1977,7 @@ class Connect4Button(discord.ui.Button):
 
             await interaction.response.edit_message(
                 content=(
-                    f" **لعبة توصيل الكرات 4** \nلعب البوت رقم {bot_col + 1} حان"
-                    f" دورك: {view.player1.mention} (🔴)\n\n"
+                    f" **Connect 4**\nBot played column {bot_col + 1}, your turn: {view.player1.mention} (🔴)\n\n"
                     + view.get_board_string()
                 ),
                 view=view,
@@ -2391,7 +2009,7 @@ class Connect4View(discord.ui.View):
             try:
                 await self.message.edit(
                     content=(
-                        f"⏰ **انتهت اللعبة لعدم التفاعل خلال دقيقة واحدة**\n\n"
+                        f"⏰ **Game ended after one minute of inactivity**\n\n"
                         + self.get_board_string()
                     ),
                     view=self,
@@ -2573,24 +2191,24 @@ class Connect4View(discord.ui.View):
         return best_col, row
 
 
-@bot.command(name="توصيل", aliases=["توصيل4", "connect4", "كرات4", "أربعة"])
+@bot.command(name="connect4", aliases=["c4"])
 @in_channel(GAMES_CHANNEL_ID)
 async def connect4_game(ctx, opponent: discord.Member = None):
     if opponent and opponent.bot:
         await ctx.send(
-            "❌ لا يمكنك تحدي بوت آخر، استخدم الأمر بدون منشن للعب ضد هذا البوت."
+            "❌ You cannot challenge another bot; use the command without a mention to play against this bot."
         )
         return
 
     if opponent and opponent == ctx.author:
-        await ctx.send("❌ لا يمكنك تحدي نفسك")
+        await ctx.send("❌ You cannot challenge yourself")
         return
 
     if opponent:
         view = Connect4View(player1=ctx.author, player2=opponent)
         msg = await ctx.send(
-            f"**بدأت لعبة توصيل الكرات 4** بين {ctx.author.mention} (🔴) و"
-            f" {opponent.mention} (🟡)\nالجائزة: **60 طولار** للفائز\nدور:"
+            f"**Connect 4 game started** between {ctx.author.mention} (🔴) and"
+            f" {opponent.mention} (🟡)\nPrize: **60 Tolar** for the winner\nTurn:"
             f" {ctx.author.mention}\n\n"
             + view.get_board_string(),
             view=view,
@@ -2600,8 +2218,8 @@ async def connect4_game(ctx, opponent: discord.Member = None):
     else:
         view = Connect4View(player1=ctx.author)
         msg = await ctx.send(
-            f"**بدأت لعبة توصيل الكرات 4** بين {ctx.author.mention} (🔴) و"
-            " البوت (🟡)\nالجائزة: **60 طولار** للفائز!\nدور:"
+            f"**Connect 4 vs Bot** – {ctx.author.mention} (🔴) vs"
+            " the bot (🟡)\nPrize: **60 Tolar** for the winner!\nTurn:"
             f" {ctx.author.mention}\n\n"
             + view.get_board_string(),
             view=view,
@@ -2610,19 +2228,19 @@ async def connect4_game(ctx, opponent: discord.Member = None):
         view.message = msg
 
 
-# --- إعدادات وتعاريف لعبة خمن ---
+# --- Anime Guess game settings ---
 ACTIVE_ANIME_GAMES = {}
-ANIME_REWARD = 20  # الجائزة بالطولار لكل إجابة صحيحة
+ANIME_REWARD = 20  # Reward in Tolar per correct answer
 ANIME_DATABASE_FILE = os.path.join(BASE_DIR, "anime_characters.json")
 
 def load_anime_characters():
-    """تحميل قاعدة شخصيات الأنمي من ملف JSON وإرجاع الشخصيات الصالحة فقط."""
+    """Load anime character database from JSON file and return only valid characters."""
     try:
         with open(ANIME_DATABASE_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         if not isinstance(data, list):
-            print("[ANIME] ملف anime_characters.json يجب أن يحتوي على قائمة شخصيات.")
+            print("[ANIME] anime_characters.json must contain a list of characters.")
             return []
 
         valid_characters = []
@@ -2657,18 +2275,18 @@ def load_anime_characters():
         return valid_characters
 
     except FileNotFoundError:
-        print(f"[ANIME] لم يتم العثور على ملف قاعدة الشخصيات: {ANIME_DATABASE_FILE}")
+        print(f"[ANIME] Character database file not found: {ANIME_DATABASE_FILE}")
         return []
     except json.JSONDecodeError as e:
-        print(f"[ANIME] ملف anime_characters.json غير صالح JSON: {e}")
+        print(f"[ANIME] Invalid JSON in anime_characters.json: {e}")
         return []
     except Exception as e:
-        print(f"[ANIME] فشل تحميل قاعدة الشخصيات: {e}")
+        print(f"[ANIME] Failed to load character database: {e}")
         return []
 
 
 def is_correct_anime_answer(user_answer, valid_answers):
-    # تنظيف نص المستخدم
+    # Clean user input
     user_input = user_answer.strip().lower()
     
     if not user_input:
@@ -2677,17 +2295,17 @@ def is_correct_anime_answer(user_answer, valid_answers):
     for answer in valid_answers:
         clean_answer = answer.strip().lower()
         
-        # 1. مطابقة كاملة 
+        # 1. Exact match
         if user_input == clean_answer:
             return True
             
-        # 2. مطابقة جزء من الاسم (الاسم الأول أو الأخير)
+        # 2. Partial match (first or last name)
         words = clean_answer.split()
         for word in words:
             if len(word) > 2 and user_input == word:
                 return True
 
-        # 3. التسامح مع الأخطاء الإملائية (حرف أو حرفين)
+        # 3. Tolerance for typos (one or two characters off)
         overall_similarity = SequenceMatcher(None, user_input, clean_answer).ratio()
         if overall_similarity >= 0.75:  
             return True
@@ -2701,12 +2319,12 @@ def is_correct_anime_answer(user_answer, valid_answers):
     return False
 
 
-@bot.command(name="خمن")
+@bot.command(name="guess")
 @in_channel(GAMES_CHANNEL_ID)
 async def anime_guess_command(ctx, rounds: int = 1):
     if rounds < 1 or rounds > 10:
         await ctx.send(
-            "❌ عدد الجولات يجب أن يكون من **1 إلى 10**.",
+            "❌ The number of rounds must be between **1 and 10**.",
             allowed_mentions=discord.AllowedMentions(users=False),
         )
         return
@@ -2715,7 +2333,7 @@ async def anime_guess_command(ctx, rounds: int = 1):
 
     if user_id in ACTIVE_ANIME_GAMES:
         await ctx.send(
-            f"⚠️ {ctx.author.mention} لديك لعبة خمن قيد التشغيل بالفعل.",
+            f"⚠️ {ctx.author.mention} you already have a guess game running.",
             allowed_mentions=discord.AllowedMentions(users=False),
         )
         return
@@ -2723,8 +2341,8 @@ async def anime_guess_command(ctx, rounds: int = 1):
     available_characters = load_anime_characters()
     if not available_characters:
         await ctx.send(
-            "❌ لم يتم العثور على شخصيات صالحة في `anime_characters.json`.\n"
-            "تأكد من وجود الملف وأنه يحتوي على `image_url` و`answers` لكل شخصية.",
+            "❌ No valid characters found in `anime_characters.json`.\n"
+            "Make sure the file exists and contains `image_url` and `answers` for each character.",
             allowed_mentions=discord.AllowedMentions(users=False),
         )
         return
@@ -2732,24 +2350,24 @@ async def anime_guess_command(ctx, rounds: int = 1):
     if rounds > len(available_characters):
         rounds = len(available_characters)
         await ctx.send(
-            f"⚠️ تم تعديل عدد الجولات إلى **{rounds}** لعدم توفر شخصيات كافية بدون تكرار.",
+            f"⚠️ Rounds reduced to **{rounds}** because there aren't enough characters without repetition.",
             allowed_mentions=discord.AllowedMentions(users=False),
         )
 
     chosen_characters = random.sample(available_characters, rounds)
 
-    # تسجيل اللعبة
+    # Register the game
     ACTIVE_ANIME_GAMES[user_id] = True
 
     correct_count = 0
     total_reward = 0
 
     await ctx.send(
-        f"**🎮 لعبة خمن بدأت**\n"
-        f"👤 اللاعب┃{ctx.author.mention}\n"
-        f"🎯 عدد الجولات┃**{rounds}**\n"
-        f"💰 المكافأة┃**{ANIME_REWARD} طولار** لكل إجابة صحيحة.\n"
-        f"⏱️ لديك **15 ثانية** للإجابة في كل جولة.",
+        f"**🎮 Guess Game started**\n"
+        f"👤 Player┃{ctx.author.mention}\n"
+        f"🎯 Rounds┃**{rounds}**\n"
+        f"💰 Reward┃**{ANIME_REWARD} Tolar** per correct answer.\n"
+        f"⏱️ You have **15 seconds** to answer each round.",
         allowed_mentions=discord.AllowedMentions(users=False),
     )
 
@@ -2757,15 +2375,15 @@ async def anime_guess_command(ctx, rounds: int = 1):
         for round_number, character in enumerate(chosen_characters, start=1):
             image_url = character["image_url"]
 
-            # إنشاء الـ Embed (بدون صورة حالياً)
+            # Create the Embed (without image yet)
             embed = discord.Embed(
-                description=f"** الجولة {round_number}/{rounds}**\nمن هذه الشخصية؟",
+                description=f"** Round {round_number}/{rounds}**\nWho is this character?",
                 color=discord.Color.blue(),
             )
             if character.get("source_url"):
                 embed.url = character["source_url"]
 
-            # محاولة تحميل الصورة وإرسالها كملف مرفق
+            # Try to download the image and send it as an attachment
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.get(image_url) as resp:
@@ -2780,16 +2398,16 @@ async def anime_guess_command(ctx, rounds: int = 1):
                                 allowed_mentions=discord.AllowedMentions(users=False)
                             )
                         else:
-                            raise Exception("فشل التحميل السريع")
+                            raise Exception("Fast download failed")
             except Exception:
-                # فشل التحميل -> نرسل الصورة عبر الرابط (مرة واحدة فقط)
+                # Download failed -> send the image via URL (only once)
                 embed.set_image(url=image_url)
                 await ctx.send(
                     embed=embed,
                     allowed_mentions=discord.AllowedMentions(users=False)
                 )
 
-            # انتظار الإجابة
+            # Wait for the answer
             def check(message):
                 return (
                     message.author.id == user_id
@@ -2805,15 +2423,15 @@ async def anime_guess_command(ctx, rounds: int = 1):
                 total_reward += ANIME_REWARD
 
                 await ctx.send(
-                    f"✅ **إجابة صحيحة**\n💰 حصلت على **+{ANIME_REWARD} طولار**.",
+                    f"✅ **Correct answer!**\n💰 You earned **+{ANIME_REWARD} Tolar**.",
                     allowed_mentions=discord.AllowedMentions(users=False),
                 )
 
             except asyncio.TimeoutError:
                 correct_answer = character["answers"][0]
                 await ctx.send(
-                    f"⏰ انتهى الوقت يا {ctx.author.mention}.\n"
-                    f"❌ الإجابة الصحيحة كانت: **{correct_answer}**",
+                    f"⏰ Time up, {ctx.author.mention}.\n"
+                    f"❌ The correct answer was: **{correct_answer}**",
                     allowed_mentions=discord.AllowedMentions(users=False),
                 )
 
@@ -2821,28 +2439,28 @@ async def anime_guess_command(ctx, rounds: int = 1):
                 await asyncio.sleep(1)
 
     finally:
-        # حذف المفتاح بعد انتهاء اللعبة (سواء اكتملت أو حدث خطأ)
+        # Remove the game key after it ends (whether completed or errored)
         ACTIVE_ANIME_GAMES.pop(user_id, None)
 
-    # النتيجة النهائية
+    # Final result
     current_balance = get_balance(user_id)
     await ctx.send(
-        f"**🏁 انتهت لعبة خمن**\n"
-        f"👤 اللاعب┃{ctx.author.mention}\n"
-        f"📊 الجولات┃**{rounds}**\n"
-        f"✅ الإجابات الصحيحة┃**{correct_count}/{rounds}**\n"
-        f"💰 إجمالي المكافأة┃**{total_reward} طولار**\n"
-        f"💳 رصيدك الحالي┃**{current_balance:,} طولار**",
+        f"**🏁 Guess Game finished**\n"
+        f"👤 Player┃{ctx.author.mention}\n"
+        f"📊 Rounds┃**{rounds}**\n"
+        f"✅ Correct answers┃**{correct_count}/{rounds}**\n"
+        f"💰 Total reward┃**{total_reward} Tolar**\n"
+        f"💳 Your current balance┃**{current_balance:,} Tolar**",
         allowed_mentions=discord.AllowedMentions(users=False),
     )
 
 
-@bot.command(name="طولاري", aliases=["طولار"])
+@bot.command(name="balance", aliases=["bal"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def balance_command(ctx, member: discord.Member = None):
     target = member or ctx.author
 
-    # الرصيد يُجلب حديثاً، أما صورة الأفاتار فنخزنها 5 دقائق.
+    # Balance is fetched fresh; avatar is cached for 5 minutes.
     avatar_url = str(target.display_avatar.url)
     avatar_bytes = _BALANCE_AVATAR_CACHE.get(avatar_url)
     if avatar_bytes is None:
@@ -2851,7 +2469,7 @@ async def balance_command(ctx, member: discord.Member = None):
 
     bal = await _run_bg(get_balance, target.id)
 
-    # إذا لم يتغير الاسم/الرصيد/الأفاتار، نرسل الصورة الجاهزة بدلاً من إعادة رسمها.
+    # If the name/balance/avatar haven't changed, send the cached image.
     card_key = (target.id, avatar_url, target.display_name, int(bal))
     cached_card = _BALANCE_CARD_CACHE.get(card_key)
     if cached_card is not None:
@@ -2873,18 +2491,18 @@ async def balance_command(ctx, member: discord.Member = None):
     finally:
         img_buf.close()
 
-@bot.command(name="ض")
+@bot.command(name="add")
 @commands.has_role(OWNER_ROLE_ID)
 @in_channel(SHOPPING_CHANNEL_ID)
 async def add_money(ctx, member: discord.Member, amount: int):
     if amount <= 0:
-        await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من 0.")
+        await ctx.send("❌ Please enter a valid amount greater than 0.")
         return
 
     add_balance(member.id, amount)
     await ctx.send(
-        f" تم إضافة **{amount}** طولار إلى حساب {member.mention} بنجاح\n"
-        f" رصيده الجديد: **{get_balance(member.id)}** طولار.",
+        f"✅ Added **{amount}** Tolar to {member.mention}'s account.\n"
+        f"💰 New balance: **{get_balance(member.id)}** Tolar.",
         allowed_mentions=discord.AllowedMentions.none(),
     )
 
@@ -2892,78 +2510,78 @@ async def add_money(ctx, member: discord.Member, amount: int):
 @add_money.error
 async def add_money_error(ctx, error):
     if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص لصاحب رتبة الاونر فقط")
+        await ctx.send("❌ This command is only for the Owner role.")
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.send(
-            "**طريقة الاستخدام الصحيحة:**\n"
-            "`اضافة @العضو المبلغ`\n"
+            "**Correct usage:**\n"
+            "`add @member amount`\n"
         )
     elif isinstance(error, commands.BadArgument):
-        await ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.")
+        await ctx.send("❌ Please mention a valid member and write the amount in numbers.")
 
 
-@bot.command(name="ز", aliases=["خصم"])
+@bot.command(name="remove")
 @commands.has_role(OWNER_ROLE_ID)
 @in_channel(SHOPPING_CHANNEL_ID)
 async def remove_money(ctx, member: discord.Member, amount: int):
     if amount <= 0:
-        await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من 0.")
+        await ctx.send("❌ Please enter a valid amount greater than 0.")
         return
 
     current_balance = get_balance(member.id)
     if current_balance < amount:
-        await ctx.send(f"❌ رصيد العضو الحالي (**{current_balance}** طولار) أقل من المبلغ المراد خصمه.")
+        await ctx.send(f"❌ The member's current balance (**{current_balance}** Tolar) is less than the amount to deduct.")
         return
 
     remove_balance(member.id, amount)
     await ctx.send(
-        f"✅ تم خصم **{amount}** طولار من حساب {member.mention} بنجاح\n"
-        f"💰 رصيده الجديد: **{get_balance(member.id)}** طولار.",
+        f"✅ Deducted **{amount}** Tolar from {member.mention}'s account.\n"
+        f"💰 New balance: **{get_balance(member.id)}** Tolar.",
         allowed_mentions=discord.AllowedMentions.none(),
     )
 
 @remove_money.error
 async def remove_money_error(ctx, error):
     if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص لصاحب رتبة الاونر فقط.")
+        await ctx.send("❌ This command is only for the Owner role.")
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.send(
-            "**طريقة الاستخدام الصحيحة:**\n"
-            "`ز @العضو المبلغ`\n"
+            "**Correct usage:**\n"
+            "`remove @member amount`\n"
         )
     elif isinstance(error, commands.BadArgument):
-        await ctx.send("❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.")
+        await ctx.send("❌ Please mention a valid member and write the amount in numbers.")
 
 
-@bot.command(name="ت", aliases=["transfer", "pay"])
+@bot.command(name="transfer", aliases=["pay"])
 @in_channel(SHOPPING_CHANNEL_ID)
 async def transfer_money(
     ctx, member: discord.Member = None, amount: int = None
 ):
     if not member or amount is None:
         await ctx.send(
-            " **طريقة الاستخدام الصحيحة:**\n"
-            "`.تحويل @العضو المبلغ`\n",
+            " **Correct usage:**\n"
+            "`.transfer @member amount`\n",
             delete_after=5,
         )
         return
 
     if member.bot:
-        await ctx.send("❌ لا يمكنك تحويل الطولارات للبوتات", delete_after=3)
+        await ctx.send("❌ You cannot transfer Tolar to bots.", delete_after=3)
         return
 
     if member == ctx.author:
-        await ctx.send("❌ لا يمكنك تحويل الطولارات لنفسك", delete_after=3)
+        await ctx.send("❌ You cannot transfer Tolar to yourself.", delete_after=3)
         return
 
     if amount <= 0:
-        await ctx.send("❌ يرجى إدخال مبلغ صحيح أكبر من **0**", delete_after=3)
+        await ctx.send("❌ Please enter a valid amount greater than **0**.", delete_after=3)
         return
 
     sender_balance = get_balance(ctx.author.id)
     if sender_balance < amount:
         await ctx.send(
-            f"❌ رصيدك غير كاف رصيدك الحالي هو **{sender_balance}** طولار.",
+            f"❌ You don't have enough Tolar. Your current balance is **{sender_balance}** Tolar.",
             delete_after=5,
         )
         return
@@ -2972,9 +2590,9 @@ async def transfer_money(
     add_balance(member.id, amount)
 
     await ctx.send(
-        " **تم التحويل بنجاح**\n"
-        f"قمـت بـتحـويـل **{amount}** طولار إلى {member.mention}.\n"
-        f" رصيدك المتبقي: **{get_balance(ctx.author.id)}** طولار.",
+        " ✅ Transfer successful!\n"
+        f"You transferred **{amount}** Tolar to {member.mention}.\n"
+        f" Your remaining balance: **{get_balance(ctx.author.id)}** Tolar.",
         allowed_mentions=discord.AllowedMentions(users=False),
     )
 
@@ -2983,19 +2601,19 @@ async def transfer_money(
 async def transfer_money_error(ctx, error):
     if isinstance(error, commands.BadArgument):
         await ctx.send(
-            "❌ يرجى منشن عضو صحيح وكتابة المبلغ بالأرقام.", delete_after=3
+            "❌ Please mention a valid member and write the amount in numbers.", delete_after=3
         )
 
 
 # ==========================================
-# 🚀 أمر الرهان الرئيسي - المحدث
+# 🚀 Main bet command – updated
 # ==========================================
 
 class BetCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="رهان", aliases=["bet", "عجلة_المصير"])
+    @commands.command(name="bet", aliases=["wheel"])
     @in_channel(SHOPPING_CHANNEL_ID)
     async def bet_game(
         self,
@@ -3009,17 +2627,17 @@ class BetCog(commands.Cog):
 
         if not opponent or amount is None:
             return await ctx.send(
-                "❌ **طريقة الاستخدام الصحيحة:**\n`.رهان @العضو المبلغ`\nمثال: `.رهان @User 500`"
+                "❌ **Correct usage:**\n`.bet @member amount`\nExample: `.bet @User 500`"
             )
 
         if opponent.bot or opponent == ctx.author:
-            return await ctx.send("❌ لا يمكنك رهان نفسك أو البوتات")
+            return await ctx.send("❌ You cannot bet against yourself or bots")
 
         if amount <= 0:
-            return await ctx.send("❌ يرجى إدخال مبلغ رهان صحيح")
+            return await ctx.send("❌ Please enter a valid bet amount")
 
-        # تحقق من الرصيد قبل البدء
-        # جلب الرصيدين معًا بدل تكرار get_balance، وتحميل الأفاتارين بالتوازي.
+        # Check balances before starting
+        # Fetch both balances in parallel, and avatars in parallel.
         author_bal_task = asyncio.create_task(_run_bg(get_balance, ctx.author.id))
         opponent_bal_task = asyncio.create_task(_run_bg(get_balance, opponent.id))
         p1_avatar_task = asyncio.create_task(ctx.author.display_avatar.read())
@@ -3029,11 +2647,11 @@ class BetCog(commands.Cog):
         )
 
         if author_bal < amount:
-            return await ctx.send(f"❌ رصيدك غير كاف، رصيدك الحالي هو **{author_bal}** طولار.")
+            return await ctx.send(f"❌ You don't have enough Tolar. Your balance: **{author_bal}** Tolar.")
         if opponent_bal < amount:
-            return await ctx.send(f"❌ رصيد {opponent.mention} غير كاف لهذا الرهان")
+            return await ctx.send(f"❌ {opponent.mention} doesn't have enough Tolar for this bet.")
 
-        # إنشاء صورة التحدي خارج event loop.
+        # Generate the challenge image outside the event loop.
         challenge_img = await _run_bg(
             draw_challenge_card, p1_bytes, p2_bytes,
             ctx.author.display_name, opponent.display_name, amount
@@ -3043,8 +2661,8 @@ class BetCog(commands.Cog):
         view = ChallengeView(ctx.author, opponent, amount)
         msg = await ctx.send(
             content=(
-                f"⚔️ **تحدي رهان جديد**\n{opponent.mention} لديك 30 ثانية لقبول"
-                f" تحدي {ctx.author.mention} على **${amount:,}** طولار"
+                f"⚔️ **New bet challenge**\n{opponent.mention} you have 30 seconds to accept "
+                f"{ctx.author.mention}'s challenge for **${amount:,}** Tolar"
             ),
             file=file_challenge,
             view=view,
@@ -3052,28 +2670,27 @@ class BetCog(commands.Cog):
 
         await view.wait()
         if not view.accepted:
-            # إذا لم يتم قبول التحدي، قم بإزالة الرسالة
+            # If not accepted, delete the message
             try:
                 await msg.delete()
             except:
                 pass
             return
 
-        # تحقق من الرصيد مرة أخرى بعد القبول (لضمان عدم تغير الرصيد خلال 30 ثانية)
-        # إعادة التحقق بعد القبول، لكن خارج event loop.
+        # Re‑check balances after acceptance (in case they changed during 30 seconds)
         author_bal, opponent_bal = await asyncio.gather(
             _run_bg(get_balance, ctx.author.id),
             _run_bg(get_balance, opponent.id),
         )
         if author_bal < amount or opponent_bal < amount:
-            return await ctx.send("❌ لم يتمكن أحد الطرفين من دفع مبلغ الرهان، تم إلغاء المبارزة.")
+            return await ctx.send("❌ One party no longer has enough Tolar to cover the bet. Challenge cancelled.")
 
-        # 2. تحديد الفائز وتوليد العجلة المتحركة GIF.
-        winner_idx = random.choice([0, 1])  # 0 = أزرق، 1 = أحمر
+        # 2. Determine winner and generate the animated wheel GIF.
+        winner_idx = random.choice([0, 1])  # 0 = blue, 1 = red
         winner = ctx.author if winner_idx == 0 else opponent
         loser = opponent if winner_idx == 0 else ctx.author
 
-        # إرسال العجلة في رسالة جديدة مستقلة، دون تعديل رسالة التحدي.
+        # Send the wheel in a new independent message, without editing the challenge message.
         try:
             gif_buffer = await _run_bg(
                 generate_wheel_gif,
@@ -3081,18 +2698,18 @@ class BetCog(commands.Cog):
             )
             gif_file = discord.File(gif_buffer, filename="wheel.gif")
             await ctx.send(
-                content="🎰 **جاري تدوير عجلة المصير...**",
+                content="🎰 **Spinning the wheel of fate...**",
                 file=gif_file,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
         except Exception as e:
             print(f"[BET] Wheel error: {type(e).__name__}: {e}")
-            return await ctx.send("❌ حدث خطأ أثناء تشغيل عجلة الرهان. راجع Console البوت.")
+            return await ctx.send("❌ An error occurred while generating the wheel. Check the bot console.")
 
-        # مدة العرض قصيرة؛ المعالجة الثقيلة أصبحت خارج event loop.
+        # Short display time; heavy processing is already outside the event loop.
         await asyncio.sleep(0.5)
 
-        # 3. تنفيذ التحويل الاقتصادي خارج event loop.
+        # 3. Execute the economic transfer outside the event loop.
         await _run_bg(remove_balance, loser.id, amount)
         await _run_bg(add_balance, winner.id, amount)
 
@@ -3101,7 +2718,7 @@ class BetCog(commands.Cog):
             _run_bg(get_balance, loser.id),
         )
 
-        # 4. تجهيز صورة النتيجة.
+        # 4. Prepare the result image.
         try:
             winner_bytes, loser_bytes = await asyncio.gather(
                 winner.display_avatar.read(),
@@ -3118,33 +2735,31 @@ class BetCog(commands.Cog):
         except Exception as e:
             print(f"[BET] Result image error: {type(e).__name__}: {e}")
             return await ctx.send(
-                f"🎉 **مبروك للفائز** {winner.mention} كسب **${amount:,}** طولار،\n"
-                "⚠️ تعذر إنشاء صورة النتيجة، لكن تم احتساب الرهان بنجاح."
+                f"🎉 **Congratulations to the winner** {winner.mention} earned **${amount:,}** Tolar,\n"
+                "⚠️ The result image couldn't be generated, but the bet has been processed."
             )
 
-        # 5. إرسال النتيجة في رسالة جديدة مستقلة، دون تعديل رسالة التحدي أو رسالة العجلة.
-        # نستخدم كائن Member نفسه في AllowedMentions بدل winner.id.
+        # 5. Send the result in a new independent message.
         try:
             await ctx.send(
                 content=(
-                    f"🎉 **مبروك للفائز** {winner.mention} كسب مبارزة عجلة المصير "
-                    f"وحصل على **{amount:,}** طولار من منافسه"
+                    f"🎉 **Congratulations to the winner** {winner.mention} won the wheel of fate "
+                    f"and earned **{amount:,}** Tolar from their opponent"
                 ),
                 file=result_file,
                 allowed_mentions=discord.AllowedMentions(users=[winner]),
             )
         except Exception as e:
             print(f"[BET] Result message send error: {type(e).__name__}: {e}")
-            # إظهار الخطأ داخل Discord أيضًا حتى لا يفشل الإرسال بصمت.
             try:
                 await ctx.send(
-                    "⚠️ تم احتساب الرهان، لكن تعذر إرسال صورة النتيجة. "
-                    f"الخطأ: `{type(e).__name__}: {e}`"
+                    "⚠️ Bet processed, but the result image couldn't be sent. "
+                    f"Error: `{type(e).__name__}: {e}`"
                 )
             except Exception:
                 pass
 
-@bot.command(name="ايدي")
+@bot.command(name="id")
 async def get_id(
     ctx,
     target: typing.Union[
@@ -3152,68 +2767,68 @@ async def get_id(
     ] = None,
 ):
     if not target:
-        await ctx.send(f"🆔 الآيدي الخاص بك: `{ctx.author.id}`")
+        await ctx.send(f"🆔 Your ID: `{ctx.author.id}`")
         return
 
     if ctx.message.role_mentions:
         role = ctx.message.role_mentions[0]
-        await ctx.send(f"🆔 آيدي الرتبة **{role.name}**: `{role.id}`")
+        await ctx.send(f"🆔 Role **{role.name}** ID: `{role.id}`")
         return
 
     if isinstance(target, discord.TextChannel):
-        await ctx.send(f"🆔 آيدي الروم {target.mention}: `{target.id}`")
+        await ctx.send(f"🆔 Channel {target.mention} ID: `{target.id}`")
         return
 
     if ctx.message.mentions:
         member = ctx.message.mentions[0]
-        await ctx.send(f"🆔 آيدي العضو {member.mention}: `{member.id}`")
+        await ctx.send(f"🆔 Member {member.mention} ID: `{member.id}`")
         return
 
     member = discord.utils.find(
         lambda m: m.name == target or m.display_name == target, ctx.guild.members
     )
     if member:
-        await ctx.send(f"🆔 آيدي العضو {member.mention}: `{member.id}`")
+        await ctx.send(f"🆔 Member {member.mention} ID: `{member.id}`")
         return
 
     role = discord.utils.find(lambda r: r.name == target, ctx.guild.roles)
     if role:
-        await ctx.send(f"🆔 آيدي الرتبة **{role.name}**: `{role.id}`")
+        await ctx.send(f"🆔 Role **{role.name}** ID: `{role.id}`")
         return
 
-    await ctx.send("❌ لم يتم العثور على عضو أو رتبة بهذا المنشن/الاسم.")
+    await ctx.send("❌ No member or role found with that mention/name.")
 
 
-@bot.command(name="مسح", aliases=["clear", "مسح_الرسائل"])
+@bot.command(name="clear")
 @commands.has_role(OWNER_ROLE_ID)
 async def clear_messages(ctx, amount: int = None):
     if amount is None or amount <= 0:
         await ctx.send(
-            "⚠️ يرجى تحديد عدد الرسائل المراد مسحها.\nمثال: `.مسح 10`",
+            "⚠️ Please specify the number of messages to clear.\nExample: `.clear 10`",
             delete_after=2,
         )
         return
 
     deleted = await ctx.channel.purge(limit=amount + 1)
-    await ctx.send(f" تم مسح **{len(deleted) - 1}** رسالة بنجاح", delete_after=1)
+    await ctx.send(f" ✅ Cleared **{len(deleted) - 1}** messages.", delete_after=1)
 
 
 @clear_messages.error
 async def clear_messages_error(ctx, error):
     if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=2)
+        await ctx.send("❌ This command is for the Owner role only.", delete_after=2)
     elif isinstance(error, commands.BadArgument):
         await ctx.send(
-            "❌ يرجى كتابة عدد الرسائل بالأرقام فقط (مثال: `.مسح 5`).",
+            "❌ Please enter the number of messages as a number (e.g. `.clear 5`).",
             delete_after=1,
         )
     elif isinstance(error, commands.BotMissingPermissions):
         await ctx.send(
-            "❌ البوت لا يملك صلاحية `Manage Messages` (إدارة الرسائل) لمسح الشات"
+            "❌ The bot lacks the `Manage Messages` permission to clear the chat."
         )
 
 
-@bot.command(name="افتار", aliases=["avatar", "افتاري"])
+@bot.command(name="avatar", aliases=["av"])
 @in_channel(AVATAR_CHANNEL_ID)
 async def show_avatar(ctx, member: discord.Member = None):
     target = member or ctx.author
@@ -3225,14 +2840,14 @@ async def show_avatar(ctx, member: discord.Member = None):
     await ctx.send(embed=embed)
 
 
-@bot.command(name="بنر", aliases=["banner", "بنري"])
+@bot.command(name="banner")
 @in_channel(AVATAR_CHANNEL_ID)
 async def show_banner(ctx, member: discord.Member = None):
     target = member or ctx.author
     user = await bot.fetch_user(target.id)
 
     if not user.banner:
-        await ctx.send("❌ هذا الحساب لا يملك بنر", delete_after=2)
+        await ctx.send("❌ This account does not have a banner.", delete_after=2)
         return
 
     banner_url = user.banner.url
@@ -3246,29 +2861,29 @@ async def show_banner(ctx, member: discord.Member = None):
 @show_avatar.error
 async def avatar_error(ctx, error):
     if isinstance(error, commands.BadArgument):
-        await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت", delete_after=2)
+        await ctx.send("❌ Could not find that member or bot.", delete_after=2)
 
 
 @show_banner.error
 async def banner_error(ctx, error):
     if isinstance(error, commands.BadArgument):
-        await ctx.send("❌ لم يتم العثور على هذا العضو أو البوت", delete_after=2)
+        await ctx.send("❌ Could not find that member or bot.", delete_after=2)
 
 
-@bot.command(name="تغيير")
+@bot.command(name="change")
 @commands.has_permissions(administrator=True)
 @in_channel(AVATAR_CHANNEL_ID)
 async def change_profile(ctx):
-    await ctx.send("ماذا تريد أن تغير؟ اكتب **افتار** أو **بنر**.")
+    await ctx.send("What do you want to change? Type **avatar** or **banner**.")
 
     def check_choice(m):
-        return m.author == ctx.author and m.channel == ctx.channel and m.content in ["افتار", "بنر"]
+        return m.author == ctx.author and m.channel == ctx.channel and m.content in ["avatar", "banner"]
 
     try:
         choice_msg = await bot.wait_for("message", check=check_choice, timeout=30.0)
         choice = choice_msg.content
 
-        await ctx.send(f"تم اختيار **{choice}**. الرجاء إرسال الصورة الآن كملف مرفق.")
+        await ctx.send(f"You chose **{choice}**. Please send the image as an attachment now.")
 
         def check_image(m):
             return m.author == ctx.author and m.channel == ctx.channel and len(m.attachments) > 0
@@ -3279,124 +2894,122 @@ async def change_profile(ctx):
         async with aiohttp.ClientSession() as session:
             async with session.get(image_url) as resp:
                 if resp.status != 200:
-                    return await ctx.send("تعذر تحميل الصورة، حاول مرة أخرى.")
+                    return await ctx.send("Failed to download the image, please try again.")
                 image_data = await resp.read()
 
-        if choice == "افتار":
+        if choice == "avatar":
             await bot.user.edit(avatar=image_data)
-            await ctx.send("تم تغيير رمزية (افتار) البوت بنجاح ✅")
-        elif choice == "بنر":
+            await ctx.send("Avatar changed successfully ✅")
+        elif choice == "banner":
             await bot.user.edit(banner=image_data)
-            await ctx.send("تم تغيير بنر البوت بنجاح! ✅")
+            await ctx.send("Banner changed successfully! ✅")
 
     except asyncio.TimeoutError:
-        await ctx.send("تأخرت في الرد، تم إلغاء العملية.")
+        await ctx.send("You took too long, operation cancelled.")
     except discord.HTTPException as e:
-        await ctx.send(f"حدث خطأ أثناء التحديث: {e}")
+        await ctx.send(f"An error occurred while updating: {e}")
 
 
 @change_profile.error
 async def change_profile_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send("عذراً، هذا الأمر مخصص للمسؤولين  فقط ❌")
+        await ctx.send("Sorry, this command is for administrators only ❌")
 
 
-# --- 9. قوائم الألعاب والأوامر والأدلة ---
+# --- 9. Game lists, commands, and help ---
 
-# الأوامر الأساسية مصنفة هنا حتى تكون قوائم .اوامر و .دليل متطابقة مع أوامر البوت.
-# أوامر المالك (OWNER_ROLE_ID) لا تظهر في .اوامر، لكنها تظهر في .دليل.
+# Basic commands are categorised here so that .commands and .help are consistent.
+# Owner commands (OWNER_ROLE_ID) are hidden from .commands but appear in .help.
 OWNER_ONLY_COMMANDS = {
-    "تحكم_متجر", "ض", "ز", "مسح",
-    "انقلع_يالعبد", "اصمت", "تحدث",
-    "باند", "فك_باند", "ق", "ف",
-    "تكت", "تعديل",
+    "manage_shop", "add", "remove", "clear",
+    "ban", "mute", "unmute",
+    "ban_by_mention", "unban", "lock", "unlock",
+    "ticket", "manage_replies",
 }
 
-ADMIN_COMMANDS = {"تغيير"}
+ADMIN_COMMANDS = {"change"}
 
 GAME_COMMANDS = {
-    ".سؤال [عدد الجولات]": "مسابقة أسئلة عامة من 1 إلى 10 جولات.",
-    ".لغز [عدد الجولات]": "تحدي ألغاز من 1 إلى 10 جولات.",
-    ".حجر [@عضو]": "حجرة ورقة مقص ضد البوت أو تحدي عضو آخر.",
-    ".اكس [@عضو]": "لعبة إكس أو (XO) ضد البوت أو عضو آخر.",
-    ".توصيل [@عضو]": "لعبة Connect 4 ضد البوت أو عضو آخر.",
-    ".خمن [عدد الجولات]": "لعبة تخمين الأنمي من 1 إلى 10 جولات.",
-    ".روليت [المبلغ]": "روليت جماعية، ويمكن إضافة مبلغ للجائزة.",
-    ".اختباء [المبلغ]": "لعبة اختباء جماعية، ويمكن إضافة مبلغ للجائزة.",
+    ".guess [rounds]": "General knowledge quiz from 1 to 10 rounds.",
+    ".rps [@member]": "Rock Paper Scissors against the bot or challenge another member.",
+    ".tictactoe [@member]": "Tic‑Tac‑Toe (XO) against the bot or another member.",
+    ".connect4 [@member]": "Connect 4 against the bot or another member.",
+    ".guess [rounds]": "Anime character guessing game from 1 to 10 rounds.",
+    ".roulette [amount]": "Group roulette; you can add a prize amount.",
 }
 
 GAME_AUTO_FEATURES = [
-    "`🧠 إرسال إيموجي منفرد` — لعبة تذكّر مكان الإيموجي تلقائياً.",
+    "`🧠 Single emoji message` — Automatically starts a memory game where you have to remember the emoji's position.",
 ]
 
 PUBLIC_COMMAND_FIELDS = [
     (
-        "💰 الاقتصاد والمتجر",
+        "💰 Economy and Shop",
         [
-            (".متجر", "فتح المتجر الملكي لشراء الرتب والألوان."),
-            (".طولاري [@عضو]", "عرض رصيد الطولارات لك أو لعضو آخر."),
-            (".ت @العضو المبلغ", "تحويل طولارات إلى عضو آخر."),
-            (".رهان @العضو [المبلغ]", "الرهان بالعجلة ضد عضو آخر."),
+            (".shop", "Open the Royal Shop to buy roles and colors."),
+            (".balance [@member]", "Show your Tolar balance or another member's."),
+            (".transfer @member amount", "Transfer Tolar to another member."),
+            (".bet @member [amount]", "Bet using the wheel of fate against another member."),
         ],
     ),
     (
-        "🖼️ البروفايل والأفاتار",
+        "🖼️ Profile and Avatar",
         [
-            (".افتار [@عضو]", "عرض الصورة الشخصية."),
-            (".بنر [@عضو]", "عرض غلاف الحساب."),
-            (".تغيير", "تغيير افتار أو بنر البوت — للمسؤولين فقط."),
+            (".avatar [@member]", "Display the profile picture."),
+            (".banner [@member]", "Display the account banner."),
+            (".change", "Change the bot's avatar or banner – admins only."),
         ],
     ),
     (
-        "⚙️ عامة",
+        "⚙️ General",
         [
-            (".ايدي [روم/رتبة/عضو]", "معرفة الـ ID للروم أو الرتبة أو العضو."),
-            (".اوامر", "عرض الأوامر المتاحة للأعضاء، بدون أوامر المالك."),
-            (".دليل", "عرض الدليل الكامل لجميع أوامر البوت."),
-            (".العاب", "عرض قائمة الألعاب كاملة."),
+            (".id [channel/role/member]", "Get the ID of a channel, role, or member."),
+            (".commands", "Show available commands for members, excluding owner commands."),
+            (".help", "Show the full guide of all bot commands."),
+            (".games", "Show the complete list of games."),
         ],
     ),
 ]
 
-# نستخدم قوائم منفصلة للدليل حتى لا نعرض أوامر المالك داخل .اوامر.
+# Separate lists for the help command so owner commands are included.
 ALL_COMMANDS = [
-    ("💰 الاقتصاد والمتجر", [
-        (".متجر", "فتح المتجر الملكي لشراء الرتب والألوان.", False),
-        (".تحكم_متجر", "إدارة الرتب والألوان في المتجر.", True),
-        (".طولاري [@عضو]", "عرض رصيد الطولارات.", False),
-        (".ض @العضو المبلغ", "إضافة طولارات لعضو.", True),
-        (".ز @العضو المبلغ", "خصم طولارات من عضو.", True),
-        (".ت @العضو المبلغ", "تحويل طولارات إلى عضو آخر.", False),
-        (".رهان @العضو [المبلغ]", "الرهان بالعجلة ضد عضو آخر.", False),
+    ("💰 Economy and Shop", [
+        (".shop", "Open the Royal Shop to buy roles and colors.", False),
+        (".manage_shop", "Manage roles and colors in the shop.", True),
+        (".balance [@member]", "Show Tolar balance.", False),
+        (".add @member amount", "Add Tolar to a member.", True),
+        (".remove @member amount", "Deduct Tolar from a member.", True),
+        (".transfer @member amount", "Transfer Tolar to another member.", False),
+        (".bet @member [amount]", "Bet using the wheel of fate against another member.", False),
     ]),
-    ("🎮 الألعاب", [
+    ("🎮 Games", [
         (command, description, False) for command, description in GAME_COMMANDS.items()
     ]),
-    ("🖼️ البروفايل والأفاتار", [
-        (".افتار [@عضو]", "عرض الصورة الشخصية.", False),
-        (".بنر [@عضو]", "عرض غلاف الحساب.", False),
-        (".تغيير", "تغيير افتار أو بنر البوت.", False),
+    ("🖼️ Profile and Avatar", [
+        (".avatar [@member]", "Display profile picture.", False),
+        (".banner [@member]", "Display account banner.", False),
+        (".change", "Change bot's avatar or banner.", False),
     ]),
-    ("⚙️ العامة والإدارة", [
-        (".ايدي [روم/رتبة/عضو]", "معرفة الـ ID.", False),
-        (".مسح [العدد]", "مسح عدد من الرسائل.", True),
-        (".انقلع_يالعبد @العضو [السبب]", "حظر عضو.", True),
-        (".اصمت @العضو [الدقائق] [السبب]", "كتم عضو لمدة محددة.", True),
-        (".تحدث @العضو", "إزالة الكتم عن عضو.", True),
-        (".باند @العضو [السبب]", "حظر عضو باستخدام المنشن.", True),
-        (".فك_باند @العضو/الايدي [السبب]", "فك حظر عضو.", True),
-        (".ق", "قفل الروم الحالي.", True),
-        (".ف", "فتح الروم الحالي.", True),
-        (".تكت", "فتح لوحة نظام التذاكر.", True),
-        (".تعديل", "إدارة الردود التلقائية.", True),
-        (".اوامر", "عرض الأوامر المتاحة للأعضاء.", False),
-        (".دليل", "عرض الدليل الكامل لجميع الأوامر.", False),
-        (".العاب", "عرض قائمة الألعاب.", False),
+    ("⚙️ General and Administration", [
+        (".id [channel/role/member]", "Get an ID.", False),
+        (".clear [number]", "Clear a number of messages.", True),
+        (".ban @member [reason]", "Ban a member.", True),
+        (".mute @member [minutes] [reason]", "Timeout a member for a specified duration.", True),
+        (".unmute @member", "Remove timeout from a member.", True),
+        (".ban_by_mention @member [reason]", "Ban a member using a mention.", True),
+        (".unban @member/id [reason]", "Unban a member.", True),
+        (".lock", "Lock the current channel.", True),
+        (".unlock", "Unlock the current channel.", True),
+        (".ticket", "Open the ticket system panel.", True),
+        (".manage_replies", "Manage automatic replies.", True),
+        (".commands", "Show available commands for members.", False),
+        (".help", "Show the full guide of all commands.", False),
+        (".games", "Show the complete list of games.", False),
     ]),
 ]
 
 def _add_command_fields(embed, fields, include_owner=True):
-    """إضافة حقول أوامر مرتبة داخل Embed."""
+    """Add ordered command fields to an Embed."""
     for field_name, commands_list in fields:
         lines = []
         for command_name, description, *restricted in commands_list:
@@ -3404,7 +3017,7 @@ def _add_command_fields(embed, fields, include_owner=True):
             if is_owner and not include_owner:
                 continue
             marker = " 🔒" if is_owner else ""
-            if command_name == ".تغيير":
+            if command_name == ".change":
                 marker = " 🔐"
             lines.append(f"• `{command_name}`{marker} — {description}")
         if lines:
@@ -3414,11 +3027,11 @@ def _add_command_fields(embed, fields, include_owner=True):
                 inline=False,
             )
 
-@bot.command(name="العاب")
+@bot.command(name="games")
 async def games_list(ctx):
     embed = discord.Embed(
-        title="🎮 قائمة الألعاب",
-        description="جميع ألعاب البوت متوفرة هنا بشكل مختصر وواضح:",
+        title="🎮 Game List",
+        description="All bot games are listed here in a concise and clear way:",
         color=discord.Color.blue(),
     )
 
@@ -3427,43 +3040,43 @@ async def games_list(ctx):
         for command, description in GAME_COMMANDS.items()
     ]
     embed.add_field(
-        name="🕹️ الألعاب",
+        name="🕹️ Games",
         value="\n".join(game_lines),
         inline=False,
     )
     embed.add_field(
-        name="🧠 لعبة تلقائية",
+        name="🧠 Automatic Game",
         value=GAME_AUTO_FEATURES[0],
         inline=False,
     )
-    embed.set_footer(text="الألعاب تعمل في روم الألعاب المخصص.")
+    embed.set_footer(text="Games work in the designated games channel.")
     await ctx.send(embed=embed)
 
 
-@bot.command(name="اوامر")
+@bot.command(name="commands")
 async def commands_list(ctx):
-    """عرض الأوامر المتاحة للأعضاء مع استبعاد أوامر المالك."""
+    """Display available commands for members, excluding owner commands."""
     embed = discord.Embed(
-        title="⚙️ أوامر البوت",
-        description="الأوامر المتاحة للأعضاء، مع استبعاد أوامر المالك 🔒.",
+        title="⚙️ Bot Commands",
+        description="Commands available to members, excluding owner commands 🔒.",
         color=discord.Color.blurple(),
     )
 
     _add_command_fields(embed, ALL_COMMANDS, include_owner=False)
 
-    embed.set_footer(text=f"طلب بواسطة {ctx.author.display_name}")
+    embed.set_footer(text=f"Requested by {ctx.author.display_name}")
     await ctx.send(embed=embed)
 
 
-@bot.command(name="دليل", aliases=["هيلب", "help", "المساعدة"])
+@bot.command(name="help", aliases=["guide"])
 async def help_command(ctx):
-    """الدليل الكامل لجميع أوامر البوت، بما فيها أوامر المالك."""
+    """Full guide of all bot commands, including owner commands."""
     embed = discord.Embed(
-        title="📜 دليل أوامر البوت الشامل",
+        title="📜 Complete Bot Command Guide",
         description=(
-            "جميع الأوامر مرتبة حسب القسم.\n"
-            "🔒 = الأمر مخصص لصاحب رتبة الاونر.\n"
-            "🔐 = الأمر مخصص للمسؤولين."
+            "All commands are organised by section.\n"
+            "🔒 = Owner only.\n"
+            "🔐 = Admin only."
         ),
         color=discord.Color.gold(),
     )
@@ -3471,204 +3084,198 @@ async def help_command(ctx):
     _add_command_fields(embed, ALL_COMMANDS, include_owner=True)
 
     embed.add_field(
-        name="🧠 خصائص تلقائية",
-        value="• `إرسال إيموجي منفرد` — تشغيل لعبة تذكّر مكان الإيموجي تلقائياً.",
+        name="🧠 Automatic Features",
+        value="• `Sending a single emoji` — Automatically starts the memory game.",
         inline=False,
     )
 
     embed.set_footer(
-        text=f"طلب بواسطة {ctx.author.display_name}",
+        text=f"Requested by {ctx.author.display_name}",
         icon_url=ctx.author.display_avatar.url,
     )
     await ctx.send(embed=embed)
 
 
-# --- 10. أوامر الإدارة ---
+# --- 10. Administration commands ---
 
-@bot.command(name="انقلع_يالعبد", aliases=["حظر", "ban"])
+@bot.command(name="ban")
 @commands.has_role(OWNER_ROLE_ID)
 async def ban_member(
-    ctx, member: discord.Member = None, *, reason: str = "لم يتم ذكر السبب"
+    ctx, member: discord.Member = None, *, reason: str = "No reason provided"
 ):
     if not member:
         await ctx.send(
-            "⚠️ **يرجى منشن العضو المراد حظره**\nمثال: `.انقلع_يالعبد @User السبب`",
+            "⚠️ **Please mention the member to ban**\nExample: `.ban @User reason`",
             delete_after=3,
         )
         return
 
     if member == ctx.author:
-        await ctx.send("❌ لا يمكنك حظر نفسك")
+        await ctx.send("❌ You cannot ban yourself.")
         return
 
     if member.id == ctx.guild.owner_id:
-        await ctx.send("❌ لا يمكنك حظر صاحب السيرفر")
+        await ctx.send("❌ You cannot ban the server owner.")
         return
 
     try:
-        await member.ban(reason=f"بواسطة {ctx.author.name} - السبب: {reason}")
+        await member.ban(reason=f"By {ctx.author.name} - Reason: {reason}")
         await ctx.send(
-            f" تم حظر العضو **{member.mention}** بنجاح\n السبب: `{reason}`"
+            f"✅ Member **{member.mention}** banned successfully.\n Reason: `{reason}`"
         )
     except discord.Forbidden:
         await ctx.send(
-            "❌ لا أملك صلاحيات كافية لحظر هذا العضو (تأكد من رتبة البوت أعلى من"
-            " رتبة العضو)."
+            "❌ I don't have enough permissions to ban this member (ensure my role is higher than theirs)."
         )
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ أثناء الحظر: {e}")
+        await ctx.send(f"❌ An error occurred while banning: {e}")
 
 
 @ban_member.error
 async def ban_member_error(ctx, error):
     if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
+        await ctx.send("❌ This command is for the Owner role only.", delete_after=3)
 
 
-@bot.command(name="اصمت", aliases=["كتم", "mute"])
+@bot.command(name="mute")
 @commands.has_role(OWNER_ROLE_ID)
 async def mute_member(
     ctx,
     member: discord.Member = None,
     minutes: int = 10,
     *,
-    reason: str = "لم يتم ذكر السبب",
+    reason: str = "No reason provided",
 ):
     if not member:
         await ctx.send(
-            "⚠️ **يرجى منشن العضو المراد كتمه**\nمثال: `.ميوت @User 15 السبب` (15"
-            " دقيقة)",
+            "⚠️ **Please mention the member to mute**\nExample: `.mute @User 15 reason` (15 minutes)",
             delete_after=3,
         )
         return
 
     if member == ctx.author:
-        await ctx.send("❌ لا يمكنك كتم نفسك")
+        await ctx.send("❌ You cannot mute yourself.")
         return
 
     if member.is_timed_out():
-        await ctx.send("❌ **هذا العضو مقيد بالفعل**")
+        await ctx.send("❌ **This member is already timed out.**")
         return
 
     if minutes <= 0:
-        await ctx.send("❌ يرجى إدخال عدد دقائق صحيح أكثر من 0.")
+        await ctx.send("❌ Please enter a valid number of minutes greater than 0.")
         return
 
     try:
         duration = datetime.timedelta(minutes=minutes)
         await member.timeout(
-            duration, reason=f"بواسطة {ctx.author.name} - السبب: {reason}"
+            duration, reason=f"By {ctx.author.name} - Reason: {reason}"
         )
         await ctx.send(
-            f" تم كتم العضو **{member.mention}** لمدة **{minutes}** دقيقة\n"
-            f" السبب: `{reason}`"
+            f"✅ Member **{member.mention}** muted for **{minutes}** minutes.\n Reason: `{reason}`"
         )
     except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات كافية لكتم هذا العضو")
+        await ctx.send("❌ I don't have enough permissions to mute this member.")
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {e}")
+        await ctx.send(f"❌ An error occurred: {e}")
 
 
 @mute_member.error
 async def mute_member_error(ctx, error):
     if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
+        await ctx.send("❌ This command is for the Owner role only.", delete_after=3)
 
 
-@bot.command(name="تحدث", aliases=["فك_الكتم", "unmute"])
+@bot.command(name="unmute")
 @commands.has_role(OWNER_ROLE_ID)
 async def unmute_member(ctx, member: discord.Member):
     if not member:
         await ctx.send(
-            "⚠️ **يرجى منشن العضو المراد فك كتمه**\nمثال: `.فك_ميوت @User`",
+            "⚠️ **Please mention the member to unmute**\nExample: `.unmute @User`",
             delete_after=3,
         )
         return
 
     if not member.is_timed_out():
-        await ctx.send("❌ **هذا العضو غير مقيد بالفعل**")
+        await ctx.send("❌ **This member is not currently timed out.**")
         return
 
     try:
         await member.edit(timed_out_until=None)
-        await ctx.send(f" تم فك الكتم عن العضو **{member.mention}** بنجاح")
+        await ctx.send(f"✅ Unmuted **{member.mention}** successfully.")
     except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات كافية لفك كتم هذا العضو")
+        await ctx.send("❌ I don't have enough permissions to unmute this member.")
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ: {e}")
+        await ctx.send(f"❌ An error occurred: {e}")
 
 
 @unmute_member.error
 async def unmute_member_error(ctx, error):
     if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للـ اونر فقط", delete_after=3)
+        await ctx.send("❌ This command is for the Owner role only.", delete_after=3)
 
 
 # ==========================================
-# أوامر الحظر والفك (باند / فك_باند) مع Embed وصورة محلية
+# Ban / Unban commands with local images
 # ==========================================
 
-# مسار الصور المحلية (افترض أنها في نفس مجلد البوت)
 BAN_IMAGE_PATH = os.path.join(os.path.dirname(__file__), "ban.png")
 UNBAN_IMAGE_PATH = os.path.join(os.path.dirname(__file__), "unban.png")
 
 
 async def send_embed_with_image(ctx, title, description, image_path, color=discord.Color.green()):
-    """ترسل Embed مع صورة محلية (ملف)"""
+    """Send an Embed with a local image file."""
     embed = discord.Embed(title=title, description=description, color=color)
     
     if os.path.exists(image_path):
-        # إنشاء كائن File وإرفاقه
         file = discord.File(image_path, filename=os.path.basename(image_path))
         embed.set_image(url=f"attachment://{os.path.basename(image_path)}")
         await ctx.send(embed=embed, file=file)
     else:
-        # إذا لم توجد الصورة، نرسل Embed بدون صورة
         await ctx.send(embed=embed)
 
 
-@bot.command(name="باند", aliases=["حظر_بالمنشن"])
+@bot.command(name="ban_by_mention")
 @commands.has_role(OWNER_ROLE_ID)
-async def ban_member_by_mention(ctx, member: discord.Member = None, *, reason: str = "لم يتم ذكر السبب"):
-    """يحظر عضواً باستخدام منشن، ويرسل Embed مع صورة محلية."""
+async def ban_member_by_mention(ctx, member: discord.Member = None, *, reason: str = "No reason provided"):
+    """Bans a member using a mention and sends an Embed with a local image."""
     if not member:
         await ctx.send(
-            "⚠️ **يرجى منشن العضو المراد حظره**\nمثال: `.باند @User السبب`",
+            "⚠️ **Please mention the member to ban**\nExample: `.ban_by_mention @User reason`",
             delete_after=3,
         )
         return
     if member == ctx.author:
-        await ctx.send("❌ لا يمكنك حظر نفسك")
+        await ctx.send("❌ You cannot ban yourself.")
         return
     if member.id == ctx.guild.owner_id:
-        await ctx.send("❌ لا يمكنك حظر صاحب السيرفر")
+        await ctx.send("❌ You cannot ban the server owner.")
         return
 
     try:
-        await member.ban(reason=f"بواسطة {ctx.author.name} - السبب: {reason}")
-        title = "🚫 تم حظر العضو"
+        await member.ban(reason=f"By {ctx.author.name} - Reason: {reason}")
+        title = "🚫 Member Banned"
         description = (
-            f"**العضو:** {member.mention} (`{member.id}`)\n"
-            f"**السبب:** {reason}\n"
-            f"**بواسطة:** {ctx.author.mention}"
+            f"**Member:** {member.mention} (`{member.id}`)\n"
+            f"**Reason:** {reason}\n"
+            f"**By:** {ctx.author.mention}"
         )
         await send_embed_with_image(ctx, title, description, BAN_IMAGE_PATH, color=discord.Color.red())
     except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات كافية لحظر هذا العضو (تأكد من رتبة البوت أعلى من رتبة العضو).")
+        await ctx.send("❌ I don't have enough permissions to ban this member (ensure my role is higher than theirs).")
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ أثناء الحظر: {e}")
+        await ctx.send(f"❌ An error occurred while banning: {e}")
 
 
 @ban_member_by_mention.error
 async def ban_member_by_mention_error(ctx, error):
     if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للأونر فقط.", delete_after=3)
+        await ctx.send("❌ This command is for the Owner role only.", delete_after=3)
 
 
-@bot.command(name="فك_باند", aliases=["unban"])
+@bot.command(name="unban")
 @commands.has_role(OWNER_ROLE_ID)
-async def unban_member(ctx, user: discord.User = None, *, reason: str = "لم يتم ذكر السبب"):
-    """يفك حظر عضو ويعيده عبر رابط دعوة."""
+async def unban_member(ctx, user: discord.User = None, *, reason: str = "No reason provided"):
+    """Unbans a member and sends them an invite link via DM."""
     if user is None:
         args = ctx.message.content.split()
         if len(args) >= 2:
@@ -3676,41 +3283,40 @@ async def unban_member(ctx, user: discord.User = None, *, reason: str = "لم ي
                 user_id = int(args[1])
                 user = await bot.fetch_user(user_id)
             except:
-                await ctx.send("❌ يرجى إدخال منشن صحيح أو معرف (ايدي) صحيح بالأرقام.\nمثال: `.فك_باند @user` أو `.فك_باند 123456789`")
+                await ctx.send("❌ Please enter a valid mention or numeric ID.\nExample: `.unban @user` or `.unban 123456789`")
                 return
         else:
-            await ctx.send("❌ يرجى منشن العضو المراد فك حظره أو إدخال معرفه.\nمثال: `.فك_باند @user` أو `.فك_باند 123456789`")
+            await ctx.send("❌ Please mention the user to unban or provide their ID.\nExample: `.unban @user` or `.unban 123456789`")
             return
 
     try:
-        # لا نحتاج لجلب قائمة المحظورين. نفّذ فك الحظر مباشرة.
-        # هذا يتجنب مشاكل اختلاف إصدارات discord.py مع Guild.bans().
-        await ctx.guild.unban(user, reason=f"بواسطة {ctx.author.name} - السبب: {reason}")
+        # Directly unban without fetching the ban list – avoids compatibility issues.
+        await ctx.guild.unban(user, reason=f"By {ctx.author.name} - Reason: {reason}")
 
-        # إنشاء رابط دعوة وإرساله للعضو في الخاص
+        # Create an invite link and send it to the user in DM
         invite_sent = False
         try:
             invite = await ctx.channel.create_invite(
                 max_age=0,
                 max_uses=1,
-                reason=f"لإعادة {user.name} بعد فك الحظر"
+                reason=f"To re‑invite {user.name} after unban"
             )
             await user.send(
-                f"✅ تم فك حظرك في سيرفر **{ctx.guild.name}**. "
-                f"يمكنك الانضمام مجدداً عبر الرابط:\n{invite.url}"
+                f"✅ You have been unbanned from **{ctx.guild.name}**. "
+                f"You can rejoin using this link:\n{invite.url}"
             )
             invite_sent = True
         except discord.Forbidden:
             pass
         except Exception as e:
-            print(f"فشل إرسال رابط الدعوة: {e}")
+            print(f"Failed to send invite: {e}")
 
-        title = "✅ تم فك الحظر"
-        dm_status = "تم إرسال رابط دعوة للعضو في الخاص." if invite_sent else "تم فك الحظر، لكن تعذر إرسال رابط الدعوة في الخاص."
+        title = "✅ Unbanned"
+        dm_status = "Invite link sent via DM." if invite_sent else "Unbanned, but couldn't send an invite link."
         description = (
-            f"**العضو:** {user.name} (`{user.id}`)\n"
-            f"**السبب:** {reason}\n"
-            f"**بواسطة:** {ctx.author.mention}\n"
+            f"**User:** {user.name} (`{user.id}`)\n"
+            f"**Reason:** {reason}\n"
+            f"**By:** {ctx.author.mention}\n"
             f"{dm_status}"
         )
         await send_embed_with_image(
@@ -3718,58 +3324,53 @@ async def unban_member(ctx, user: discord.User = None, *, reason: str = "لم ي
         )
 
     except discord.NotFound:
-        await ctx.send(f"❌ المستخدم {user.name} ليس محظوراً في هذا السيرفر.")
+        await ctx.send(f"❌ User {user.name} is not banned in this server.")
     except discord.Forbidden:
-        await ctx.send("❌ لا أملك صلاحيات كافية لفك الحظر. تأكد من صلاحية Ban Members.")
+        await ctx.send("❌ I don't have enough permissions to unban. Make sure I have the Ban Members permission.")
     except Exception as e:
-        await ctx.send(f"❌ حدث خطأ أثناء فك الحظر: {e}")
+        await ctx.send(f"❌ An error occurred while unbanning: {e}")
 
 
 # ==========================================
-# 🔒 أوامر قفل وفتح الرومات (للأونر فقط)
+# 🔒 Lock / Unlock channels (Owner only)
 # ==========================================
 
-@bot.command(name="ق")
+@bot.command(name="lock")
 @commands.has_role(OWNER_ROLE_ID)
 async def lock_channel(ctx):
-    """يقفل الروم الحالي (يمنع الأعضاء من الإرسال)"""
+    """Locks the current channel (prevents members from sending messages)."""
     channel = ctx.channel
-    # التحقق من الصلاحية الحالية للدور الافتراضي
     default_perms = channel.permissions_for(ctx.guild.default_role)
     if not default_perms.send_messages:
-        await ctx.send("🔒 هذا الروم مقفول بالفعل.")
+        await ctx.send("🔒 This channel is already locked.")
         return
-    # تعديل الصلاحية: منع الإرسال
     overwrite = channel.overwrites_for(ctx.guild.default_role)
     overwrite.send_messages = False
     await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite)
-    await ctx.send("🔒 تم قفل الروم.")
+    await ctx.send("🔒 Channel locked.")
 
-@bot.command(name="ف")
+@bot.command(name="unlock")
 @commands.has_role(OWNER_ROLE_ID)
 async def unlock_channel(ctx):
-    """يفتح الروم الحالي (يسمح للأعضاء بالإرسال)"""
+    """Unlocks the current channel (allows members to send messages)."""
     channel = ctx.channel
-    # التحقق من الصلاحية الحالية للدور الافتراضي
     default_perms = channel.permissions_for(ctx.guild.default_role)
     if default_perms.send_messages:
-        await ctx.send("🔓 هذا الروم مفتوح بالفعل.")
+        await ctx.send("🔓 This channel is already unlocked.")
         return
-    # تعديل الصلاحية: السماح بالإرسال
     overwrite = channel.overwrites_for(ctx.guild.default_role)
     overwrite.send_messages = True
     await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite)
-    await ctx.send("🔓 تم فتح الروم.")
+    await ctx.send("🔓 Channel unlocked.")
 
-# معالجة الأخطاء (اختياري)
 @lock_channel.error
 @unlock_channel.error
 async def lock_unlock_error(ctx, error):
     if isinstance(error, commands.MissingRole):
-        await ctx.send("❌ هذا الأمر مخصص للأونر فقط.", delete_after=3)
+        await ctx.send("❌ This command is for the Owner role only.", delete_after=3)
 
 
-# ضع ID الكاتيجوري هنا، أو اتركه 0 لإنشاء التذاكر بدون كاتيجوري
+# Set the category ID for tickets (0 = no category)
 TICKET_CATEGORY_ID = 0
 
 
@@ -3778,7 +3379,7 @@ class TicketView(discord.ui.View):
         super().__init__(timeout=None)
 
     @discord.ui.button(
-        label="فتح",
+        label="Open",
         style=discord.ButtonStyle.primary,
         emoji="🎫",
         custom_id="persistent_ticket_open"
@@ -3792,12 +3393,12 @@ class TicketView(discord.ui.View):
 
         if guild is None:
             await interaction.response.send_message(
-                "❌ لا يمكن فتح تذكرة خارج السيرفر.",
+                "❌ Cannot open a ticket outside a server.",
                 ephemeral=True
             )
             return
 
-        # البحث عن الكاتيجوري بشكل آمن
+        # Find the category safely
         category = None
 
         if TICKET_CATEGORY_ID:
@@ -3809,7 +3410,7 @@ class TicketView(discord.ui.View):
             ):
                 category = None
 
-        # إنشاء اسم آمن وفريد للتذكرة
+        # Create a safe and unique ticket name
         base_name = re.sub(
             r"[^a-zA-Z0-9_-]",
             "",
@@ -3828,7 +3429,7 @@ class TicketView(discord.ui.View):
 
         channel_name = f"ticket-{base_name}-{rand_suffix}"
 
-        # الصلاحيات
+        # Permissions
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(
                 view_channel=False
@@ -3841,7 +3442,7 @@ class TicketView(discord.ui.View):
             )
         }
 
-        # إعطاء الأونر صلاحية الدخول
+        # Give the Owner role access
         owner_role = guild.get_role(OWNER_ROLE_ID)
 
         if owner_role:
@@ -3851,7 +3452,7 @@ class TicketView(discord.ui.View):
                 read_message_history=True
             )
 
-        # إنشاء القناة
+        # Create the channel
         try:
             channel = await guild.create_text_channel(
                 name=channel_name,
@@ -3862,7 +3463,7 @@ class TicketView(discord.ui.View):
 
         except discord.Forbidden:
             await interaction.response.send_message(
-                "❌ لا أملك صلاحية إنشاء القنوات. تأكد من أن البوت يملك صلاحية **Manage Channels**.",
+                "❌ I don't have permission to create channels. Make sure I have **Manage Channels** permission.",
                 ephemeral=True
             )
             return
@@ -3871,17 +3472,17 @@ class TicketView(discord.ui.View):
             print(f"[TICKET ERROR] {e}")
 
             await interaction.response.send_message(
-                f"❌ حدث خطأ أثناء إنشاء التذكرة:\n`{e}`",
+                f"❌ An error occurred while creating the ticket:\n`{e}`",
                 ephemeral=True
             )
             return
 
-        # رسالة التذكرة
+        # Ticket message
         embed = discord.Embed(
-            title="🎫 تذكرة جديدة",
+            title="🎫 New Ticket",
             description=(
-                f"يو {interaction.user.mention} \n\n"
-                "اكتب مشكلتك أو استفسارك هنا، وسيتم الرد عليك من الإدارة.\n\n"
+                f"{interaction.user.mention}\n\n"
+                "Write your issue or question here, and the administration will respond.\n\n"
             ),
             color=discord.Color.blue()
         )
@@ -3933,14 +3534,14 @@ class TicketView(discord.ui.View):
                 pass
 
             await interaction.response.send_message(
-                f"❌ تم إنشاء التذكرة لكن حدث خطأ أثناء إرسال رسالتها:\n`{e}`",
+                f"❌ Ticket created but an error occurred while sending its message:\n`{e}`",
                 ephemeral=True
             )
             return
 
-        # تأكيد فتح التذكرة
+        # Confirm ticket opening
         await interaction.response.send_message(
-            f"✅ تم فتح تذكرتك بنجاح: {channel.mention}",
+            f"✅ Ticket opened successfully: {channel.mention}",
             ephemeral=True
         )
 
@@ -3950,7 +3551,7 @@ class TicketDeleteView(discord.ui.View):
         super().__init__(timeout=None)
 
     @discord.ui.button(
-        label="حذف",
+        label="Delete",
         style=discord.ButtonStyle.danger,
         emoji="🗑️",
         custom_id="persistent_ticket_delete"
@@ -3964,13 +3565,13 @@ class TicketDeleteView(discord.ui.View):
 
         if owner_role is None or owner_role not in interaction.user.roles:
             await interaction.response.send_message(
-                "❌ هذا الزر متاح للأونر فقط.",
+                "❌ This button is for the Owner role only.",
                 ephemeral=True
             )
             return
 
         await interaction.response.send_message(
-            "🗑️ سيتم حذف التذكرة...",
+            "🗑️ Deleting ticket...",
             ephemeral=True
         )
 
@@ -3985,10 +3586,10 @@ class TicketDeleteView(discord.ui.View):
 
 
 # ==========================================
-# أمر إنشاء لوحة التذاكر
+# Ticket panel creation command
 # ==========================================
 
-@bot.command(name="تكت", aliases=["ticket", "تذكرة"])
+@bot.command(name="ticket")
 @commands.has_role(OWNER_ROLE_ID)
 @in_channel(TICKET_CHANNEL_ID)
 async def ticket_command(ctx):
@@ -3999,10 +3600,10 @@ async def ticket_command(ctx):
         pass
 
     embed = discord.Embed(
-        title="🎫 نظام التذاكر",
+        title="🎫 Ticket System",
         description=(
-            "• اضغط الزر أدناه لفتح تذكرة.\n"
-            "• فتح تكت بدون سبب يؤدي الى ميوت 1h."
+            "• Press the button below to open a ticket.\n"
+            "• Opening a ticket without a valid reason may result in a 1h mute."
         ),
         color=discord.Color.gold()
     )
@@ -4053,13 +3654,13 @@ async def ticket_command_error(ctx, error):
             pass
 
         await ctx.send(
-            "❌ هذا الأمر مخصص للأونر فقط.",
+            "❌ This command is for the Owner role only.",
             delete_after=3
         )
 
 
 # ==========================================
-# 🤖 نظام الردود التلقائية (للاونر فقط) – يدعم المنشن والكلمات
+# 🤖 Automatic reply system (Owner only) – supports mentions and keywords
 # ==========================================
 
 REPLIES_FILE = os.path.join(BASE_DIR, "replies.json")
@@ -4067,7 +3668,7 @@ REPLIES_REDIS_KEY = "bot_replies"
 _next_id = 1
 
 def _normalize_replies(data):
-    """توحيد شكل بيانات الردود والتأكد من وجود الأقسام المطلوبة."""
+    """Normalise the reply data structure and ensure required sections exist."""
     if not isinstance(data, dict):
         data = {}
     if not isinstance(data.get("member"), dict):
@@ -4081,16 +3682,16 @@ def _normalize_replies(data):
 
 def load_replies():
     """
-    تحميل الردود من Redis أولاً حتى لا تضيع عند إعادة نشر/تحديث ملف البوت.
-    إذا لم توجد بيانات في Redis، نستخدم replies.json كنسخة توافق قديمة
-    ثم نرفعها إلى Redis لتصبح هي النسخة الدائمة.
+    Load replies from Redis first so they don't get lost when the bot is redeployed/updated.
+    If no data exists in Redis, use replies.json as a legacy fallback,
+    then push it to Redis to become the permanent version.
     """
     try:
         result = _redis_command("GET", REPLIES_REDIS_KEY)
         if result:
             return _normalize_replies(json.loads(result))
     except Exception as e:
-        print(f"❌ تعذر تحميل الردود من Redis: {e}")
+        print(f"❌ Failed to load replies from Redis: {e}")
 
     if os.path.exists(REPLIES_FILE):
         try:
@@ -4103,15 +3704,15 @@ def load_replies():
                     json.dumps(data, ensure_ascii=False, indent=2),
                 )
             except Exception as e:
-                print(f"⚠️ تعذر ترحيل الردود إلى Redis: {e}")
+                print(f"⚠️ Failed to migrate replies to Redis: {e}")
             return data
         except Exception as e:
-            print(f"❌ تعذر قراءة replies.json: {e}")
+            print(f"❌ Failed to read replies.json: {e}")
 
     return {"member": {}, "word": []}
 
 def save_replies(data):
-    """حفظ الردود في Redis بشكل دائم مع نسخة محلية احتياطية."""
+    """Save replies persistently to Redis with a local backup."""
     data = _normalize_replies(data)
     payload = json.dumps(data, ensure_ascii=False, indent=2)
 
@@ -4119,24 +3720,23 @@ def save_replies(data):
     try:
         redis_saved = _redis_command("SET", REPLIES_REDIS_KEY, payload) == "OK"
     except Exception as e:
-        print(f"❌ تعذر حفظ الردود في Redis: {e}")
+        print(f"❌ Failed to save replies to Redis: {e}")
 
     try:
         with open(REPLIES_FILE, "w", encoding="utf-8") as f:
             f.write(payload)
         local_saved = True
     except Exception as e:
-        print(f"❌ تعذر حفظ نسخة الردود المحلية: {e}")
+        print(f"❌ Failed to save local replies backup: {e}")
         local_saved = False
 
     if not redis_saved and not local_saved:
-        raise RuntimeError("تعذر حفظ الردود في Redis والملف المحلي.")
+        raise RuntimeError("Failed to save replies to both Redis and local file.")
     return True
 
 def generate_id():
     global _next_id
     max_id = 0
-    # نبحث في جميع الردود
     for replies in replies_cache["member"].values():
         for r in replies:
             if r.get("id", 0) > max_id:
@@ -4147,23 +3747,23 @@ def generate_id():
     _next_id = max_id + 1
     return _next_id
 
-# متغير عام
+# Global variable
 replies_cache = load_replies()
 
 # ==========================================
-# نماذج الإدخال (Modals)
+# Input Modals
 # ==========================================
 
-class AddReplyModal(discord.ui.Modal, title="إضافة رد نصي (عند المنشن)"):
+class AddReplyModal(discord.ui.Modal, title="Add Text Reply (on mention)"):
     user_id = discord.ui.TextInput(
-        label="آيدي العضو",
-        placeholder="أدخل الرقم",
+        label="User ID",
+        placeholder="Enter the number",
         required=True,
         style=discord.TextStyle.short
     )
     reply_text = discord.ui.TextInput(
-        label="النص الذي سيرده البوت",
-        placeholder="أكتب الرد",
+        label="The text the bot will reply",
+        placeholder="Write the reply",
         required=True,
         style=discord.TextStyle.paragraph
     )
@@ -4172,11 +3772,11 @@ class AddReplyModal(discord.ui.Modal, title="إضافة رد نصي (عند ال
         try:
             uid = int(self.user_id.value.strip())
         except ValueError:
-            await interaction.response.send_message("❌ الآيدي يجب أن يكون رقماً.", ephemeral=True)
+            await interaction.response.send_message("❌ The ID must be a number.", ephemeral=True)
             return
         text = self.reply_text.value.strip()
         if not text:
-            await interaction.response.send_message("❌ النص لا يمكن أن يكون فارغاً.", ephemeral=True)
+            await interaction.response.send_message("❌ The text cannot be empty.", ephemeral=True)
             return
 
         uid_str = str(uid)
@@ -4186,20 +3786,20 @@ class AddReplyModal(discord.ui.Modal, title="إضافة رد نصي (عند ال
         replies_cache["member"][uid_str].append(new_reply)
         save_replies(replies_cache)
         await interaction.response.send_message(
-            f"✅ تم إضافة رد نصي للعضو `{uid}` (الرد رقم {new_reply['id']})",
+            f"✅ Added text reply for user `{uid}` (reply ID {new_reply['id']})",
             ephemeral=True
         )
 
-class AddReactionModal(discord.ui.Modal, title="إضافة رد رياكشن (عند المنشن)"):
+class AddReactionModal(discord.ui.Modal, title="Add Reaction Reply (on mention)"):
     user_id = discord.ui.TextInput(
-        label="آيدي العضو",
-        placeholder="أدخل الرقم",
+        label="User ID",
+        placeholder="Enter the number",
         required=True,
         style=discord.TextStyle.short
     )
     emoji_id = discord.ui.TextInput(
-        label="آيدي الإيموجي أو الإيموجي العادي",
-        placeholder="مثال: <:اسم الايموجي:ايدي الايموجي> أو 👍",
+        label="Emoji ID or regular emoji",
+        placeholder="e.g. <:name:id> or 👍",
         required=True,
         style=discord.TextStyle.short
     )
@@ -4208,11 +3808,11 @@ class AddReactionModal(discord.ui.Modal, title="إضافة رد رياكشن (ع
         try:
             uid = int(self.user_id.value.strip())
         except ValueError:
-            await interaction.response.send_message("❌ الآيدي يجب أن يكون رقماً.", ephemeral=True)
+            await interaction.response.send_message("❌ The ID must be a number.", ephemeral=True)
             return
         emoji = self.emoji_id.value.strip()
         if not emoji:
-            await interaction.response.send_message("❌ الإيموجي لا يمكن أن يكون فارغاً.", ephemeral=True)
+            await interaction.response.send_message("❌ The emoji cannot be empty.", ephemeral=True)
             return
 
         uid_str = str(uid)
@@ -4222,20 +3822,20 @@ class AddReactionModal(discord.ui.Modal, title="إضافة رد رياكشن (ع
         replies_cache["member"][uid_str].append(new_reply)
         save_replies(replies_cache)
         await interaction.response.send_message(
-            f"✅ تم إضافة رد رياكشن للعضو `{uid}` (الرد رقم {new_reply['id']})",
+            f"✅ Added reaction reply for user `{uid}` (reply ID {new_reply['id']})",
             ephemeral=True
         )
 
-class AddWordReplyModal(discord.ui.Modal, title="إضافة رد كلمة (نصي)"):
+class AddWordReplyModal(discord.ui.Modal, title="Add Keyword Reply (text)"):
     trigger = discord.ui.TextInput(
-        label="الكلمة المطلوبة",
-        placeholder="مثال: محمد",
+        label="Keyword",
+        placeholder="e.g. hello",
         required=True,
         style=discord.TextStyle.short
     )
     reply_text = discord.ui.TextInput(
-        label="الرد النصي",
-        placeholder="أكتب الرد",
+        label="Text reply",
+        placeholder="Write the reply",
         required=True,
         style=discord.TextStyle.paragraph
     )
@@ -4244,26 +3844,26 @@ class AddWordReplyModal(discord.ui.Modal, title="إضافة رد كلمة (نص�
         trigger = self.trigger.value.strip().lower()
         reply = self.reply_text.value.strip()
         if not trigger or not reply:
-            await interaction.response.send_message("❌ لا يمكن ترك أي حقل فارغاً.", ephemeral=True)
+            await interaction.response.send_message("❌ Fields cannot be empty.", ephemeral=True)
             return
         new_reply = {"id": generate_id(), "type": "text", "trigger": trigger, "value": reply}
         replies_cache["word"].append(new_reply)
         save_replies(replies_cache)
         await interaction.response.send_message(
-            f"✅ تم إضافة رد كلمة نصي للكلمة `{trigger}` (الرد رقم {new_reply['id']})",
+            f"✅ Added keyword text reply for `{trigger}` (reply ID {new_reply['id']})",
             ephemeral=True
         )
 
-class AddWordReactionModal(discord.ui.Modal, title="إضافة رد كلمة (رياكشن)"):
+class AddWordReactionModal(discord.ui.Modal, title="Add Keyword Reply (reaction)"):
     trigger = discord.ui.TextInput(
-        label="الكلمة المطلوبة",
-        placeholder="مثال: سلام",
+        label="Keyword",
+        placeholder="e.g. thanks",
         required=True,
         style=discord.TextStyle.short
     )
     emoji_id = discord.ui.TextInput(
-        label="الإيموجي (آيدي أو عادي)",
-        placeholder="مثال: <:اسم الايموجي:ايدي الايموجي> أو 👍",
+        label="Emoji (ID or regular)",
+        placeholder="e.g. <:name:id> or 👍",
         required=True,
         style=discord.TextStyle.short
     )
@@ -4272,32 +3872,32 @@ class AddWordReactionModal(discord.ui.Modal, title="إضافة رد كلمة (ر
         trigger = self.trigger.value.strip().lower()
         emoji = self.emoji_id.value.strip()
         if not trigger or not emoji:
-            await interaction.response.send_message("❌ لا يمكن ترك أي حقل فارغاً.", ephemeral=True)
+            await interaction.response.send_message("❌ Fields cannot be empty.", ephemeral=True)
             return
         new_reply = {"id": generate_id(), "type": "reaction", "trigger": trigger, "value": emoji}
         replies_cache["word"].append(new_reply)
         save_replies(replies_cache)
         await interaction.response.send_message(
-            f"✅ تم إضافة رد كلمة رياكشن للكلمة `{trigger}` (الرد رقم {new_reply['id']})",
+            f"✅ Added keyword reaction reply for `{trigger}` (reply ID {new_reply['id']})",
             ephemeral=True
         )
 
 # ==========================================
-# تعديل / حذف الردود
+# Edit / Delete replies
 # ==========================================
 
-class EditReplyModal(discord.ui.Modal, title="تعديل الرد"):
+class EditReplyModal(discord.ui.Modal, title="Edit Reply"):
     def __init__(self, reply_id: int, current_value: str, reply_type: str, category: str, extra=None):
         super().__init__()
         self.reply_id = reply_id
-        self.category = category  # "member" أو "word"
-        self.extra = extra  # في حالة member نحتاج uid
+        self.category = category  # "member" or "word"
+        self.extra = extra  # for member we need uid
         self.reply_type = reply_type
 
         if category == "word":
-            # نضيف حقل الكلمة أيضاً
+            # Add a trigger field
             self.trigger_input = discord.ui.TextInput(
-                label="الكلمة المطلوبة",
+                label="Keyword",
                 default=extra,
                 required=True,
                 style=discord.TextStyle.short
@@ -4305,7 +3905,7 @@ class EditReplyModal(discord.ui.Modal, title="تعديل الرد"):
             self.add_item(self.trigger_input)
 
         self.new_value = discord.ui.TextInput(
-            label="القيمة الجديدة",
+            label="New value",
             default=current_value,
             required=True,
             style=discord.TextStyle.paragraph if reply_type == "text" else discord.TextStyle.short
@@ -4315,7 +3915,7 @@ class EditReplyModal(discord.ui.Modal, title="تعديل الرد"):
     async def on_submit(self, interaction: discord.Interaction):
         new_val = self.new_value.value.strip()
         if not new_val:
-            await interaction.response.send_message("❌ القيمة لا يمكن أن تكون فارغة.", ephemeral=True)
+            await interaction.response.send_message("❌ Value cannot be empty.", ephemeral=True)
             return
 
         if self.category == "member":
@@ -4325,9 +3925,9 @@ class EditReplyModal(discord.ui.Modal, title="تعديل الرد"):
                     if reply["id"] == self.reply_id:
                         reply["value"] = new_val
                         save_replies(replies_cache)
-                        await interaction.response.send_message(f"✅ تم تحديث الرد رقم {self.reply_id} بنجاح.", ephemeral=True)
+                        await interaction.response.send_message(f"✅ Reply ID {self.reply_id} updated successfully.", ephemeral=True)
                         return
-            await interaction.response.send_message("❌ لم يتم العثور على الرد.", ephemeral=True)
+            await interaction.response.send_message("❌ Reply not found.", ephemeral=True)
         else:  # word
             new_trigger = self.trigger_input.value.strip().lower() if hasattr(self, 'trigger_input') else None
             for reply in replies_cache["word"]:
@@ -4336,9 +3936,9 @@ class EditReplyModal(discord.ui.Modal, title="تعديل الرد"):
                     if new_trigger:
                         reply["trigger"] = new_trigger
                     save_replies(replies_cache)
-                    await interaction.response.send_message(f"✅ تم تحديث الرد رقم {self.reply_id} بنجاح.", ephemeral=True)
+                    await interaction.response.send_message(f"✅ Reply ID {self.reply_id} updated successfully.", ephemeral=True)
                     return
-            await interaction.response.send_message("❌ لم يتم العثور على الرد.", ephemeral=True)
+            await interaction.response.send_message("❌ Reply not found.", ephemeral=True)
 
 class DeleteReplyView(discord.ui.View):
     def __init__(self, reply_id: int, category: str, extra=None):
@@ -4347,7 +3947,7 @@ class DeleteReplyView(discord.ui.View):
         self.category = category
         self.extra = extra
 
-    @discord.ui.button(label="نعم، احذف", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="Yes, delete", style=discord.ButtonStyle.danger)
     async def confirm_delete(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.category == "member":
             uid = self.extra
@@ -4358,47 +3958,47 @@ class DeleteReplyView(discord.ui.View):
                     del replies_cache["member"][uid]
                 if len(replies_cache["member"][uid]) != old_len:
                     save_replies(replies_cache)
-                    await interaction.response.send_message(f"✅ تم حذف الرد رقم {self.reply_id} بنجاح.", ephemeral=True)
+                    await interaction.response.send_message(f"✅ Reply ID {self.reply_id} deleted successfully.", ephemeral=True)
                     return
         else:  # word
             old_len = len(replies_cache["word"])
             replies_cache["word"] = [r for r in replies_cache["word"] if r["id"] != self.reply_id]
             if len(replies_cache["word"]) != old_len:
                 save_replies(replies_cache)
-                await interaction.response.send_message(f"✅ تم حذف الرد رقم {self.reply_id} بنجاح.", ephemeral=True)
+                await interaction.response.send_message(f"✅ Reply ID {self.reply_id} deleted successfully.", ephemeral=True)
                 return
-        await interaction.response.send_message("❌ لم يتم العثور على الرد.", ephemeral=True)
+        await interaction.response.send_message("❌ Reply not found.", ephemeral=True)
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
 
-    @discord.ui.button(label="إلغاء", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel_delete(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("تم الإلغاء.", ephemeral=True)
+        await interaction.response.send_message("Cancelled.", ephemeral=True)
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
 
 # ==========================================
-# القائمة المنسدلة لعرض جميع الردود
+# Dropdown to view all replies
 # ==========================================
 
 class RepliesSelect(discord.ui.Select):
     def __init__(self):
         options = []
-        # ردود الأعضاء
+        # Member replies
         for uid, replies in replies_cache["member"].items():
             for reply in replies:
-                label = f"👤 عضو {uid}"
+                label = f"👤 User {uid}"
                 desc = f"{reply['type']}: {reply['value'][:30]} (id:{reply['id']})"
                 options.append(discord.SelectOption(
                     label=label,
                     value=f"member|{uid}|{reply['id']}",
                     description=desc
                 ))
-        # ردود الكلمات
+        # Keyword replies
         for reply in replies_cache["word"]:
-            label = f" كلمة: {reply['trigger']}"
+            label = f" Keyword: {reply['trigger']}"
             desc = f"{reply['type']}: {reply['value'][:30]} (id:{reply['id']})"
             options.append(discord.SelectOption(
                 label=label,
@@ -4407,12 +4007,12 @@ class RepliesSelect(discord.ui.Select):
             ))
         if not options:
             options.append(discord.SelectOption(
-                label="لا توجد ردود",
+                label="No replies",
                 value="none",
-                description="أضف رداً جديداً"
+                description="Add a new reply"
             ))
         super().__init__(
-            placeholder="اختر رداً لتعديله أو حذفه...",
+            placeholder="Choose a reply to edit or delete...",
             min_values=1,
             max_values=1,
             options=options
@@ -4420,7 +4020,7 @@ class RepliesSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         if self.values[0] == "none":
-            await interaction.response.send_message("لا توجد ردود لعرضها.", ephemeral=True)
+            await interaction.response.send_message("No replies to display.", ephemeral=True)
             return
 
         parts = self.values[0].split("|")
@@ -4434,11 +4034,11 @@ class RepliesSelect(discord.ui.Select):
                         reply = r
                         break
             if not reply:
-                await interaction.response.send_message("❌ هذا الرد غير موجود.", ephemeral=True)
+                await interaction.response.send_message("❌ This reply does not exist.", ephemeral=True)
                 return
             embed = discord.Embed(
-                title=f"✏️ رد العضو {uid} - رقم {rid}",
-                description=f"**النوع:** {reply['type']}\n**القيمة:** {reply['value']}",
+                title=f"✏️ User {uid} Reply – ID {rid}",
+                description=f"**Type:** {reply['type']}\n**Value:** {reply['value']}",
                 color=discord.Color.blue()
             )
             view = discord.ui.View()
@@ -4455,11 +4055,11 @@ class RepliesSelect(discord.ui.Select):
                     reply = r
                     break
             if not reply:
-                await interaction.response.send_message("❌ هذا الرد غير موجود.", ephemeral=True)
+                await interaction.response.send_message("❌ This reply does not exist.", ephemeral=True)
                 return
             embed = discord.Embed(
-                title=f"✏️ رد كلمة: {reply['trigger']} - رقم {rid}",
-                description=f"**النوع:** {reply['type']}\n**القيمة:** {reply['value']}",
+                title=f"✏️ Keyword: {reply['trigger']} – ID {rid}",
+                description=f"**Type:** {reply['type']}\n**Value:** {reply['value']}",
                 color=discord.Color.blue()
             )
             view = discord.ui.View()
@@ -4469,7 +4069,7 @@ class RepliesSelect(discord.ui.Select):
 
 class EditReplyButton(discord.ui.Button):
     def __init__(self, reply_id: int, current_value: str, reply_type: str, category: str, extra=None):
-        super().__init__(label="✏️ تعديل", style=discord.ButtonStyle.primary)
+        super().__init__(label="✏️ Edit", style=discord.ButtonStyle.primary)
         self.reply_id = reply_id
         self.current_value = current_value
         self.reply_type = reply_type
@@ -4482,22 +4082,22 @@ class EditReplyButton(discord.ui.Button):
 
 class DeleteReplyButton(discord.ui.Button):
     def __init__(self, reply_id: int, category: str, extra=None):
-        super().__init__(label="🗑️ حذف", style=discord.ButtonStyle.danger)
+        super().__init__(label="🗑️ Delete", style=discord.ButtonStyle.danger)
         self.reply_id = reply_id
         self.category = category
         self.extra = extra
 
     async def callback(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="⚠️ تأكيد الحذف",
-            description=f"هل أنت متأكد من حذف الرد رقم {self.reply_id}؟",
+            title="⚠️ Confirm Deletion",
+            description=f"Are you sure you want to delete reply ID {self.reply_id}?",
             color=discord.Color.red()
         )
         view = DeleteReplyView(self.reply_id, self.category, self.extra)
         await interaction.response.edit_message(embed=embed, view=view)
 
 # ==========================================
-# اللوحة الرئيسية مع خيارات الإضافة
+# Main management panel with add options
 # ==========================================
 
 class RepliesManagementView(discord.ui.View):
@@ -4505,64 +4105,64 @@ class RepliesManagementView(discord.ui.View):
         super().__init__(timeout=120)
         self.add_item(RepliesSelect())
 
-    @discord.ui.button(label="➕ إضافة رد", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="➕ Add Reply", style=discord.ButtonStyle.primary)
     async def add_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = discord.Embed(
-            title="اختر نوع الرد",
-            description="اختر أحد الخيارات بالأسفل",
+            title="Choose reply type",
+            description="Select one of the options below",
             color=discord.Color.blue()
         )
         view = AddChoiceView()
         await interaction.response.edit_message(embed=embed, view=view)
 
 class AddChoiceView(discord.ui.View):
-    @discord.ui.button(label="📝 رد نصي (عند المنشن)", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="📝 Text reply (on mention)", style=discord.ButtonStyle.success)
     async def text_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AddReplyModal())
 
-    @discord.ui.button(label="👍 رد رياكشن (عند المنشن)", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="👍 Reaction reply (on mention)", style=discord.ButtonStyle.success)
     async def reaction_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AddReactionModal())
 
-    @discord.ui.button(label="📝 رد كلمة (نصي)", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="📝 Keyword reply (text)", style=discord.ButtonStyle.primary)
     async def word_text_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AddWordReplyModal())
 
-    @discord.ui.button(label="👍 رد كلمة (رياكشن)", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="👍 Keyword reply (reaction)", style=discord.ButtonStyle.primary)
     async def word_reaction_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AddWordReactionModal())
 
-    @discord.ui.button(label="🔙 رجوع", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="🔙 Back", style=discord.ButtonStyle.secondary)
     async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = discord.Embed(
-            title="⚙️ لوحة إدارة الردود التلقائية",
-            description="• اختر رداً من القائمة المنسدلة لتعديله أو حذفه.\n• اضغط **إضافة رد** لإنشاء رد جديد.",
+            title="⚙️ Auto‑Reply Management Panel",
+            description="• Choose a reply from the dropdown to edit or delete.\n• Press **Add Reply** to create a new reply.",
             color=discord.Color.gold()
         )
         view = RepliesManagementView()
         await interaction.response.edit_message(embed=embed, view=view)
 
 # ==========================================
-# الأمر الرئيسي
+# Main command
 # ==========================================
 
-@bot.command(name="تعديل")
+@bot.command(name="manage_replies")
 @commands.has_role(OWNER_ROLE_ID)
 @in_channel(AMENDMENTS_CHANNEL_ID)
 async def manage_replies(ctx):
     embed = discord.Embed(
-        title="⚙️ لوحة إدارة الردود التلقائية",
-        description="• اختر رداً من القائمة المنسدلة لتعديله أو حذفه.\n• اضغط **إضافة رد** لإنشاء رد جديد.",
+        title="⚙️ Auto‑Reply Management Panel",
+        description="• Choose a reply from the dropdown to edit or delete.\n• Press **Add Reply** to create a new reply.",
         color=discord.Color.gold()
     )
     view = RepliesManagementView()
     await ctx.send(embed=embed, view=view)
 
 # ==========================================
-# مستمع الرسائل – ينفذ الردود
+# Message listener – executes replies
 # ==========================================
 async def enlarge_and_send(channel, url, type_str):
-    """تحميل صورة من رابط، تكبيرها 2x ، وإرسالها كملف."""
+    """Download an image from a URL, enlarge it 2x, and send it as a file."""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
@@ -4574,7 +4174,7 @@ async def enlarge_and_send(channel, url, type_str):
                 new_size = (img.width * 2, img.height * 2)
                 buf = io.BytesIO()
 
-                # التحقق مما إذا كانت الصورة متحركة (GIF)
+                # Check if it's animated (GIF)
                 if getattr(img, "is_animated", False):
                     from PIL import ImageSequence
                     frames = []
@@ -4595,7 +4195,7 @@ async def enlarge_and_send(channel, url, type_str):
                     file = discord.File(buf, filename=f"enlarged_{type_str}.gif")
                 
                 else:
-                    # معالجة الصور الثابتة العادية وحفظها كـ PNG
+                    # Static image – save as PNG
                     img_resized = img.resize(new_size, Image.Resampling.LANCZOS)
                     img_resized.save(buf, format='PNG')
                     buf.seek(0)
@@ -4611,10 +4211,10 @@ async def enlarge_and_send(channel, url, type_str):
 
 
 # ==========================================
-# 🎡 لعبة الروليت الجماعية
+# 🎡 Group Roulette game
 # ==========================================
 
-# كل لعبة مستقلة برسالتها ومبلغها، وتمنع مشاركة العضو في أكثر من لعبة.
+# Each game is independent with its own message and prize; prevents a user from joining more than one.
 ACTIVE_GROUP_ROULETTE = {}
 ACTIVE_GROUP_ROULETTE_USERS = set()
 
@@ -4624,7 +4224,7 @@ GROUP_ROULETTE_TIMEOUT = 600
 
 
 def _roulette_number(text):
-    """تحويل مبلغ الأمر إلى رقم مع دعم الفواصل العربية والإنجليزية."""
+    """Convert a bet amount from text to integer, supporting Arabic and English separators."""
     if text is None:
         return None
     value = str(text).strip().replace(",", "").replace("٬", "").replace(" ", "")
@@ -4639,7 +4239,7 @@ _ROULETTE_BG_LOCK = Lock()
 
 
 def _open_roulette_background(size):
-    """فتح خلفية الروليت وقصّها لتناسب بطاقة الـ embed مع طبقة تعتيم خفيفة."""
+    """Open the roulette background and crop it to fit the embed with a slight dim overlay."""
     global _ROULETTE_BG_CACHE
     if _ROULETTE_BG_CACHE is not None:
         return _ROULETTE_BG_CACHE.copy()
@@ -4652,18 +4252,18 @@ def _open_roulette_background(size):
                 overlay = Image.new("RGBA", size, (5, 8, 15, 105))
                 _ROULETTE_BG_CACHE = Image.alpha_composite(image, overlay)
             except Exception as e:
-                print(f"⚠️ تعذر فتح خلفية الروليت: {e}")
+                print(f"⚠️ Failed to open roulette background: {e}")
                 _ROULETTE_BG_CACHE = Image.new("RGBA", size, (13, 17, 29, 255))
         return _ROULETTE_BG_CACHE.copy()
 
 
 def draw_group_roulette_lobby(amount, players, host):
-    """بطاقة Lobby جميلة تحتوي على عدد اللاعبين والتعليمات والأسماء."""
+    """A beautiful lobby card with player count, instructions, and names."""
     width, height = 1200, 700
     base = _open_roulette_background((width, height))
     d = ImageDraw.Draw(base)
 
-    # زخارف ذهبية.
+    # Gold decorative rings
     for r in (530, 500, 470):
         d.ellipse(
             (width//2-r, 350-r, width//2+r, 350+r),
@@ -4671,7 +4271,7 @@ def draw_group_roulette_lobby(amount, players, host):
             width=2,
         )
 
-    # العنوان.
+    # Title
     d.rounded_rectangle(
         (70, 35, width-70, 145),
         radius=30,
@@ -4681,13 +4281,13 @@ def draw_group_roulette_lobby(amount, players, host):
     )
     d.text(
         (width//2, 88),
-        "🎡 الروليت الجماعية",
+        "🎡 Group Roulette",
         font=_font(52),
         fill=(232, 198, 106, 255),
         anchor="mm",
     )
 
-    # مربع اللاعبين.
+    # Player count box
     d.rounded_rectangle(
         (820, 175, 1130, 285),
         radius=24,
@@ -4704,13 +4304,13 @@ def draw_group_roulette_lobby(amount, players, host):
     )
     d.text(
         (975, 258),
-        "عدد اللاعبين",
+        "Players",
         font=_font(22),
         fill=(180, 184, 198, 255),
         anchor="mm",
     )
 
-    # معلومات الرهان وصاحب اللعبة.
+    # Bet info and host
     d.rounded_rectangle(
         (70, 175, 790, 285),
         radius=24,
@@ -4718,7 +4318,7 @@ def draw_group_roulette_lobby(amount, players, host):
         outline=(80, 91, 120, 200),
         width=2,
     )
-    prize_text = f"الجائزة: {amount:,} طولار" if amount > 0 else "بدون جائزة"
+    prize_text = f"Prize: {amount:,} Tolar" if amount > 0 else "No prize"
     d.text(
         (430, 212),
         prize_text,
@@ -4728,13 +4328,13 @@ def draw_group_roulette_lobby(amount, players, host):
     )
     d.text(
         (430, 258),
-        f"صاحب اللعبة: {host.display_name[:28]}",
-        font=_fit_font(f"صاحب اللعبة: {host.display_name[:28]}", 620, 24, 18),
+        f"Host: {host.display_name[:28]}",
+        font=_fit_font(f"Host: {host.display_name[:28]}", 620, 24, 18),
         fill=(220, 223, 233, 255),
         anchor="mm",
     )
 
-    # التعليمات.
+    # Instructions
     d.rounded_rectangle(
         (70, 315, 1130, 455),
         radius=26,
@@ -4744,26 +4344,26 @@ def draw_group_roulette_lobby(amount, players, host):
     )
     d.text(
         (600, 350),
-        "اضغط على الأزرار للدخول",
+        "Press the buttons to join",
         font=_font(35),
         fill=(255, 255, 255, 255),
         anchor="mm",
     )
     d.text(
         (600, 405),
-        "يتم اختيار أحد اللاعبين عشوائياً لطرد لاعب من اختياره وهكذا",
+        "One player is randomly chosen to eliminate another, and so on",
         font=_fit_font(
-            "يتم اختيار أحد اللاعبين عشوائياً لطرد لاعب من اختياره وهكذا",
+            "One player is randomly chosen to eliminate another, and so on",
             950, 30, 19
         ),
         fill=(194, 199, 214, 255),
         anchor="mm",
     )
 
-    # أسماء اللاعبين في آخر الصورة.
+    # Player names at the bottom
     d.text(
         (600, 490),
-        "اللاعبون المشاركون",
+        "Participants",
         font=_font(28),
         fill=(232, 198, 106, 255),
         anchor="mm",
@@ -4786,7 +4386,7 @@ def draw_group_roulette_lobby(amount, players, host):
         else:
             fill = (20, 24, 36, 180)
             outline = (55, 62, 80, 130)
-            name = "— فارغ —"
+            name = "— Empty —"
         d.rounded_rectangle((x1, y1, x2, y2), radius=16, fill=fill, outline=outline, width=2)
         d.text(
             ((x1+x2)//2, (y1+y2)//2),
@@ -4804,7 +4404,7 @@ def draw_group_roulette_lobby(amount, players, host):
 
 
 async def _get_cached_roulette_lobby(amount, players, host):
-    """إرجاع صورة Lobby من الكاش، وإن لم توجد تُرسم مرة واحدة فقط."""
+    """Return a lobby image from cache, or draw and cache it once."""
     players_key = tuple((int(m.id), str(m.display_name)) for m in players)
     key = (int(amount), players_key, int(host.id), str(host.display_name))
     cached = _ROULETTE_LOBBY_CACHE.get(key)
@@ -4823,7 +4423,7 @@ async def _get_cached_roulette_lobby(amount, players, host):
 
 
 async def _get_cached_roulette_wheel(players, selected_index):
-    """كاش لصور عجلة الروليت؛ نفس اللاعبين ونفس المؤشر يعيدان نفس GIF."""
+    """Cache the roulette wheel GIF; same players and same index return the same GIF."""
     players_key = tuple((int(m.id), str(m.display_name)) for m in players)
     key = (players_key, int(selected_index))
     cached = _ROULETTE_WHEEL_CACHE.get(key)
@@ -4842,7 +4442,7 @@ async def _get_cached_roulette_wheel(players, selected_index):
 
 
 def generate_group_roulette_wheel(players, winner_index):
-    """إنشاء GIF لعجلة متعددة القطاعات، مع توجيه السهم للفائز."""
+    """Generate a GIF of a multi‑segment wheel with the arrow pointing to the winner."""
     size = 720
     center = (size // 2, size // 2)
     radius = 285
@@ -4851,12 +4451,12 @@ def generate_group_roulette_wheel(players, winner_index):
     frames = []
     total_frames = 34
 
-    # مركز القطاع الفائز النهائي تحت السهم العلوي (270 درجة في PIL).
+    # Final winner segment centre under the top arrow (270° in PIL).
     winner_center = winner_index * span + span / 2
     target_offset = (270.0 - winner_center) % 360.0
     total_rotation = 6 * 360 + target_offset
 
-    # ألوان أفتح قليلاً من التصميم السابق مع الحفاظ على التباين.
+    # Slightly lighter palette than the previous design, maintaining contrast.
     palette = [
         (70, 125, 180, 255),
         (190, 82, 98, 255),
@@ -4873,7 +4473,7 @@ def generate_group_roulette_wheel(players, winner_index):
         frame = _open_roulette_background((size, size))
         d = ImageDraw.Draw(frame)
 
-        # هالة خلف العجلة.
+        # Glow behind the wheel
         d.ellipse(
             (center[0]-radius-18, center[1]-radius-18,
              center[0]+radius+18, center[1]+radius+18),
@@ -4913,7 +4513,7 @@ def generate_group_roulette_wheel(players, winner_index):
                 stroke_fill=(0, 0, 0, 180),
             )
 
-        # المركز والحلقة الداخلية.
+        # Centre and inner ring
         d.ellipse(
             (center[0]-70, center[1]-70, center[0]+70, center[1]+70),
             fill=(12, 16, 27, 255),
@@ -4928,7 +4528,7 @@ def generate_group_roulette_wheel(players, winner_index):
             anchor="mm",
         )
 
-        # السهم الثابت بالأعلى.
+        # Fixed arrow at the top
         d.polygon(
             [(center[0]-26, 18), (center[0]+26, 18), (center[0], 70)],
             fill=(232, 198, 106, 255),
@@ -4954,8 +4554,8 @@ def generate_group_roulette_wheel(players, winner_index):
 
 class GroupRouletteLobbyView(discord.ui.View):
     def __init__(self, game_id):
-        # التسجيل يبقى متاحاً، لكن إذا لم يدخل أي لاعب إضافي خلال أول 20 ثانية
-        # تُلغى اللعبة. دخول لاعب واحد إضافي يكفي لإلغاء هذا الشرط.
+        # Registration remains open, but if no extra player joins within 20 seconds,
+        # the game is cancelled. One extra player is enough to cancel this condition.
         super().__init__(timeout=GROUP_ROULETTE_TIMEOUT)
         self.game_id = game_id
         self.message = None
@@ -4970,7 +4570,7 @@ class GroupRouletteLobbyView(discord.ui.View):
             game = self._game()
             if not game or game["started"]:
                 return
-            # صاحب اللعبة محسوب كلاعب أول، لذلك نبحث عن لاعب إضافي.
+            # The host is counted as the first player, so we look for an additional player.
             if len(game["players"]) > 1:
                 return
 
@@ -4982,9 +4582,9 @@ class GroupRouletteLobbyView(discord.ui.View):
 
             if self.message:
                 try:
-                    content = "⏰ تم إلغاء الروليت لعدم دخول أي لاعب خلال 20 ثانية."
+                    content = "⏰ Roulette cancelled because no extra player joined within 20 seconds."
                     if game["amount"] > 0:
-                        content += " وتمت إعادة مبلغ الجائزة لصاحب اللعبة."
+                        content += " The prize amount has been returned to the host."
                     await self.message.edit(
                         content=content,
                         attachments=[],
@@ -5017,41 +4617,41 @@ class GroupRouletteLobbyView(discord.ui.View):
             if img_buf is not None:
                 img_buf.close()
 
-    @discord.ui.button(label="دخول", style=discord.ButtonStyle.success, emoji="🎟️")
+    @discord.ui.button(label="Join", style=discord.ButtonStyle.success, emoji="🎟️")
     async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
         game = self._game()
         if not game:
-            return await interaction.response.send_message("❌ انتهت اللعبة.", ephemeral=True)
+            return await interaction.response.send_message("❌ Game ended.", ephemeral=True)
 
         uid = interaction.user.id
         if uid in game["players"]:
-            return await interaction.response.send_message("⚠️ أنت داخل اللعبة بالفعل.", ephemeral=True)
+            return await interaction.response.send_message("⚠️ You are already in the game.", ephemeral=True)
         if len(game["players"]) >= GROUP_ROULETTE_MAX_PLAYERS:
-            return await interaction.response.send_message("❌ اللعبة مكتملة (10/10).", ephemeral=True)
+            return await interaction.response.send_message("❌ Game is full (10/10).", ephemeral=True)
         if uid in ACTIVE_GROUP_ROULETTE_USERS:
-            return await interaction.response.send_message("❌ أنت مشارك في لعبة روليت أخرى بالفعل.", ephemeral=True)
+            return await interaction.response.send_message("❌ You are already in another roulette game.", ephemeral=True)
 
         game["players"].append(interaction.user)
         ACTIVE_GROUP_ROULETTE_USERS.add(uid)
         await interaction.response.defer()
         await self._refresh(interaction)
 
-    @discord.ui.button(label="خروج", style=discord.ButtonStyle.secondary, emoji="🚪")
+    @discord.ui.button(label="Leave", style=discord.ButtonStyle.secondary, emoji="🚪")
     async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
         game = self._game()
         if not game:
-            return await interaction.response.send_message("❌ انتهت اللعبة.", ephemeral=True)
+            return await interaction.response.send_message("❌ Game ended.", ephemeral=True)
 
         uid = interaction.user.id
         if uid not in [m.id for m in game["players"]]:
-            return await interaction.response.send_message("⚠️ أنت لست داخل اللعبة.", ephemeral=True)
+            return await interaction.response.send_message("⚠️ You are not in the game.", ephemeral=True)
         if game["started"]:
-            return await interaction.response.send_message("❌ لا يمكن الخروج بعد بدء اللعبة.", ephemeral=True)
+            return await interaction.response.send_message("❌ Cannot leave after the game has started.", ephemeral=True)
 
         game["players"] = [m for m in game["players"] if m.id != uid]
         ACTIVE_GROUP_ROULETTE_USERS.discard(uid)
 
-        # صاحب اللعبة إذا خرج: إلغاء واسترجاع المبلغ.
+        # If the host leaves: cancel and refund the prize.
         if uid == game["host"].id:
             remove_game = ACTIVE_GROUP_ROULETTE.pop(self.game_id, None)
             if remove_game:
@@ -5060,7 +4660,7 @@ class GroupRouletteLobbyView(discord.ui.View):
                 for member in game["players"]:
                     ACTIVE_GROUP_ROULETTE_USERS.discard(member.id)
             await interaction.response.edit_message(
-                content="❌ تم إلغاء الروليت لأن صاحب اللعبة خرج، وتمت إعادة الجائزة له.",
+                content="❌ Roulette cancelled because the host left; the prize has been refunded.",
                 attachments=[],
                 view=None,
             )
@@ -5070,19 +4670,19 @@ class GroupRouletteLobbyView(discord.ui.View):
         await interaction.response.defer()
         await self._refresh(interaction)
 
-    @discord.ui.button(label="بدء اللعبة", style=discord.ButtonStyle.primary, emoji="🎡")
+    @discord.ui.button(label="Start Game", style=discord.ButtonStyle.primary, emoji="🎡")
     async def start_game(self, interaction: discord.Interaction, button: discord.ui.Button):
         game = self._game()
         if not game:
-            return await interaction.response.send_message("❌ انتهت اللعبة.", ephemeral=True)
+            return await interaction.response.send_message("❌ Game ended.", ephemeral=True)
         if interaction.user.id != game["host"].id:
-            return await interaction.response.send_message("❌ صاحب اللعبة فقط يستطيع البدء.", ephemeral=True)
+            return await interaction.response.send_message("❌ Only the host can start the game.", ephemeral=True)
         if len(game["players"]) < GROUP_ROULETTE_MIN_PLAYERS:
             return await interaction.response.send_message(
-                f"❌ يجب دخول {GROUP_ROULETTE_MIN_PLAYERS} لاعبين على الأقل.", ephemeral=True
+                f"❌ At least {GROUP_ROULETTE_MIN_PLAYERS} players are required.", ephemeral=True
             )
         if game["started"]:
-            return await interaction.response.send_message("⚠️ اللعبة بدأت بالفعل.", ephemeral=True)
+            return await interaction.response.send_message("⚠️ The game has already started.", ephemeral=True)
 
         game["started"] = True
         game["round"] = 0
@@ -5092,24 +4692,24 @@ class GroupRouletteLobbyView(discord.ui.View):
         view = GroupRouletteRoundView(self.game_id)
         img_buf = None
         try:
-            # نختار أول لاعب عشوائياً ليبدأ دورة الطرد.
+            # Randomly pick the first player to start the elimination round.
             selected = random.choice(game["players"])
             game["selected_id"] = selected.id
             embed = discord.Embed(
-                title="🎡 الروليت الجماعية",
+                title="🎡 Group Roulette",
                 description=(
-                    f"🎯 **يا {selected.mention}** اختر لاعباً لطرده أو اضغط **عشوائي**.\n\n"
+                    f"🎯 **{selected.mention}** choose a player to eliminate or press **Random**.\n\n"
                     + (
-                        f"💰 الجائزة: **{game['amount']:,} طولار**\n"
+                        f"💰 Prize: **{game['amount']:,} Tolar**\n"
                         if game["amount"] > 0
-                        else "🎁 **بدون جائزة**\n"
+                        else "🎁 **No prize**\n"
                     )
-                    + f"👥 المتبقون: **{len(game['players'])}**"
+                    + f"👥 Remaining: **{len(game['players'])}**"
                 ),
                 color=discord.Color.from_rgb(184, 145, 55),
             )
             selected_index = game["players"].index(selected)
-            # إذا بدأ اللعب بلاعبين فقط، العجلة تختار الفائز مباشرة.
+            # If only two players remain, the wheel picks the winner immediately.
             if len(game["players"]) == 2:
                 winner_index = random.randrange(2)
                 winner = game["players"][winner_index]
@@ -5126,7 +4726,7 @@ class GroupRouletteLobbyView(discord.ui.View):
             file = discord.File(img_buf, filename="roulette_wheel.gif")
             embed.set_image(url="attachment://roulette_wheel.gif")
 
-            # عند بدء اللعبة نترك رسالة التسجيل كما هي، ونرسل رسالة جديدة للجولة.
+            # When the game starts, leave the registration message as is, and send a new message for the round.
             try:
                 await interaction.message.edit(view=None)
             except Exception:
@@ -5158,7 +4758,7 @@ class GroupRouletteLobbyView(discord.ui.View):
         if self.message:
             try:
                 await self.message.edit(
-                    content="⏰ انتهى وقت التسجيل، وتمت إعادة مبلغ الجائزة لصاحب اللعبة.",
+                    content="⏰ Registration time expired, the prize has been refunded to the host.",
                     attachments=[],
                     view=None,
                 )
@@ -5175,14 +4775,14 @@ class GroupRouletteKickSelect(discord.ui.Select):
             discord.SelectOption(
                 label=member.display_name[:100],
                 value=str(member.id),
-                description="طرد هذا اللاعب",
+                description="Eliminate this player",
             )
             for member in players
         ]
         if not options:
-            options = [discord.SelectOption(label="لا يوجد لاعبون", value="none")]
+            options = [discord.SelectOption(label="No players", value="none")]
         super().__init__(
-            placeholder="اختر لاعباً لطرده...",
+            placeholder="Choose a player to eliminate...",
             min_values=1,
             max_values=1,
             options=options[:25],
@@ -5191,26 +4791,26 @@ class GroupRouletteKickSelect(discord.ui.Select):
     async def callback(self, interaction: discord.Interaction):
         game = ACTIVE_GROUP_ROULETTE.get(self.game_id)
         if not game or not game["started"]:
-            return await interaction.response.send_message("❌ اللعبة غير متاحة.", ephemeral=True)
+            return await interaction.response.send_message("❌ Game unavailable.", ephemeral=True)
 
         if interaction.user.id != game["selected_id"]:
             return await interaction.response.send_message(
-                "❌ هذا الدور ليس لك.", ephemeral=True
+                "❌ It's not your turn.", ephemeral=True
             )
 
         value = self.values[0]
         if value == "none":
-            return await interaction.response.send_message("❌ لا يوجد لاعب للاختيار.", ephemeral=True)
+            return await interaction.response.send_message("❌ No player to choose.", ephemeral=True)
 
         target_id = int(value)
         if target_id == game["selected_id"]:
             return await interaction.response.send_message(
-                "❌ لا يمكنك طرد نفسك.", ephemeral=True
+                "❌ You cannot eliminate yourself.", ephemeral=True
             )
 
         target = next((m for m in game["players"] if m.id == target_id), None)
         if not target:
-            return await interaction.response.send_message("❌ اللاعب لم يعد داخل اللعبة.", ephemeral=True)
+            return await interaction.response.send_message("❌ That player is no longer in the game.", ephemeral=True)
 
         await interaction.response.defer()
         await GroupRouletteRoundView.eliminate_and_continue(
@@ -5237,32 +4837,32 @@ class GroupRouletteRoundView(discord.ui.View):
         ACTIVE_GROUP_ROULETTE_USERS.discard(target.id)
         game["round"] += 1
 
-        # عند بقاء لاعبين، العجلة تختار الفائز تلقائياً.
+        # When only two players remain, the wheel picks the winner automatically.
         if len(game["players"]) <= 2:
             winner_index = random.randrange(len(game["players"]))
             winner = game["players"][winner_index]
             await GroupRouletteRoundView.finish_game(interaction, game_id, winner, winner_index)
             return
 
-        # اختيار لاعب جديد عشوائياً للدور التالي.
+        # Randomly pick a new player for the next turn.
         selected = random.choice(game["players"])
         game["selected_id"] = selected.id
 
         view = GroupRouletteRoundView(game_id)
         embed = discord.Embed(
-            title="🎡 الروليت الجماعية",
+            title="🎡 Group Roulette",
             description=(
-                f"🎯 **يا {selected.mention}** اختر أحداً لطرده أو اختر **عشوائياً**.\n\n"
+                f"🎯 **{selected.mention}** choose someone to eliminate or press **Random**.\n\n"
                 + (
-                    f"💰 الجائزة: **{game['amount']:,} طولار**\n"
+                    f"💰 Prize: **{game['amount']:,} Tolar**\n"
                     if game["amount"] > 0
-                    else "🎁 **بدون جائزة**\n"
+                    else "🎁 **No prize**\n"
                 )
-                + f"👥 المتبقون: **{len(game['players'])}**"
+                + f"👥 Remaining: **{len(game['players'])}**"
             ),
             color=discord.Color.from_rgb(184, 145, 55),
         )
-        # العجلة تعرض اختيار اللاعب الذي حصل على الدور، ثم تتوقف عند اسمه.
+        # The wheel shows the selected player and then stops on their name.
         selected_index = game["players"].index(selected)
         img_buf = None
         try:
@@ -5273,7 +4873,7 @@ class GroupRouletteRoundView(discord.ui.View):
             file = discord.File(img_buf, filename="roulette_wheel.gif")
             embed.set_image(url="attachment://roulette_wheel.gif")
 
-            # كل دور جديد يظهر في رسالة مستقلة بدلاً من تعديل رسالة الدور السابق.
+            # Each new round appears in a separate message instead of editing the previous round's message.
             try:
                 await interaction.message.edit(view=None)
             except Exception:
@@ -5291,18 +4891,18 @@ class GroupRouletteRoundView(discord.ui.View):
             if img_buf is not None:
                 img_buf.close()
 
-    @discord.ui.button(label="عشوائي", style=discord.ButtonStyle.success, emoji="🎲")
+    @discord.ui.button(label="Random", style=discord.ButtonStyle.success, emoji="🎲")
     async def random_kick(self, interaction: discord.Interaction, button: discord.ui.Button):
         game = ACTIVE_GROUP_ROULETTE.get(self.game_id)
         if not game or not game["started"]:
-            return await interaction.response.send_message("❌ اللعبة غير متاحة.", ephemeral=True)
+            return await interaction.response.send_message("❌ Game unavailable.", ephemeral=True)
 
         if interaction.user.id != game["selected_id"]:
-            return await interaction.response.send_message("❌ هذا الدور ليس لك.", ephemeral=True)
+            return await interaction.response.send_message("❌ It's not your turn.", ephemeral=True)
 
         candidates = [m for m in game["players"] if m.id != game["selected_id"]]
         if not candidates:
-            return await interaction.response.send_message("❌ لا يوجد لاعب يمكن طرده.", ephemeral=True)
+            return await interaction.response.send_message("❌ No player to eliminate.", ephemeral=True)
 
         target = random.choice(candidates)
         await interaction.response.defer()
@@ -5314,7 +4914,6 @@ class GroupRouletteRoundView(discord.ui.View):
         if not game:
             return
 
-        # لا يمكن أن تصبح الجائزة موجودة مرتين حتى مع تداخل الضغطات.
         for member in game["players"]:
             ACTIVE_GROUP_ROULETTE_USERS.discard(member.id)
 
@@ -5322,18 +4921,18 @@ class GroupRouletteRoundView(discord.ui.View):
             add_balance(winner.id, game["amount"])
 
         embed = discord.Embed(
-            title="🏆 نهاية الروليت الجماعية",
+            title="🏆 Group Roulette Finished",
             description=(
-                f"🎉 **لقد فزت يا {winner.mention}!**\n\n"
+                f"🎉 **You won, {winner.mention}!**\n\n"
                 + (
-                    f"💰 تمت إضافة **{game['amount']:,} طولار** بنجاح إلى رصيدك."
+                    f"💰 **{game['amount']:,} Tolar** have been added to your balance."
                     if game["amount"] > 0
-                    else "🎁 **انتهت اللعبة بدون جائزة مالية.**"
+                    else "🎁 **The game ended with no monetary prize.**"
                 )
             ),
             color=discord.Color.from_rgb(232, 198, 106),
         )
-        embed.set_footer(text=f"عدد المشاركين النهائي: {len(game['players'])}")
+        embed.set_footer(text=f"Final number of participants: {len(game['players'])}")
 
         img_buf = None
         try:
@@ -5344,7 +4943,6 @@ class GroupRouletteRoundView(discord.ui.View):
             file = discord.File(img_buf, filename="roulette_winner.gif")
             embed.set_image(url="attachment://roulette_winner.gif")
 
-            # النتيجة النهائية أيضاً تُرسل في رسالة جديدة، ولا نستبدل رسالة الجولة السابقة.
             try:
                 await interaction.message.edit(view=None)
             except Exception:
@@ -5363,7 +4961,7 @@ class GroupRouletteRoundView(discord.ui.View):
         game = ACTIVE_GROUP_ROULETTE.get(self.game_id)
         if not game:
             return
-        # اللعبة بدأت، لذلك نعيد الجائزة فقط إذا لم تنته بعد.
+        # The game had started, so we refund the prize only if it hasn't finished.
         ACTIVE_GROUP_ROULETTE.pop(self.game_id, None)
         if game["amount"] > 0:
             add_balance(game["host"].id, game["amount"])
@@ -5372,7 +4970,7 @@ class GroupRouletteRoundView(discord.ui.View):
         if self.message:
             try:
                 await self.message.edit(
-                    content="⏰ انتهت اللعبة بسبب عدم التفاعل، وتمت إعادة مبلغ الجائزة لصاحب اللعبة.",
+                    content="⏰ Game ended due to inactivity; the prize has been refunded to the host.",
                     attachments=[],
                     view=None,
                 )
@@ -5380,36 +4978,36 @@ class GroupRouletteRoundView(discord.ui.View):
                 pass
 
 
-@bot.command(name="روليت")
+@bot.command(name="roulette")
 @in_channel(GAMES_CHANNEL_ID)
 async def group_roulette_game(ctx, amount_text=None):
-    """الاستخدام: روليت أو روليت 1000. بدون مبلغ تبدأ اللعبة بلا جائزة."""
+    """Usage: roulette or roulette 1000. Without an amount, the game has no prize."""
     if amount_text is None:
         amount = 0
     else:
         amount = _roulette_number(amount_text)
         if amount is None:
             await ctx.send(
-                "❌ الاستخدام الصحيح: `روليت` أو `روليت 1000` — المبلغ يجب أن يكون رقماً أكبر من صفر.",
+                "❌ Correct usage: `roulette` or `roulette 1000` – the amount must be a number greater than zero.",
                 delete_after=5,
             )
             return
 
     host_id = ctx.author.id
     if host_id in ACTIVE_GROUP_ROULETTE_USERS:
-        await ctx.send("❌ لديك لعبة روليت مفتوحة بالفعل.", delete_after=4)
+        await ctx.send("❌ You already have an active roulette game.", delete_after=4)
         return
 
     balance = get_balance(host_id)
     if amount > 0 and balance < amount:
         await ctx.send(
-            f"❌ رصيدك غير كافٍ. تحتاج إلى **{amount:,} طولار** "
-            f"ورصيدك الحالي **{balance:,}** طولار.",
+            f"❌ You don't have enough Tolar. You need **{amount:,}** Tolar "
+            f"but your balance is **{balance:,}** Tolar.",
             delete_after=5,
         )
         return
 
-    # إذا وُجد مبلغ، يحجزه صاحب اللعبة مسبقاً كجائزة.
+    # If a prize amount is given, reserve it from the host.
     if amount > 0:
         remove_balance(host_id, amount)
 
@@ -5452,1399 +5050,15 @@ async def group_roulette_game(ctx, amount_text=None):
             img_buf.close()
 
 
-# ==========================================
-# 🕵️ لعبة الاختباء المحسّنة (Hide & Seek Pro)
-# ==========================================
-
-ACTIVE_HIDE_PRO_GAMES = {}
-ACTIVE_HIDE_PRO_USERS = set()
-HIDE_PRO_MAX_PLAYERS = 10
-HIDE_PRO_MIN_PLAYERS = 2
-HIDE_PRO_NUMBERS = 20          # عدد الأرقام الافتراضي
-HIDE_PRO_JOIN_TIMEOUT = 30
-HIDE_PRO_GAME_TIMEOUT = 600
-
-
-def draw_hide_pro_lobby(amount, players, host, number_count):
-    """بطاقة الـ Lobby للعبة الاختباء المحسّنة."""
-    width, height = 1200, 700
-    base = _open_roulette_background((width, height))
-    d = ImageDraw.Draw(base)
-
-    # زخارف
-    for r in (530, 500, 470):
-        d.ellipse(
-            (width//2-r, 350-r, width//2+r, 350+r),
-            outline=(184, 145, 55, 35),
-            width=2,
-        )
-
-    # العنوان
-    d.rounded_rectangle(
-        (70, 35, width-70, 145),
-        radius=30,
-        fill=(26, 31, 48, 245),
-        outline=(232, 198, 106, 255),
-        width=4,
-    )
-    d.text(
-        (width//2, 88),
-        "🕵️ لعبة الاختباء المحسّنة",
-        font=_font(48),
-        fill=(232, 198, 106, 255),
-        anchor="mm",
-    )
-
-    # عدد اللاعبين
-    d.rounded_rectangle(
-        (820, 175, 1130, 285),
-        radius=24,
-        fill=(10, 13, 22, 235),
-        outline=(232, 198, 106, 210),
-        width=3,
-    )
-    d.text(
-        (975, 213),
-        f"{len(players)} / {HIDE_PRO_MAX_PLAYERS}",
-        font=_font(46),
-        fill=(255, 255, 255, 255),
-        anchor="mm",
-    )
-    d.text(
-        (975, 258),
-        "عدد المشاركين",
-        font=_font(22),
-        fill=(180, 184, 198, 255),
-        anchor="mm",
-    )
-
-    # معلومات الجائزة وصاحب اللعبة
-    d.rounded_rectangle(
-        (70, 175, 790, 285),
-        radius=24,
-        fill=(26, 31, 48, 235),
-        outline=(80, 91, 120, 200),
-        width=2,
-    )
-    prize_text = f"الجائزة: {amount:,} طولار" if amount > 0 else "بدون جائزة"
-    d.text(
-        (430, 212),
-        prize_text,
-        font=_fit_font(prize_text, 620, 34, 22),
-        fill=(232, 198, 106, 255),
-        anchor="mm",
-    )
-    d.text(
-        (430, 258),
-        f"صاحب اللعبة: {host.display_name[:28]}",
-        font=_fit_font(f"صاحب اللعبة: {host.display_name[:28]}", 620, 24, 18),
-        fill=(220, 223, 233, 255),
-        anchor="mm",
-    )
-
-    # التعليمات
-    d.rounded_rectangle(
-        (70, 315, 1130, 455),
-        radius=26,
-        fill=(7, 10, 18, 205),
-        outline=(70, 82, 110, 180),
-        width=2,
-    )
-    d.text(
-        (600, 350),
-        f"اختر رقمك السري من 1 إلى {number_count}",
-        font=_font(35),
-        fill=(255, 255, 255, 255),
-        anchor="mm",
-    )
-    d.text(
-        (600, 405),
-        "سيتم اختيار باحث عشوائياً ليبحث عن اللاعبين المختبئين",
-        font=_fit_font(
-            "سيتم اختيار باحث عشوائياً ليبحث عن اللاعبين المختبئين",
-            950, 28, 18
-        ),
-        fill=(194, 199, 214, 255),
-        anchor="mm",
-    )
-
-    # أسماء اللاعبين
-    d.text(
-        (600, 490),
-        "اللاعبون المشاركون",
-        font=_font(28),
-        fill=(232, 198, 106, 255),
-        anchor="mm",
-    )
-
-    for i in range(HIDE_PRO_MAX_PLAYERS):
-        row = i // 5
-        col = i % 5
-        x1 = 70 + col * 210
-        y1 = 520 + row * 75
-        x2 = x1 + 195
-        y2 = y1 + 58
-        if i < len(players):
-            member = players[i]
-            fill = (34, 42, 62, 245)
-            outline = (232, 198, 106, 190)
-            name = member.display_name[:20]
-        else:
-            fill = (20, 24, 36, 180)
-            outline = (55, 62, 80, 130)
-            name = "— فارغ —"
-        d.rounded_rectangle(
-            (x1, y1, x2, y2),
-            radius=16,
-            fill=fill,
-            outline=outline,
-            width=2,
-        )
-        d.text(
-            ((x1+x2)//2, (y1+y2)//2),
-            name,
-            font=_fit_font(name, 170, 22, 15),
-            fill=(255, 255, 255, 255) if i < len(players) else (105, 111, 128, 255),
-            anchor="mm",
-        )
-
-    out = io.BytesIO()
-    base.save(out, format="PNG", optimize=False, compress_level=3)
-    out.seek(0)
-    base.close()
-    return out
-
-
-def draw_hide_pro_result(winner_avatar_bytes, winner_name, prize):
-    """بطاقة النتيجة النهائية للعبة المحسّنة."""
-    width, height = 1024, 501
-    base = _open_roulette_background((width, height))
-    d = ImageDraw.Draw(base)
-
-    d.rounded_rectangle(
-        (65, 35, width-65, 110),
-        radius=22,
-        fill=(26, 31, 48, 235),
-        outline=(232, 198, 106, 220),
-        width=3,
-    )
-    d.text(
-        (width//2, 73),
-        "🏆 نهاية لعبة الاختباء",
-        font=_font(34),
-        fill=(232, 198, 106, 255),
-        anchor="mm",
-    )
-
-    if winner_avatar_bytes:
-        try:
-            avatar = get_circle_avatar(winner_avatar_bytes, (190, 190))
-            base.paste(avatar, (417, 130), avatar)
-        except Exception:
-            pass
-
-    d.text(
-        (512, 350),
-        winner_name[:24],
-        font=_fit_font(winner_name[:24], 500, 30, 18),
-        fill=(255, 255, 255, 255),
-        anchor="mm",
-    )
-    prize_text = f"الجائزة: {prize:,} طولار" if prize > 0 else "انتهت اللعبة بدون جائزة مالية"
-    d.text(
-        (512, 405),
-        prize_text,
-        font=_fit_font(prize_text, 700, 27, 18),
-        fill=(232, 198, 106, 255),
-        anchor="mm",
-    )
-
-    out = io.BytesIO()
-    base.save(out, format="PNG", optimize=False, compress_level=3)
-    out.seek(0)
-    base.close()
-    return out
-
-
-class HideProNumberButton(discord.ui.Button):
-    """زر يمثل رقمًا في لوحة الأرقام."""
-    def __init__(self, game_id, number, row=0, disabled=False):
-        self.game_id = game_id
-        self.number = number
-        super().__init__(
-            label=str(number),
-            style=discord.ButtonStyle.secondary,
-            disabled=disabled,
-            row=row,
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        game = ACTIVE_HIDE_PRO_GAMES.get(self.game_id)
-        if not game:
-            return await interaction.response.send_message("❌ انتهت اللعبة.", ephemeral=True)
-
-        # أثناء مرحلة التسجيل: اللاعب يختار رقمه السري
-        if not game["started"]:
-            uid = interaction.user.id
-            if uid not in [m.id for m in game["players"]]:
-                return await interaction.response.send_message("❌ يجب أن تدخل اللعبة أولاً.", ephemeral=True)
-            if uid in game["choices"]:
-                return await interaction.response.send_message(f"⚠️ تم تسجيل اختيارك مسبقاً: **{game['choices'][uid]}**.", ephemeral=True)
-            if self.number in game["taken"]:
-                return await interaction.response.send_message("❌ هذا الرقم اختاره لاعب آخر، اختر رقماً مختلفاً.", ephemeral=True)
-
-            game["choices"][uid] = self.number
-            game["taken"][self.number] = uid
-            # تغيير لون الزر إلى أخضر للإشارة إلى أنه تم اختياره
-            self.style = discord.ButtonStyle.success
-            self.disabled = True
-            await interaction.response.edit_message(view=self.view)
-            await interaction.followup.send(f"✅ تم تسجيل اختيارك رقم **{self.number}**.", ephemeral=True)
-            return
-
-        # أثناء اللعب: الباحث يختار رقمًا للكشف
-        if interaction.user.id != game["seeker_id"]:
-            return await interaction.response.send_message("❌ هذا الدور ليس لك، أنت لست الباحث.", ephemeral=True)
-
-        state = game["buttons"].get(self.number)
-        if state != "open":
-            return await interaction.response.send_message("❌ هذا الرقم تم اختياره مسبقاً.", ephemeral=True)
-
-        async with game["lock"]:
-            if self.number not in game["buttons"] or game["buttons"][self.number] != "open":
-                return await interaction.response.send_message("❌ هذا الرقم تم اختياره مسبقاً.", ephemeral=True)
-
-            target_id = game["taken"].get(self.number)
-            # تحديث حالة الزر
-            if target_id in game["active_ids"]:
-                # تم العثور على لاعب
-                game["buttons"][self.number] = "found"
-                game["active_ids"].remove(target_id)
-                target = game["member_by_id"].get(target_id)
-                if target:
-                    game["eliminated"].append(target)
-                self.style = discord.ButtonStyle.success
-                self.disabled = True
-                message = f"🔍 وجدت **{target.display_name}** مختبئاً خلف الرقم {self.number}!"
-            else:
-                # رقم فارغ
-                game["buttons"][self.number] = "empty"
-                self.style = discord.ButtonStyle.danger
-                self.disabled = True
-                message = f"❌ الرقم {self.number} فارغ، لم يكن هناك أحد."
-
-            await interaction.response.edit_message(view=self.view)
-            await interaction.followup.send(message)
-
-            # هل انتهت اللعبة؟
-            if len(game["active_ids"]) <= 1:
-                # إنهاء اللعبة
-                await HideProGameView.finish_game(self.game_id, interaction)
-                return
-
-            # اختيار الباحث التالي (إذا أردنا تغيير الباحث بعد كل كشف) - هنا نبقي نفس الباحث.
-            # لكن يمكن جعل الباحث يظل كما هو حتى يجد الجميع.
-            # نحدث الـ Embed لإظهار الحالة الجديدة
-            view = self.view
-            if isinstance(view, HideProGameView):
-                await view.update_message(interaction)
-
-
-class HideProLobbyView(discord.ui.View):
-    """واجهة التسجيل والانضمام."""
-    def __init__(self, game_id):
-        super().__init__(timeout=HIDE_PRO_GAME_TIMEOUT)
-        self.game_id = game_id
-        self.message = None
-        self.no_join_task = asyncio.create_task(self._cancel_if_no_join())
-
-        # أزرار الأرقام (للتسجيل)
-        for number in range(1, HIDE_PRO_NUMBERS + 1):
-            row = (number - 1) // 5
-            self.add_item(HideProNumberButton(game_id, number, row=row))
-
-    def _game(self):
-        return ACTIVE_HIDE_PRO_GAMES.get(self.game_id)
-
-    async def _cancel_if_no_join(self):
-        try:
-            await asyncio.sleep(HIDE_PRO_JOIN_TIMEOUT)
-            game = self._game()
-            if not game or game["started"] or len(game["players"]) > 1:
-                return
-
-            ACTIVE_HIDE_PRO_GAMES.pop(self.game_id, None)
-            if game["amount"] > 0:
-                add_balance(game["host"].id, game["amount"])
-            for member in game["players"]:
-                ACTIVE_HIDE_PRO_USERS.discard(member.id)
-
-            if self.message:
-                try:
-                    await self.message.edit(
-                        content="⏰ تم إلغاء اللعبة لعدم دخول لاعبين جدد خلال 30 ثانية."
-                        + (" وتمت إعادة مبلغ الجائزة." if game["amount"] > 0 else ""),
-                        attachments=[],
-                        view=None,
-                    )
-                except Exception:
-                    pass
-            self.stop()
-        except asyncio.CancelledError:
-            pass
-
-    async def _refresh(self, interaction):
-        game = self._game()
-        if not game:
-            return
-        img_buf = None
-        try:
-            img_buf = await _run_bg(
-                draw_hide_pro_lobby,
-                game["amount"],
-                game["players"],
-                game["host"],
-                HIDE_PRO_NUMBERS,
-            )
-            file = discord.File(img_buf, filename="hide_pro_lobby.png")
-            await interaction.message.edit(
-                attachments=[file],
-                view=self,
-                content=None,
-            )
-        finally:
-            if img_buf is not None:
-                img_buf.close()
-
-    @discord.ui.button(label="دخول", style=discord.ButtonStyle.success, emoji="🎟️", row=4)
-    async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
-        game = self._game()
-        if not game:
-            return await interaction.response.send_message("❌ انتهت اللعبة.", ephemeral=True)
-
-        uid = interaction.user.id
-        if uid in [m.id for m in game["players"]]:
-            return await interaction.response.send_message("⚠️ أنت داخل اللعبة بالفعل.", ephemeral=True)
-        if len(game["players"]) >= HIDE_PRO_MAX_PLAYERS:
-            return await interaction.response.send_message("❌ اللعبة مكتملة (10/10).", ephemeral=True)
-        if uid in ACTIVE_HIDE_PRO_USERS:
-            return await interaction.response.send_message("❌ أنت مشارك في لعبة اختباء أخرى.", ephemeral=True)
-
-        game["players"].append(interaction.user)
-        game["member_by_id"][uid] = interaction.user
-        ACTIVE_HIDE_PRO_USERS.add(uid)
-        await interaction.response.defer()
-        await self._refresh(interaction)
-
-    @discord.ui.button(label="خروج", style=discord.ButtonStyle.secondary, emoji="🚪", row=4)
-    async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
-        game = self._game()
-        if not game:
-            return await interaction.response.send_message("❌ انتهت اللعبة.", ephemeral=True)
-
-        uid = interaction.user.id
-        if uid not in [m.id for m in game["players"]]:
-            return await interaction.response.send_message("⚠️ أنت لست داخل اللعبة.", ephemeral=True)
-        if game["started"]:
-            return await interaction.response.send_message("❌ لا يمكن الخروج بعد بدء اللعبة.", ephemeral=True)
-
-        game["players"] = [m for m in game["players"] if m.id != uid]
-        game["member_by_id"].pop(uid, None)
-        game["choices"].pop(uid, None)
-        for number, owner_id in list(game["taken"].items()):
-            if owner_id == uid:
-                game["taken"].pop(number, None)
-        ACTIVE_HIDE_PRO_USERS.discard(uid)
-
-        if uid == game["host"].id:
-            ACTIVE_HIDE_PRO_GAMES.pop(self.game_id, None)
-            if game["amount"] > 0:
-                add_balance(game["host"].id, game["amount"])
-            for member in game["players"]:
-                ACTIVE_HIDE_PRO_USERS.discard(member.id)
-            await interaction.response.edit_message(
-                content="❌ تم إلغاء اللعبة لأن صاحب اللعبة خرج، وتمت إعادة الجائزة له.",
-                attachments=[],
-                view=None,
-            )
-            self.stop()
-            return
-
-        await interaction.response.defer()
-        await self._refresh(interaction)
-
-    @discord.ui.button(label="بدء", style=discord.ButtonStyle.primary, emoji="▶️", row=4)
-    async def start_game(self, interaction: discord.Interaction, button: discord.ui.Button):
-        game = self._game()
-        if not game:
-            return await interaction.response.send_message("❌ انتهت اللعبة.", ephemeral=True)
-        if interaction.user.id != game["host"].id:
-            return await interaction.response.send_message("❌ زر بدء اللعبة لصاحب اللعبة فقط.", ephemeral=True)
-        if len(game["players"]) < HIDE_PRO_MIN_PLAYERS:
-            return await interaction.response.send_message(f"❌ يجب دخول {HIDE_PRO_MIN_PLAYERS} لاعبين على الأقل.", ephemeral=True)
-        if len(game["choices"]) != len(game["players"]):
-            missing = [m.mention for m in game["players"] if m.id not in game["choices"]]
-            return await interaction.response.send_message(
-                "❌ يجب أن يختار جميع المشاركين أماكنهم أولاً.\nالمتبقي: " + ", ".join(missing[:10]),
-                ephemeral=True,
-            )
-        if game["started"]:
-            return await interaction.response.send_message("⚠️ اللعبة بدأت بالفعل.", ephemeral=True)
-
-        game["started"] = True
-        game["active_ids"] = {m.id for m in game["players"]}
-        # اختيار باحث عشوائي
-        game["seeker_id"] = random.choice(list(game["active_ids"]))
-        game["buttons"] = {n: "open" for n in range(1, HIDE_PRO_NUMBERS + 1)}
-
-        await interaction.response.defer()
-        # إغلاق رسالة التسجيل
-        try:
-            await interaction.message.edit(view=None)
-        except Exception:
-            pass
-
-        view = HideProGameView(self.game_id)
-        game["view"] = view
-        await view.send_new_round(interaction, first=True)
-        self.stop()
-
-
-class HideProGameView(discord.ui.View):
-    """واجهة اللعب الفعلية (بعد البدء)."""
-    def __init__(self, game_id):
-        super().__init__(timeout=HIDE_PRO_GAME_TIMEOUT)
-        self.game_id = game_id
-        self.message = None
-        for number in range(1, HIDE_PRO_NUMBERS + 1):
-            row = (number - 1) // 5
-            self.add_item(HideProNumberButton(game_id, number, row=row))
-
-    @staticmethod
-    def _embed(game):
-        seeker = game["member_by_id"].get(game["seeker_id"])
-        active_count = len(game["active_ids"])
-        embed = discord.Embed(
-            title="🕵️ لعبة الاختباء المحسّنة",
-            description=(
-                f"🔍 **الباحث:** {seeker.mention if seeker else 'غير معروف'}\n"
-                f"👥 المتبقون: **{active_count}** لاعب\n"
-                + (f"💰 الجائزة: **{game['amount']:,} طولار**" if game["amount"] > 0 else "🎁 بدون جائزة مالية")
-                + "\n\nاختر رقماً لكشف من يختبئ خلفه."
-            ),
-            color=discord.Color.from_rgb(184, 145, 55),
-        )
-        return embed
-
-    def _apply_button_states(self):
-        """تحديث ألوان الأزرار بناءً على حالة اللعبة."""
-        game = ACTIVE_HIDE_PRO_GAMES.get(self.game_id)
-        if not game:
-            return
-        for child in self.children:
-            if not isinstance(child, HideProNumberButton):
-                continue
-            state = game["buttons"].get(child.number)
-            if state == "found":
-                child.style = discord.ButtonStyle.success
-                child.disabled = True
-            elif state == "empty":
-                child.style = discord.ButtonStyle.danger
-                child.disabled = True
-            else:
-                # أثناء مرحلة اللعب، الأرقام المفتوحة تكون قابلة للضغط
-                # لكن الباحث فقط يمكنه الضغط
-                child.style = discord.ButtonStyle.secondary
-                child.disabled = False
-
-    async def send_new_round(self, interaction, first=False):
-        game = ACTIVE_HIDE_PRO_GAMES.get(self.game_id)
-        if not game:
-            return
-        self._apply_button_states()
-        embed = self._embed(game)
-        # نرسل رسالة جديدة بدلاً من تعديل الرسالة السابقة
-        new_message = await interaction.followup.send(
-            embed=embed,
-            view=self,
-            wait=True,
-        )
-        self.message = new_message
-        game["message"] = new_message
-        game["view"] = self
-
-    async def update_message(self, interaction):
-        game = ACTIVE_HIDE_PRO_GAMES.get(self.game_id)
-        if not game:
-            return
-        self._apply_button_states()
-        embed = self._embed(game)
-        if self.message is None:
-            self.message = interaction.message
-        game["message"] = self.message
-        game["view"] = self
-        await self.message.edit(embed=embed, view=self)
-
-    @staticmethod
-    async def finish_game(game_id, interaction):
-        game = ACTIVE_HIDE_PRO_GAMES.pop(game_id, None)
-        if not game:
-            return
-
-        winner_id = next(iter(game["active_ids"]), None)
-        winner = game["member_by_id"].get(winner_id)
-        if winner is None:
-            return
-
-        for member in game["players"]:
-            ACTIVE_HIDE_PRO_USERS.discard(member.id)
-
-        if game["amount"] > 0:
-            add_balance(winner.id, game["amount"])
-
-        try:
-            await interaction.message.edit(view=None)
-        except Exception:
-            pass
-
-        avatar_bytes = None
-        try:
-            avatar_bytes = await winner.display_avatar.read()
-        except Exception:
-            pass
-
-        img_buf = None
-        try:
-            img_buf = await _run_bg(
-                draw_hide_pro_result,
-                avatar_bytes,
-                winner.display_name,
-                game["amount"],
-            )
-            file = discord.File(img_buf, filename="hide_pro_result.png")
-            embed = discord.Embed(
-                title="🏆 نهاية لعبة الاختباء",
-                description=(
-                    f"🎉 **الفائز: {winner.mention}**\n\n"
-                    + (f"💰 تمت إضافة **{game['amount']:,} طولار** إلى رصيد الفائز."
-                       if game["amount"] > 0 else "🎁 انتهت اللعبة بدون جائزة مالية.")
-                ),
-                color=discord.Color.from_rgb(232, 198, 106),
-            )
-            embed.set_image(url="attachment://hide_pro_result.png")
-            embed.set_footer(text=f"عدد المشاركين: {len(game['players'])}")
-            await interaction.followup.send(embed=embed, file=file, wait=True)
-        finally:
-            if img_buf is not None:
-                img_buf.close()
-
-    async def on_timeout(self):
-        game = ACTIVE_HIDE_PRO_GAMES.get(self.game_id)
-        if not game or game.get("view") is not self:
-            return
-
-        ACTIVE_HIDE_PRO_GAMES.pop(self.game_id, None)
-        if game["amount"] > 0:
-            add_balance(game["host"].id, game["amount"])
-        for member in game["players"]:
-            ACTIVE_HIDE_PRO_USERS.discard(member.id)
-        if self.message:
-            try:
-                await self.message.edit(
-                    content="⏰ انتهت اللعبة بسبب انتهاء وقت التفاعل."
-                    + (" تمت إعادة الجائزة لصاحب اللعبة." if game["amount"] > 0 else ""),
-                    embed=None,
-                    attachments=[],
-                    view=None,
-                )
-            except Exception:
-                pass
-
-
-@bot.command(name="اختباء_جديد", aliases=["مخابئ", "hidepro"])
-@in_channel(GAMES_CHANNEL_ID)
-async def hide_pro_game(ctx, amount_text=None):
-    """الاستخدام: اختباء_جديد أو اختباء_جديد 1000."""
-    if amount_text is None:
-        amount = 0
-    else:
-        amount = _roulette_number(amount_text)
-        if amount is None:
-            return await ctx.send(
-                "❌ الاستخدام: `اختباء_جديد` أو `اختباء_جديد 1000` (المبلغ رقم)",
-                delete_after=5,
-            )
-
-    host_id = ctx.author.id
-    if host_id in ACTIVE_HIDE_PRO_USERS:
-        return await ctx.send("❌ لديك لعبة اختباء مفتوحة بالفعل.", delete_after=4)
-
-    balance = get_balance(host_id)
-    if amount > 0 and balance < amount:
-        return await ctx.send(
-            f"❌ رصيدك غير كافٍ. تحتاج **{amount:,} طولار**، رصيدك **{balance:,}**.",
-            delete_after=5,
-        )
-
-    if amount > 0:
-        remove_balance(host_id, amount)
-
-    game_id = f"hidepro:{ctx.channel.id}:{ctx.message.id}:{host_id}"
-    game = {
-        "id": game_id,
-        "host": ctx.author,
-        "amount": amount,
-        "players": [ctx.author],
-        "member_by_id": {host_id: ctx.author},
-        "choices": {},
-        "taken": {},
-        "started": False,
-        "seeker_id": None,
-        "active_ids": set(),
-        "buttons": {},
-        "eliminated": [],
-        "message": None,
-        "view": None,
-        "lock": asyncio.Lock(),
-    }
-    ACTIVE_HIDE_PRO_GAMES[game_id] = game
-    ACTIVE_HIDE_PRO_USERS.add(host_id)
-
-    view = HideProLobbyView(game_id)
-    img_buf = None
-    try:
-        img_buf = await _run_bg(
-            draw_hide_pro_lobby,
-            amount,
-            game["players"],
-            ctx.author,
-            HIDE_PRO_NUMBERS,
-        )
-        file = discord.File(img_buf, filename="hide_pro_lobby.png")
-        view.message = await ctx.send(
-            file=file,
-            view=view,
-            allowed_mentions=discord.AllowedMentions(users=False),
-        )
-        game["message"] = view.message
-    except Exception:
-        ACTIVE_HIDE_PRO_GAMES.pop(game_id, None)
-        ACTIVE_HIDE_PRO_USERS.discard(host_id)
-        if amount > 0:
-            add_balance(host_id, amount)
-        raise
-    finally:
-        if img_buf is not None:
-            img_buf.close()
 
 
 # ==========================================
-# 🕵️ لعبة الاختباء
-# ==========================================
-ACTIVE_HIDE_GAMES = {}
-ACTIVE_HIDE_USERS = set()
-
-HIDE_MAX_PLAYERS = 10
-HIDE_MIN_PLAYERS = 2
-HIDE_BUTTONS = 20
-HIDE_JOIN_TIMEOUT = 20
-HIDE_GAME_TIMEOUT = 600
-
-
-def draw_hide_lobby(amount, players, host):
-    """بطاقة لعبة الاختباء بنفس طابع بطاقة الروليت."""
-    width, height = 1200, 700
-    base = _open_roulette_background((width, height))
-    d = ImageDraw.Draw(base)
-
-    for r in (530, 500, 470):
-        d.ellipse(
-            (width//2-r, 350-r, width//2+r, 350+r),
-            outline=(184, 145, 55, 35),
-            width=2,
-        )
-
-    d.rounded_rectangle(
-        (70, 35, width-70, 145),
-        radius=30,
-        fill=(26, 31, 48, 245),
-        outline=(232, 198, 106, 255),
-        width=4,
-    )
-    d.text(
-        (width//2, 88),
-        "🕵️ لعبة الاختباء",
-        font=_font(52),
-        fill=(232, 198, 106, 255),
-        anchor="mm",
-    )
-
-    # عدد المشاركين
-    d.rounded_rectangle(
-        (820, 175, 1130, 285),
-        radius=24,
-        fill=(10, 13, 22, 235),
-        outline=(232, 198, 106, 210),
-        width=3,
-    )
-    d.text(
-        (975, 213),
-        f"{len(players)} / {HIDE_MAX_PLAYERS}",
-        font=_font(46),
-        fill=(255, 255, 255, 255),
-        anchor="mm",
-    )
-    d.text(
-        (975, 258),
-        "عدد المشاركين",
-        font=_font(22),
-        fill=(180, 184, 198, 255),
-        anchor="mm",
-    )
-
-    # الجائزة
-    d.rounded_rectangle(
-        (70, 175, 790, 285),
-        radius=24,
-        fill=(26, 31, 48, 235),
-        outline=(80, 91, 120, 200),
-        width=2,
-    )
-    prize_text = f"الجائزة: {amount:,} طولار" if amount > 0 else "بدون جائزة"
-    d.text(
-        (430, 212),
-        prize_text,
-        font=_fit_font(prize_text, 620, 34, 22),
-        fill=(232, 198, 106, 255),
-        anchor="mm",
-    )
-    d.text(
-        (430, 258),
-        f"صاحب اللعبة: {host.display_name[:28]}",
-        font=_fit_font(f"صاحب اللعبة: {host.display_name[:28]}", 620, 24, 18),
-        fill=(220, 223, 233, 255),
-        anchor="mm",
-    )
-
-    # شرح اللعبة كما طلب المستخدم.
-    d.rounded_rectangle(
-        (70, 315, 1130, 455),
-        radius=26,
-        fill=(7, 10, 18, 205),
-        outline=(70, 82, 110, 180),
-        width=2,
-    )
-    d.text(
-        (600, 350),
-        "اضغط على أحد الأزرار للاختباء",
-        font=_font(35),
-        fill=(255, 255, 255, 255),
-        anchor="mm",
-    )
-    description = "يختار كل لاعب رقماً سرياً من 1 إلى 20، ثم يبدأ الطرد حتى يبقى فائز واحد."
-    d.text(
-        (600, 405),
-        description,
-        font=_fit_font(description, 950, 28, 18),
-        fill=(194, 199, 214, 255),
-        anchor="mm",
-    )
-
-    d.text(
-        (600, 490),
-        "اللاعبون المشاركون",
-        font=_font(28),
-        fill=(232, 198, 106, 255),
-        anchor="mm",
-    )
-
-    for i in range(HIDE_MAX_PLAYERS):
-        row = i // 5
-        col = i % 5
-        x1 = 70 + col * 210
-        y1 = 520 + row * 75
-        x2 = x1 + 195
-        y2 = y1 + 58
-        if i < len(players):
-            member = players[i]
-            fill = (34, 42, 62, 245)
-            outline = (232, 198, 106, 190)
-            name = member.display_name[:20]
-        else:
-            fill = (20, 24, 36, 180)
-            outline = (55, 62, 80, 130)
-            name = "— فارغ —"
-        d.rounded_rectangle(
-            (x1, y1, x2, y2),
-            radius=16,
-            fill=fill,
-            outline=outline,
-            width=2,
-        )
-        d.text(
-            ((x1+x2)//2, (y1+y2)//2),
-            name,
-            font=_fit_font(name, 170, 22, 15),
-            fill=(255, 255, 255, 255) if i < len(players) else (105, 111, 128, 255),
-            anchor="mm",
-        )
-
-    out = io.BytesIO()
-    base.save(out, format="PNG", optimize=False, compress_level=3)
-    out.seek(0)
-    base.close()
-    return out
-
-
-def draw_hide_result(winner_avatar_bytes, winner_name, prize):
-    """بطاقة نتيجة نهائية بنفس أسلوب بطاقة الروليت."""
-    width, height = 1024, 501
-    base = _open_roulette_background((width, height))
-    d = ImageDraw.Draw(base)
-
-    d.rounded_rectangle(
-        (65, 35, width-65, 110),
-        radius=22,
-        fill=(26, 31, 48, 235),
-        outline=(232, 198, 106, 220),
-        width=3,
-    )
-    d.text(
-        (width//2, 73),
-        "🏆 نهاية لعبة الاختباء",
-        font=_font(34),
-        fill=(232, 198, 106, 255),
-        anchor="mm",
-    )
-
-    if winner_avatar_bytes:
-        try:
-            avatar = get_circle_avatar(winner_avatar_bytes, (190, 190))
-            base.paste(avatar, (417, 130), avatar)
-        except Exception:
-            pass
-
-    d.text(
-        (512, 350),
-        winner_name[:24],
-        font=_fit_font(winner_name[:24], 500, 30, 18),
-        fill=(255, 255, 255, 255),
-        anchor="mm",
-    )
-    prize_text = f"الجائزة: {prize:,} طولار" if prize > 0 else "انتهت اللعبة بدون جائزة مالية"
-    d.text(
-        (512, 405),
-        prize_text,
-        font=_fit_font(prize_text, 700, 27, 18),
-        fill=(232, 198, 106, 255),
-        anchor="mm",
-    )
-
-    out = io.BytesIO()
-    base.save(out, format="PNG", optimize=False, compress_level=3)
-    out.seek(0)
-    base.close()
-    return out
-
-
-class HideNumberButton(discord.ui.Button):
-    def __init__(self, game_id, number, disabled=False, style=discord.ButtonStyle.secondary, row=None):
-        self.game_id = game_id
-        self.number = number
-        super().__init__(
-            label=str(number),
-            style=style,
-            disabled=disabled,
-            row=row,
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        game = ACTIVE_HIDE_GAMES.get(self.game_id)
-        if not game:
-            return await interaction.response.send_message("❌ انتهت اللعبة.", ephemeral=True)
-
-        # في مرحلة التسجيل: الرقم يختاره صاحبه سراً، ولا نغيّر شكل الزر.
-        if not game["started"]:
-            uid = interaction.user.id
-            if uid not in [m.id for m in game["players"]]:
-                return await interaction.response.send_message(
-                    "❌ يجب أن تدخل اللعبة أولاً.", ephemeral=True
-                )
-            if uid in game["choices"]:
-                return await interaction.response.send_message(
-                    f"⚠️ تم تسجيل اختيارك مسبقاً: **{game['choices'][uid]}**.", ephemeral=True
-                )
-            if self.number in game["taken"]:
-                return await interaction.response.send_message(
-                    "❌ هذا الرقم اختاره لاعب آخر، اختر رقماً مختلفاً.", ephemeral=True
-                )
-
-            game["choices"][uid] = self.number
-            game["taken"][self.number] = uid
-            await interaction.response.send_message(
-                f"✅ تم تسجيل اختيارك رقمك **{self.number}**.", ephemeral=True
-            )
-            return
-
-        # أثناء اللعب: الزر يحدد مكان اختباء أحد اللاعبين.
-        if interaction.user.id != game["selected_id"]:
-            return await interaction.response.send_message(
-                "❌ هذا الدور ليس لك.", ephemeral=True
-            )
-
-        state = game["buttons"].get(self.number)
-        if state != "open":
-            return await interaction.response.send_message(
-                "❌ هذا الزر تم اختياره مسبقاً.", ephemeral=True
-            )
-
-        async with game["lock"]:
-            # إعادة التحقق بعد الحصول على القفل لمنع ضغطتين متزامنتين.
-            if self.number not in game["buttons"] or game["buttons"][self.number] != "open":
-                return await interaction.response.send_message(
-                    "❌ هذا الزر تم اختياره مسبقاً.", ephemeral=True
-                )
-
-            target_id = game["taken"].get(self.number)
-            game["buttons"][self.number] = "green" if target_id in game["active_ids"] else "red"
-
-            if target_id in game["active_ids"]:
-                game["active_ids"].remove(target_id)
-                target = game["member_by_id"].get(target_id)
-                if target:
-                    game["eliminated"].append(target)
-
-            # انتهت اللعبة إذا بقي لاعب واحد.
-            if len(game["active_ids"]) <= 1:
-                await interaction.response.defer()
-                # إنهاء اللعبة بالدالة الصحيحة (الوسيط الأول هو game_id).
-                await HideGameView.finish_game(self.game_id, interaction)
-                return
-
-            # الدور التالي عشوائي من اللاعبين المتبقين.
-            game["selected_id"] = random.choice(list(game["active_ids"]))
-            await interaction.response.defer()
-
-            # أوقف الـ View السابق حتى لا ينتهي Timeout قديم ويُلغي اللعبة
-            # أثناء وجود جولة أحدث فعّالة.
-            current_view = getattr(self, "view", None)
-            if current_view is not None:
-                current_view.stop()
-
-            view = HideGameView(self.game_id)
-            game["view"] = view
-            await view.update_message(interaction)
-
-
-class HideLobbyView(discord.ui.View):
-    def __init__(self, game_id):
-        super().__init__(timeout=HIDE_GAME_TIMEOUT)
-        self.game_id = game_id
-        self.message = None
-        self.no_join_task = asyncio.create_task(self._cancel_if_no_join())
-
-        for number in range(1, HIDE_BUTTONS + 1):
-            row = (number - 1) // 5
-            self.add_item(HideNumberButton(game_id, number, row=row))
-
-    def _game(self):
-        return ACTIVE_HIDE_GAMES.get(self.game_id)
-
-    async def _cancel_if_no_join(self):
-        try:
-            await asyncio.sleep(HIDE_JOIN_TIMEOUT)
-            game = self._game()
-            if not game or game["started"] or len(game["players"]) > 1:
-                return
-
-            ACTIVE_HIDE_GAMES.pop(self.game_id, None)
-            if game["amount"] > 0:
-                add_balance(game["host"].id, game["amount"])
-            for member in game["players"]:
-                ACTIVE_HIDE_USERS.discard(member.id)
-
-            if self.message:
-                try:
-                    await self.message.edit(
-                        content="⏰ تم إلغاء لعبة الاختباء لعدم دخول أي لاعب خلال 20 ثانية."
-                        + (
-                            " وتمت إعادة مبلغ الجائزة لصاحب اللعبة."
-                            if game["amount"] > 0 else ""
-                        ),
-                        attachments=[],
-                        view=None,
-                    )
-                except Exception:
-                    pass
-            self.stop()
-        except asyncio.CancelledError:
-            pass
-
-    async def _refresh(self, interaction):
-        game = self._game()
-        if not game:
-            return
-        img_buf = None
-        try:
-            img_buf = await _run_bg(
-                draw_hide_lobby,
-                game["amount"],
-                game["players"],
-                game["host"],
-            )
-            file = discord.File(img_buf, filename="hide_lobby.png")
-            await interaction.message.edit(
-                attachments=[file],
-                view=self,
-                content=None,
-            )
-        finally:
-            if img_buf is not None:
-                img_buf.close()
-
-    @discord.ui.button(label="دخول", style=discord.ButtonStyle.success, emoji="🎟️", row=4)
-    async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
-        game = self._game()
-        if not game:
-            return await interaction.response.send_message("❌ انتهت اللعبة.", ephemeral=True)
-
-        uid = interaction.user.id
-        if uid in [m.id for m in game["players"]]:
-            return await interaction.response.send_message("⚠️ أنت داخل اللعبة بالفعل.", ephemeral=True)
-        if len(game["players"]) >= HIDE_MAX_PLAYERS:
-            return await interaction.response.send_message("❌ اللعبة مكتملة (10/10).", ephemeral=True)
-        if uid in ACTIVE_HIDE_USERS:
-            return await interaction.response.send_message(
-                "❌ أنت مشارك في لعبة اختباء أخرى بالفعل.", ephemeral=True
-            )
-
-        game["players"].append(interaction.user)
-        game["member_by_id"][uid] = interaction.user
-        ACTIVE_HIDE_USERS.add(uid)
-        await interaction.response.defer()
-        await self._refresh(interaction)
-
-    @discord.ui.button(label="خروج", style=discord.ButtonStyle.secondary, emoji="🚪", row=4)
-    async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
-        game = self._game()
-        if not game:
-            return await interaction.response.send_message("❌ انتهت اللعبة.", ephemeral=True)
-
-        uid = interaction.user.id
-        if uid not in [m.id for m in game["players"]]:
-            return await interaction.response.send_message("⚠️ أنت لست داخل اللعبة.", ephemeral=True)
-        if game["started"]:
-            return await interaction.response.send_message("❌ لا يمكن الخروج بعد بدء اللعبة.", ephemeral=True)
-
-        game["players"] = [m for m in game["players"] if m.id != uid]
-        game["member_by_id"].pop(uid, None)
-        game["choices"].pop(uid, None)
-        for number, owner_id in list(game["taken"].items()):
-            if owner_id == uid:
-                game["taken"].pop(number, None)
-        ACTIVE_HIDE_USERS.discard(uid)
-
-        if uid == game["host"].id:
-            ACTIVE_HIDE_GAMES.pop(self.game_id, None)
-            if game["amount"] > 0:
-                add_balance(game["host"].id, game["amount"])
-            for member in game["players"]:
-                ACTIVE_HIDE_USERS.discard(member.id)
-            await interaction.response.edit_message(
-                content="❌ تم إلغاء لعبة الاختباء لأن صاحب اللعبة خرج، وتمت إعادة الجائزة له.",
-                attachments=[],
-                view=None,
-            )
-            self.stop()
-            return
-
-        await interaction.response.defer()
-        await self._refresh(interaction)
-
-    @discord.ui.button(label="بدء", style=discord.ButtonStyle.primary, emoji="▶️", row=4)
-    async def start_game(self, interaction: discord.Interaction, button: discord.ui.Button):
-        game = self._game()
-        if not game:
-            return await interaction.response.send_message("❌ انتهت اللعبة.", ephemeral=True)
-        if interaction.user.id != game["host"].id:
-            return await interaction.response.send_message(
-                "❌ زر بدء اللعبة لصاحب اللعبة فقط.", ephemeral=True
-            )
-        if len(game["players"]) < HIDE_MIN_PLAYERS:
-            return await interaction.response.send_message(
-                f"❌ يجب دخول {HIDE_MIN_PLAYERS} لاعبين على الأقل.", ephemeral=True
-            )
-        if len(game["choices"]) != len(game["players"]):
-            missing = [
-                m.mention for m in game["players"]
-                if m.id not in game["choices"]
-            ]
-            return await interaction.response.send_message(
-                "❌ يجب أن يختار جميع المشاركين مكان اختبائهم أولاً.\n"
-                + "المتبقي: " + ", ".join(missing[:10]),
-                ephemeral=True,
-            )
-        if game["started"]:
-            return await interaction.response.send_message("⚠️ اللعبة بدأت بالفعل.", ephemeral=True)
-
-        game["started"] = True
-        game["active_ids"] = {m.id for m in game["players"]}
-        game["selected_id"] = random.choice(list(game["active_ids"]))
-        game["buttons"] = {n: "open" for n in range(1, HIDE_BUTTONS + 1)}
-
-        await interaction.response.defer()
-        # إغلاق رسالة التسجيل وإرسال رسالة لعب جديدة.
-        try:
-            await interaction.message.edit(view=None)
-        except Exception:
-            pass
-
-        view = HideGameView(self.game_id)
-        game["view"] = view
-        await view.send_new_round(interaction, first=True)
-        self.stop()
-
-
-class HideGameView(discord.ui.View):
-    def __init__(self, game_id):
-        super().__init__(timeout=HIDE_GAME_TIMEOUT)
-        self.game_id = game_id
-        self.message = None
-        for number in range(1, HIDE_BUTTONS + 1):
-            self.add_item(HideNumberButton(game_id, number, row=(number - 1) // 5))
-
-    @staticmethod
-    def _embed(game):
-        selected = game["member_by_id"].get(game["selected_id"])
-        active_count = len(game["active_ids"])
-        embed = discord.Embed(
-            title="🕵️ لعبة الاختباء",
-            description=(
-                f"🎯 **يا {selected.mention if selected else 'اللاعب'}** اختر أحد الأزرار لطرد لاعب.\n\n"
-                "اضغط على رقم واحد فقط، وإذا كان خلفه لاعب سيتم طرده، "
-                "وإذا كان فارغاً يصبح الزر أحمر.\n\n"
-                f"👥 المتبقون: **{active_count}**\n"
-                + (
-                    f"💰 الجائزة: **{game['amount']:,} طولار**"
-                    if game["amount"] > 0 else "🎁 **بدون جائزة مالية**"
-                )
-            ),
-            color=discord.Color.from_rgb(184, 145, 55),
-        )
-        return embed
-
-    def _apply_button_states(self):
-        for child in self.children:
-            if not isinstance(child, HideNumberButton):
-                continue
-            state = ACTIVE_HIDE_GAMES.get(self.game_id, {}).get("buttons", {}).get(child.number)
-            if state == "green":
-                child.style = discord.ButtonStyle.success
-                child.disabled = True
-            elif state == "red":
-                child.style = discord.ButtonStyle.danger
-                child.disabled = True
-            else:
-                child.style = discord.ButtonStyle.secondary
-                child.disabled = False
-
-    async def send_new_round(self, interaction, first=False):
-        game = ACTIVE_HIDE_GAMES.get(self.game_id)
-        if not game:
-            return
-        self._apply_button_states()
-        embed = self._embed(game)
-        new_message = await interaction.followup.send(
-            embed=embed,
-            view=self,
-            wait=True,
-        )
-        self.message = new_message
-        game["message"] = new_message
-        game["view"] = self
-
-    async def update_message(self, interaction):
-        game = ACTIVE_HIDE_GAMES.get(self.game_id)
-        if not game:
-            return
-        self._apply_button_states()
-        embed = self._embed(game)
-        if self.message is None:
-            self.message = interaction.message
-        game["message"] = self.message
-        game["view"] = self
-        await self.message.edit(embed=embed, view=self)
-
-    @staticmethod
-    async def finish_game(game_id, interaction):
-        game = ACTIVE_HIDE_GAMES.pop(game_id, None)
-        if not game:
-            return
-
-        winner_id = next(iter(game["active_ids"]), None)
-        winner = game["member_by_id"].get(winner_id)
-        if winner is None:
-            return
-
-        for member in game["players"]:
-            ACTIVE_HIDE_USERS.discard(member.id)
-
-        if game["amount"] > 0:
-            add_balance(winner.id, game["amount"])
-
-        try:
-            await interaction.message.edit(view=None)
-        except Exception:
-            pass
-
-        avatar_bytes = None
-        try:
-            avatar_bytes = await winner.display_avatar.read()
-        except Exception:
-            pass
-
-        img_buf = None
-        try:
-            img_buf = await _run_bg(
-                draw_hide_result,
-                avatar_bytes,
-                winner.display_name,
-                game["amount"],
-            )
-            file = discord.File(img_buf, filename="hide_result.png")
-            embed = discord.Embed(
-                title="🏆 نهاية لعبة الاختباء",
-                description=(
-                    f"🎉 **الفائز: {winner.mention}**\n\n"
-                    + (
-                        f"💰 تمت إضافة **{game['amount']:,} طولار** إلى رصيد الفائز."
-                        if game["amount"] > 0
-                        else "🎁 انتهت اللعبة بدون جائزة مالية."
-                    )
-                ),
-                color=discord.Color.from_rgb(232, 198, 106),
-            )
-            embed.set_image(url="attachment://hide_result.png")
-            embed.set_footer(text=f"عدد المشاركين: {len(game['players'])}")
-            await interaction.followup.send(embed=embed, file=file, wait=True)
-        finally:
-            if img_buf is not None:
-                img_buf.close()
-
-    async def on_timeout(self):
-        # قد تبقى Views قديمة في الذاكرة بعد الانتقال لجولة جديدة.
-        # لا نسمح لـ View قديم بإلغاء لعبة ما زالت تعمل.
-        game = ACTIVE_HIDE_GAMES.get(self.game_id)
-        if not game or game.get("view") is not self:
-            return
-
-        ACTIVE_HIDE_GAMES.pop(self.game_id, None)
-        if game["amount"] > 0:
-            add_balance(game["host"].id, game["amount"])
-        for member in game["players"]:
-            ACTIVE_HIDE_USERS.discard(member.id)
-        if self.message:
-            try:
-                await self.message.edit(
-                    content=(
-                        "⏰ انتهت لعبة الاختباء بسبب انتهاء وقت التفاعل."
-                        + (
-                            " تمت إعادة الجائزة لصاحب اللعبة."
-                            if game["amount"] > 0 else ""
-                        )
-                    ),
-                    embed=None,
-                    attachments=[],
-                    view=None,
-                )
-            except Exception:
-                pass
-
-
-@bot.command(name="اختباء")
-@in_channel(GAMES_CHANNEL_ID)
-async def hide_game(ctx, amount_text=None):
-    """الاستخدام: اختباء أو اختباء 1000."""
-    if amount_text is None:
-        amount = 0
-    else:
-        amount = _roulette_number(amount_text)
-        if amount is None:
-            return await ctx.send(
-                "❌ الاستخدام الصحيح: `اختباء` أو `اختباء 1000` — المبلغ يجب أن يكون رقماً أكبر من صفر.",
-                delete_after=5,
-            )
-
-    host_id = ctx.author.id
-    if host_id in ACTIVE_HIDE_USERS:
-        return await ctx.send("❌ لديك لعبة اختباء مفتوحة بالفعل.", delete_after=4)
-
-    balance = get_balance(host_id)
-    if amount > 0 and balance < amount:
-        return await ctx.send(
-            f"❌ رصيدك غير كافٍ. تحتاج إلى **{amount:,} طولار** "
-            f"ورصيدك الحالي **{balance:,}** طولار.",
-            delete_after=5,
-        )
-
-    if amount > 0:
-        remove_balance(host_id, amount)
-
-    game_id = f"hide:{ctx.channel.id}:{ctx.message.id}:{host_id}"
-    game = {
-        "id": game_id,
-        "host": ctx.author,
-        "amount": amount,
-        "players": [ctx.author],
-        "member_by_id": {host_id: ctx.author},
-        "choices": {},
-        "taken": {},
-        "started": False,
-        "selected_id": None,
-        "active_ids": set(),
-        "buttons": {},
-        "eliminated": [],
-        "message": None,
-        "view": None,
-        "lock": asyncio.Lock(),
-    }
-    ACTIVE_HIDE_GAMES[game_id] = game
-    ACTIVE_HIDE_USERS.add(host_id)
-
-    view = HideLobbyView(game_id)
-    img_buf = None
-    try:
-        img_buf = await _run_bg(
-            draw_hide_lobby,
-            amount,
-            game["players"],
-            ctx.author,
-        )
-        file = discord.File(img_buf, filename="hide_lobby.png")
-        view.message = await ctx.send(
-            file=file,
-            view=view,
-            allowed_mentions=discord.AllowedMentions(users=False),
-        )
-        game["message"] = view.message
-    except Exception:
-        ACTIVE_HIDE_GAMES.pop(game_id, None)
-        ACTIVE_HIDE_USERS.discard(host_id)
-        if amount > 0:
-            add_balance(host_id, amount)
-        raise
-    finally:
-        if img_buf is not None:
-            img_buf.close()
-
-
-# ==========================================
-# 🧠 لعبة تذكّر مكان الإيموجي
+# 🧠 Emoji Memory Game
 # ==========================================
 
 EMOJI_MEMORY_ACTIVE = set()
 
-# نطاقات شائعة للإيموجيات الملوّنة/الرموز التعبيرية.
+# Common emoji ranges for colourful/symbolic emojis.
 _EMOJI_RANGES = (
     (0x1F000, 0x1FAFF),
     (0x2300, 0x23FF),
@@ -6858,7 +5072,7 @@ _EMOJI_EXTRA = {0x00A9, 0x00AE, 0x203C, 0x2049, 0x2122, 0x2139}
 
 
 def _contains_unicode_emoji(value: str) -> bool:
-    """يتحقق من وجود إيموجي Unicode واحد على الأقل."""
+    """Check if at least one Unicode emoji is present."""
     return any(
         (start <= ord(ch) <= end) or ord(ch) in _EMOJI_EXTRA
         for ch in value
@@ -6867,20 +5081,19 @@ def _contains_unicode_emoji(value: str) -> bool:
 
 def _is_single_emoji_message(content: str) -> bool:
     """
-    لا نبدأ اللعبة إلا إذا كانت الرسالة عبارة عن إيموجي واحد فقط
-    (مع السماح بـ variation selector و ZWJ وعلامات ألوان البشرة).
-    يدعم أيضاً Custom Emoji بصيغة Discord.
+    Only start the game if the message is exactly one emoji
+    (allowing variation selectors, ZWJ, skin tones).
+    Also supports Discord custom emojis.
     """
     content = content.strip()
     if not content:
         return False
 
-    # Custom Emoji: <:name:id> أو <a:name:id>
+    # Custom emoji: <:name:id> or <a:name:id>
     if re.fullmatch(r"<a?:\w+:\d+>", content):
         return True
 
-    # Unicode Emoji: نحذف الرموز الملحقة المعتادة ثم نتحقق من بقاء
-    # قاعدة إيموجي واحدة فقط.
+    # Unicode emoji: strip common adornments and check for a single emoji base.
     base_chars = [
         ch for ch in content
         if ord(ch) not in {0xFE0E, 0xFE0F, 0x200D}
@@ -6889,7 +5102,7 @@ def _is_single_emoji_message(content: str) -> bool:
     if len(base_chars) == 1:
         return _contains_unicode_emoji(base_chars[0])
 
-    # بعض الإيموجيات تتكون من زوج من الرموز مثل أعلام الدول.
+    # Some emojis are two regional indicators (flags).
     if len(base_chars) == 2 and all(0x1F1E6 <= ord(ch) <= 0x1F1FF for ch in base_chars):
         return True
 
@@ -6897,7 +5110,7 @@ def _is_single_emoji_message(content: str) -> bool:
 
 
 def _emoji_button_data(emoji: str):
-    """يعيد البيانات اللازمة لزر Discord سواء كان Unicode أو Custom Emoji."""
+    """Return the appropriate data for a Discord button, whether Unicode or Custom Emoji."""
     if re.fullmatch(r"<a?:\w+:\d+>", emoji):
         match = re.fullmatch(r"<(a?):(\w+):(\d+)>", emoji)
         animated, name, emoji_id = match.groups()
@@ -6938,14 +5151,14 @@ class EmojiMemoryView(discord.ui.View):
     async def choose(self, interaction: discord.Interaction, index: int):
         if interaction.user.id != self.player_id:
             await interaction.response.send_message(
-                "❌ هذه اللعبة ليست لك.",
+                "❌ This game is not for you.",
                 ephemeral=True,
             )
             return
 
         if self.answered:
             await interaction.response.send_message(
-                "ℹ️ لقد أجبت على هذه الجولة بالفعل.",
+                "ℹ️ You already answered this round.",
                 ephemeral=True,
             )
             return
@@ -6957,23 +5170,23 @@ class EmojiMemoryView(discord.ui.View):
         correct = index == self.target_index
         if correct:
             add_balance(self.player_id, 30)
-            title = "🎉 إجابة صحيحة!"
+            title = "🎉 Correct!"
             description = (
-                f"أحسنت! كان **{self.target_emoji}** في المكان **{self.target_index + 1}**.\n"
-                "💰 حصلت على **30 طولار**."
+                f"Well done! **{self.target_emoji}** was at position **{self.target_index + 1}**.\n"
+                "💰 You earned **30 Tolar**."
             )
             color = discord.Color.green()
         else:
-            # لا نسمح بانخفاض الرصيد تحت الصفر.
+            # Do not let balance go below zero.
             current_balance = get_balance(self.player_id)
             penalty = min(10, max(0, current_balance))
             if penalty:
                 remove_balance(self.player_id, penalty)
 
-            title = "❌ إجابة خاطئة!"
+            title = "❌ Wrong!"
             description = (
-                f"كان **{self.target_emoji}** في المكان **{self.target_index + 1}**.\n"
-                f"💸 تم خصم **{penalty} طولار** من رصيدك."
+                f"**{self.target_emoji}** was at position **{self.target_index + 1}**.\n"
+                f"💸 **{penalty} Tolar** deducted from your balance."
             )
             color = discord.Color.red()
 
@@ -6986,13 +5199,13 @@ class EmojiMemoryView(discord.ui.View):
             color=color,
         )
         embed.add_field(
-            name="الإيموجي المطلوب",
+            name="Target Emoji",
             value=self.target_emoji,
             inline=True,
         )
         embed.add_field(
-            name="المكان الصحيح",
-            value=f"الزر رقم **{self.target_index + 1}**",
+            name="Correct Position",
+            value=f"Button **{self.target_index + 1}**",
             inline=True,
         )
         await interaction.response.edit_message(embed=embed, view=self)
@@ -7014,10 +5227,10 @@ class EmojiMemoryView(discord.ui.View):
 
         if self.message:
             embed = discord.Embed(
-                title="⏰ انتهى الوقت!",
+                title="⏰ Time's up!",
                 description=(
-                    f"كان **{self.target_emoji}** في المكان **{self.target_index + 1}**.\n"
-                    f"💸 تم خصم **{penalty} طولار** من رصيدك."
+                    f"**{self.target_emoji}** was at position **{self.target_index + 1}**.\n"
+                    f"💸 **{penalty} Tolar** deducted from your balance."
                 ),
                 color=discord.Color.red(),
             )
@@ -7033,7 +5246,7 @@ async def start_emoji_memory_game(message: discord.Message, target_emoji: str = 
     if player_id in EMOJI_MEMORY_ACTIVE:
         return
 
-    # إذا لم يُحدَّد إيموجي صراحةً، تختار اللعبة إيموجياً عشوائياً.
+    # If no specific emoji is given, pick a random one.
     emoji_pool = [
         "😀", "😂", "😎", "🥳", "😈", "🤖", "👻", "🐼",
         "🦊", "🐸", "🐵", "🐯", "🦄", "🐙", "🍕", "🍔",
@@ -7063,19 +5276,19 @@ async def start_emoji_memory_game(message: discord.Message, target_emoji: str = 
     )
 
     embed = discord.Embed(
-        title="🧠 حاول أن تتذكر مكان الإيموجيات",
+        title="🧠 Try to remember the emoji positions",
         description=(
-            "احفظ أماكن الإيموجيات جيداً!\n\n"
-            "بعد **3 ثوانٍ** ستختفي الإيموجيات، وسأسألك عن مكان الإيموجي الذي كتبته."
+            "Memorise the positions of the emojis well!\n\n"
+            "After **3 seconds**, the emojis will disappear, and I'll ask you where the emoji you typed is."
         ),
         color=discord.Color.blurple(),
     )
     embed.add_field(
-        name="الإيموجيات",
+        name="Emojis",
         value="  ".join(f"**{i + 1}.** {emoji}" for i, emoji in enumerate(cells)),
         inline=False,
     )
-    embed.set_footer(text="⏳ تذكّر الأماكن...")
+    embed.set_footer(text="⏳ Memorise the positions...")
 
     try:
         sent = await message.channel.send(
@@ -7090,8 +5303,7 @@ async def start_emoji_memory_game(message: discord.Message, target_emoji: str = 
         if view.answered:
             return
 
-        # بعد 3 ثوانٍ: نخفي الإيموجيات من نص الأزرار، ونُبقي الأرقام
-        # حتى يختار اللاعب مكان الإيموجي الذي كتبه.
+        # After 3 seconds: hide the emojis from the buttons, keep only numbers
         for child in view.children:
             if isinstance(child, discord.ui.Button):
                 child.emoji = None
@@ -7100,14 +5312,14 @@ async def start_emoji_memory_game(message: discord.Message, target_emoji: str = 
                 )
 
         question_embed = discord.Embed(
-            title="🧠 أين مكان الإيموجي؟",
+            title="🧠 Where is the emoji?",
             description=(
-                f"أين كان الإيموجي **{target}**؟\n\n"
-                "اختر رقم المكان الصحيح من الأزرار بالأسفل."
+                f"Where was the **{target}** emoji?\n\n"
+                "Choose the correct position from the buttons below."
             ),
             color=discord.Color.gold(),
         )
-        question_embed.set_footer(text="⏱️ لديك 30 ثانية للإجابة")
+        question_embed.set_footer(text="⏱️ You have 30 seconds to answer")
 
         await sent.edit(embed=question_embed, view=view)
 
@@ -7118,23 +5330,29 @@ async def start_emoji_memory_game(message: discord.Message, target_emoji: str = 
 
 @bot.event
 async def on_message(message):
-    """معالجة الردود التلقائية والإيموجيات/الستيكرات ثم تمرير الرسالة للأوامر.
+    """Process automatic replies, emojis/stickers, and then pass the message to commands.
 
-    مهم: يجب استدعاء process_commands حتى عند حدوث خطأ في أي جزء من
-    معالجة الرسالة، وإلا فإن أوامر @bot.command لن تعمل.
+    Important: process_commands must be called even if an error occurs in any part
+    of the message handling, otherwise @bot.command commands won't work.
     """
     if message.author.bot:
         await bot.process_commands(message)
         return
 
     try:
-        # لعبة تذكّر مكان الإيموجي: تعمل عند كتابة كلمة "ايموجي" بالضبط.
-        # يتم اختيار الإيموجي الهدف عشوائياً داخل اللعبة.
-        if message.content.strip().lower() == "ايموجي":
+        # 🎬 Instagram / TikTok download as soon as the link arrives
+        social_match = _SOCIAL_VIDEO_RE.search(message.content)
+        if social_match:
+            await _download_and_send_social_video(message, social_match.group(0))
+            return
+
+        # Emoji memory game: triggered when the user types exactly "emoji".
+        # The target emoji is chosen randomly inside the game.
+        if message.content.strip().lower() == "emoji":
             await start_emoji_memory_game(message)
             return
 
-        # 1. ردود الكلمات
+        # 1. Keyword replies
         content = message.content.strip()
         for reply in replies_cache["word"]:
             trigger = str(reply.get("trigger", ""))
@@ -7150,7 +5368,7 @@ async def on_message(message):
                     except Exception as e:
                         print(f"[AUTO-REPLY REACTION ERROR] {type(e).__name__}: {e}")
 
-        # 2. ردود الأعضاء (عند المنشن)
+        # 2. Member replies (on mention)
         if message.mentions:
             for member in message.mentions:
                 uid = str(member.id)
@@ -7166,12 +5384,11 @@ async def on_message(message):
                                 await message.add_reaction(emoji)
                             except Exception as e:
                                 print(f"[AUTO-REPLY MEMBER REACTION ERROR] {type(e).__name__}: {e}")
-                    break  # نكتفي بأول عضو تم منشنته
+                    break  # Only handle the first mentioned member
 
-        # 3. تكبير الإيموجيات والستيكرات في روم الافتار
+        # 3. Enlarge emojis and stickers in the avatar channel
         if message.channel.id == THEFT_CHANNEL_ID:
-            # discord.py لا يوفّر message.custom_emojis.
-            # نستخرج Custom Emojis من محتوى الرسالة بصيغة Discord القياسية.
+            # Extract custom emojis from the message content using Discord's standard format
             custom_emojis = re.findall(
                 r"<(?P<animated>a?):(?P<name>\w+):(?P<id>\d+)>",
                 message.content,
@@ -7183,39 +5400,39 @@ async def on_message(message):
                 emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{extension}"
                 await enlarge_and_send(message.channel, emoji_url, "emoji")
 
-            # معالجة الستيكرات
+            # Handle stickers
             if message.stickers:
                 sticker = message.stickers[0]
                 await enlarge_and_send(message.channel, sticker.url, "sticker")
 
     except Exception as e:
-        # لا نسمح لخطأ في الردود التلقائية أو الإيموجيات بمنع الأوامر.
+        # Do not let errors in auto‑replies or emojis prevent commands.
         print(f"[ON_MESSAGE ERROR] {type(e).__name__}: {e}")
     finally:
-        # هذا الاستدعاء ضروري لأننا نستخدم on_message مخصصًا.
+        # This call is required because we have a custom on_message.
         await bot.process_commands(message)
 
 
-# تحديث الكاش عند الإطلاق/إعادة الاتصال.
+# Update cache on startup/reconnect.
 @bot.event
 async def on_ready():
     global replies_cache
     replies_cache = load_replies()
     print(
         f"✅ Bot is ready! Logged in as {bot.user} "
-        f"| تم تحميل {len(replies_cache['member'])} عضو و {len(replies_cache['word'])} رد كلمة."
+        f"| Loaded {len(replies_cache['member'])} members and {len(replies_cache['word'])} keyword replies."
     )
     bot.add_view(TicketView())
     bot.add_view(TicketDeleteView())
 
 
-# تشغيل البوت باستخدام متغير بيئة على Render.
-# لا تضع التوكن داخل الملف حتى لا يتسرب إلى GitHub أو الملفات المرفوعة.
+# Run the bot using an environment variable on Render.
+# Do not put the token directly in the file to avoid leaking it.
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 if not DISCORD_TOKEN:
     raise RuntimeError(
-        "❌ لم يتم العثور على DISCORD_TOKEN. "
-        "أضف متغير البيئة DISCORD_TOKEN في Render > Environment."
+        "❌ DISCORD_TOKEN not found. "
+        "Add the environment variable DISCORD_TOKEN in Render > Environment."
     )
 
 bot.run(DISCORD_TOKEN)
